@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from function_numpy import search,search_first_postion
 import sys
+from mpl_toolkits.mplot3d import Axes3D
 #实现自适应采点算法
 #首先将轨道与同一点的采样分开
 #其次将theta与contour采样绑定
@@ -74,7 +75,7 @@ class model():#initialize parameter
     def get_zeta_l(self,trajectory_centroid_l,theta):#获得等高线采样的zeta
         rho=self.rho
         rel_centroid=rho*np.cos(theta)+1j*rho*np.sin(theta)
-        zeta_l=self.to_lowmass(self.to_centroid(trajectory_centroid_l)+rel_centroid)
+        zeta_l=trajectory_centroid_l+rel_centroid
         return zeta_l
     def get_poly_coff(self,zeta_l):
         s=self.s
@@ -111,16 +112,14 @@ class model():#initialize parameter
                 temp=self.find_nearest(root_i_re_1,root_i)
             roots[k,:]=temp
         roots_parity=self.parity(roots)
-        return self.to_centroid(roots),self.to_centroid(roots_unverify),roots_parity
+        return roots,roots_parity#get roots in lowmass coordinate
     def roots_print(self,roots,roots_parity):
         np.savetxt('result/roots.txt',np.around(roots,4),delimiter=',',fmt='%1.4f')
         np.savetxt('result/parity.txt',np.around(roots_parity,4),delimiter=',',fmt='%1.1f')
-    def image_match(self,theta,roots,parity):#roots in centroid coordinate
+    def image_match(self,theta,roots,parity):#roots in lowmass coordinate
         sample_n=np.shape(roots)[0]
         theta_map=[]
         uncom_theta_map=[]
-        rho=self.rho
-        mag=0
         curve=[]
         uncom_curve=[]
         temp_idx=[]
@@ -134,10 +133,9 @@ class model():#initialize parameter
             if (len(parity_ik)==sample_n) & ((np.round(roots[0,k]-roots[-1,k],4))==0):
                 cur=roots[:,k]
                 curve+=[cur];theta_map+=[theta]
-                value,counts=np.unique(parity_ik,return_counts=True)
+                '''value,counts=np.unique(parity_ik,return_counts=True)
                 ind=np.argmax(counts)
-                parity_most=value[ind]
-                mag+=parity_most*np.sum((cur.imag[0:-1]+cur.imag[1:])*(cur.real[0:-1]-cur.real[1:]))
+                parity_most=value[ind]'''
             elif (len(parity_ik)==sample_n) & (np.abs(np.round(roots[0,k]-roots[-1,k],4))!=0):
                 uncom_curve+=[roots[:,k]];uncom_theta_map+=[theta]
                 flag2=1#flag2 is the uncompleted arc so we store it to uncom_curve
@@ -147,6 +145,10 @@ class model():#initialize parameter
         if flag==1:##split all roots with nan and caulcate mag
             temp_roots=roots[:,temp_idx]
             temp_parity=parity[:,temp_idx]
+            change_sum=np.sum(temp_parity,axis=1)
+            change=np.isin(1,change_sum).any()
+            if np.isin(1,change_sum).any():#只处理parity 是 -1 1 -1的情况，否则转换为 -1 1 -1的情况
+                temp_parity*=-1
             initk,initm,counts=search_first_postion(temp_roots,temp_parity,temp_idx)
             cur,cur_theta_map=search(initk,initm,temp_roots,temp_parity,[],counts,theta,[])
             cur=np.array(cur)
@@ -157,7 +159,6 @@ class model():#initialize parameter
             else:
                 curve+=[cur]
                 theta_map+=[cur_theta_map]
-                mag+=np.abs(np.sum((cur.imag[0:-1]+cur.imag[1:])*(cur.real[0:-1]-cur.real[1:])))
         if flag2:
             cur=uncom_curve[0]
             cur_theta_map=uncom_theta_map[0]
@@ -172,45 +173,49 @@ class model():#initialize parameter
                         uncom_curve_n-=1
             curve+=[cur]
             theta_map+=[cur_theta_map]
-            mag+=np.abs(np.sum((cur.imag[0:-1]+cur.imag[1:])*(cur.real[0:-1]-cur.real[1:])))
-        return mag/(2*(np.pi*rho**2)),curve,theta_map
-    def derivative(self,matched_image):
-        zeta_l=matched_image
-        zeta_conj=np.conj(zeta_l)
-        q=self.q
-        s=self.s
-        theta=self.theta
-        parZetaConZ=1/(1+q)*(1/(zeta_conj-s)**2+q/zeta_conj**2)
-        par2ZetaConZ=-2/(1+q)*(1/(zeta_conj-s)**3+q/(zeta_conj)**3)
-        par2ConZetaZ=-2/(1+q)*(1/(zeta_l-s)**3+q/(zeta_l)**3)
-        de_zeta=1j*self.rho*np.exp(1j*theta)
-        de2_zeta=-self.rho*np.exp(1j*theta)
-        detJ=1-np.abs(parZetaConZ)**2
-        de_z=(de_zeta-parZetaConZ*np.conj(de_zeta))/detJ
-        de2_z=(de2_zeta-par2ZetaConZ*(np.conj(de_z)**2)-parZetaConZ*(np.conj(de2_zeta)-par2ConZetaZ*(de_z)**2))/detJ
-        deXProde2X=(self.rho**2+np.imag(de_z**2*de_zeta*par2ConZetaZ))/detJ
-        return deXProde2X
+        return curve,theta_map
     def get_magnifaction(self):
-        theta=np.linspace(0,2*np.pi,1000)
         trajectory_l=self.trajectory_l
         trajectory_n=self.trajectory_n
-        light_curve=[]
-        curve_all=[]
+        mag_curve=[]
+        #error_curve=[]
+        image_contour_all=[]
         for i in range(trajectory_n):
-            zeta_l=self.get_zeta_l(trajectory_l[i],theta)
+            mag=0
+            #error=0
+            theta_init=np.linspace(0,2*np.pi,1000)
+            zeta_l=self.get_zeta_l(trajectory_l[i],theta_init)
             coff=self.get_poly_coff(zeta_l)
-            roots,roots_unverify,parity=self.poly_root_c(zeta_l,coff)
-            mag,curve,theta_map=self.image_match(theta,roots,parity)
-            light_curve+=[mag]
-            curve_all+=[curve]
-        self.curve=curve_all
-        return np.array(light_curve)
+            roots,parity=self.poly_root_c(zeta_l,coff)
+            if i==12:
+                print(47)
+                self.roots_print(roots,parity)
+            curve,theta_map=self.image_match(theta_init,roots,parity)
+            for k in range(len(curve)):
+                cur=curve[k]
+                theta_map_k=theta_map[k]
+                mag_k=1/2*np.sum((cur.imag[0:-1]+cur.imag[1:])*(cur.real[0:-1]-cur.real[1:]))
+                parity=np.sign(mag_k)
+                parity=self.parity(cur[0])
+                mag+=parity*mag_k
+                '''Error=error_estimator(self.q,self.s,self.rho,cur,theta_map_k,theta_init)
+                error,dap=Error.error_ordinary()
+                error_c,dacp,critial_idx=Error.error_critial()
+                error_total=np.sum(error+error_c)
+                mag+=parity*np.sum(dap)#抛物线近似的补偿项
+                mag+=parity*np.sum(dacp)#critial 附近的抛物线近似'''
+            mag=mag/(np.pi*self.rho**2)
+            mag_curve+=[mag]
+            #error_curve+=[error_total]
+            image_contour_all+=[curve]
+        self.image_contour_all=image_contour_all
+        return np.array(mag_curve)
     def draw_anim(self,fig,axis):#given  a series of roots return picture
         ims=[]
         theta=np.linspace(0,2*np.pi,100)
         trajectory_n=self.trajectory_n
         trajectory_l=self.trajectory_l
-        curve=self.curve
+        curve=self.image_contour_all
         for i in range(trajectory_n):
             zeta=self.to_centroid(self.get_zeta_l(trajectory_l[i],theta))
             img_root=[]
@@ -218,9 +223,85 @@ class model():#initialize parameter
             img2,=axis.plot(zeta.real,zeta.imag,color='r',label=str(i))
             ttl = plt.text(0.5, 1.01, i, horizontalalignment='center', verticalalignment='bottom', transform=axis.transAxes)
             for k in range(len(curve[i])):
-                img1,=axis.plot(curve[i][k].real,curve[i][k].imag,color=rgb[k])
+                img1,=axis.plot(self.to_centroid(curve[i][k]).real,self.to_centroid(curve[i][k]).imag,color=rgb[k])
                 img_root+=[img1]
             ims.append(img_root+[img2]+[ttl])
         ani=animation.ArtistAnimation(fig,ims,interval=100,repeat_delay=1000)
         writervideo = animation.FFMpegWriter(fps=30) 
         ani.save('picture/animation.mp4',writer=writervideo)
+class error_estimator(object):
+    def __init__(self,q,s,rho,matched_image_l,theta_map,theta_init):
+        self.q=q;self.s=s;self.rho=rho
+        zeta_l=matched_image_l;self.zeta_l=zeta_l
+        theta=theta_map;self.theta=theta
+        self.theta_init=theta_init
+        zeta_conj=np.conj(self.zeta_l)
+        parZetaConZ=1/(1+q)*(1/(zeta_conj-s)**2+q/zeta_conj**2);self.parity=s=np.sign((1-np.abs(parZetaConZ)**2))
+        par2ZetaConZ=-2/(1+q)*(1/(zeta_conj-s)**3+q/(zeta_conj)**3);par2ConZetaZ=-2/(1+q)*(1/(zeta_l-s)**3+q/(zeta_l)**3)
+        de_zeta=1j*self.rho*np.exp(1j*theta)
+        de2_zeta=-self.rho*np.exp(1j*theta)
+        detJ=1-np.abs(parZetaConZ)**2
+        de_z=(de_zeta-parZetaConZ*np.conj(de_zeta))/detJ
+        de2_z=(de2_zeta-par2ZetaConZ*(np.conj(de_z)**2)-parZetaConZ*(np.conj(de2_zeta)-par2ConZetaZ*(de_z)**2))/detJ
+        deXProde2X=(self.rho**2+np.imag(de_z**2*de_zeta*par2ConZetaZ))/detJ
+        self.product=deXProde2X
+        self.de_z=de_z
+        self.delta_theta_smooth()
+    def delta_theta_smooth(self):
+        theta=self.theta
+        delta_theta=np.diff(theta)
+        delta_theta[np.where(delta_theta>np.pi)]-=2*np.pi
+        delta_theta[np.where(delta_theta<-np.pi)]+=2*np.pi
+        self.delta_theta=delta_theta
+    def dot_product(self,a,b):
+        return np.real(a)*np.real(b)+np.conj(a)*np.conj(b)
+    def error_ordinary(self):
+        theta=self.theta
+        deXProde2X=self.product
+        delta_theta=self.delta_theta
+        zeta_l=self.zeta_l
+        e1=np.abs(1/48*np.abs(np.abs(deXProde2X[0:-1]-np.abs(deXProde2X[1:])))*delta_theta**3)
+        dAp_1=1/24*((deXProde2X[0:-1]+deXProde2X[1:]))*delta_theta
+        dAp=dAp_1*delta_theta**2
+        delat_theta_wave=np.abs(zeta_l[0:-1]-zeta_l[1:])**2/np.abs(self.dot_product(self.de_z[0:-1],self.de_z[1:]))
+        e2=3/2*np.abs(dAp_1*(delat_theta_wave-delta_theta**2))
+        e3=1/10*np.abs(dAp)*delta_theta**2
+        e_tot=e1+e2+e3
+        return e_tot/(np.pi*self.rho**2),dAp
+    def error_critial(self):
+        zeta_l=self.zeta_l
+        de_z=self.de_z
+        deXProde2X=self.product
+        parity=self.parity
+        parity_diff=np.diff(parity)
+        critial_points=np.nonzero(parity_diff)[0]
+        temp=np.copy(parity_diff)
+        temp[critial_points+1]=1
+        cond=(temp!=0)
+        pos_idx=np.argwhere((parity[0:-1]==1)&(cond));zeta_pos=zeta_l[pos_idx]
+        neg_idx=np.argwhere((parity[0:-1]==-1)&(cond));zeta_neg=zeta_l[neg_idx]
+        theta_wave=np.abs(zeta_pos-zeta_neg)/np.sqrt(np.abs(self.dot_product(zeta_pos,zeta_neg)))
+        dAcP=1/24*(deXProde2X[pos_idx]-deXProde2X[neg_idx])*theta_wave**3
+        ce1=1/48*np.abs(deXProde2X[pos_idx]+deXProde2X[neg_idx])*theta_wave**3
+        Is_create=np.greater(neg_idx,pos_idx)*2-1#1 for ture -1 for false
+        ce2=3/2*np.abs(self.dot_product(zeta_pos-zeta_neg,de_z[pos_idx]-de_z[neg_idx])-Is_create*2*np.abs(zeta_pos-zeta_neg)*np.sqrt(np.abs(self.dot_product(zeta_pos,zeta_neg))))*theta_wave
+        ce3=1/10*np.abs(dAcP)*theta_wave**2
+        ce_tot=ce1+ce2+ce3
+        return ce_tot/(np.pi*self.rho**2),dAcP,critial_points-Is_create
+    def error_sum(self):
+        e_ord,dap=self.error_ordinary()
+        e_crit,dacp,insert_point=self.error_critial()
+        e_ord[insert_point]+=e_crit
+        error_zeta=np.zeros(len(e_ord))
+        transform=np.sign(self.delta_theta)
+        transform[transform>=0]=0
+        sample_n=len(self.delta_theta)
+        for i in range(sample_n-1):
+            error_zeta[i]=e_ord[i-int(transform[i])]
+        error_theta=np.zeros(len(self.theta_init))
+        theta_map_idx=np.nonzero(np.isin(self.theta_init,self.theta))[0]#找到theta map对应的theta的索引
+        #np.add.at(error_theta,theta_map_idx,error_zeta)
+        fig=plt.figure()
+        ax=Axes3D(fig)
+        ax.plot3D(self.zeta_l.real[0:-1],self.zeta_l.imag[0:-1],error_zeta)
+        plt.show()

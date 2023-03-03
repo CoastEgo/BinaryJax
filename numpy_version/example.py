@@ -8,10 +8,10 @@ import sys
 sys.setrecursionlimit(10000)
 np.seterr(divide='ignore', invalid='ignore')
 if __name__=="__main__":
-    t_0=2452848.06;t_E=61.5;q=0.05;s=0.8;alphadeg=30;b=0.1;rho=0.05;trajectory_n=100;sample_n=500;alpha=alphadeg*2*np.pi/360;delta_x=s/(1+q);m1=1/(1+q);m2=q/(1+q);posi=np.array([0,0])##m1较大 m2较小
+    t_0=2452848.06;t_E=61.5;q=0.05;s=0.8;alphadeg=30;b=0.0526;rho=0.5;trajectory_n=30;alpha=alphadeg*2*np.pi/360;delta_x=s/(1+q);m1=1/(1+q);m2=q/(1+q);posi=np.array([0,0])##m1较大 m2较小
     times=np.linspace(t_0-1.5*t_E,t_0+1.5*t_E,trajectory_n)
     model_uniform=model({'t_0': t_0, 'u_0': b, 't_E': t_E,
-                        'rho': rho, 'q': q, 's': s, 'alpha_deg': alphadeg,'times':times,'sample_n':sample_n})
+                        'rho': rho, 'q': q, 's': s, 'alpha_deg': alphadeg,'times':times})
     model_1S2L = Model({'t_0': t_0, 'u_0': b, 't_E': t_E,
                         'rho': rho, 'q': q, 's': s, 'alpha': alphadeg})
     model_1S2L.set_magnification_methods([t_0-1.5*t_E, 'VBBL',t_0+1.5*t_E])
@@ -37,5 +37,6 @@ if __name__=="__main__":
     if 1:
         plt.figure('de-mag')
         plt.plot(times,np.abs(Mulens_mag-uniform_mag)/Mulens_mag,label='$\Delta$')
+        delta=np.abs(Mulens_mag-uniform_mag)/Mulens_mag
         plt.legend()
         plt.savefig('picture/delta_magnification.png')
