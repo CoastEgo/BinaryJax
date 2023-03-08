@@ -4,6 +4,7 @@ import matplotlib.animation as animation
 from function_numpy import search,search_first_postion
 import sys
 from mpl_toolkits.mplot3d import Axes3D
+import time
 #实现自适应采点算法
 #首先将轨道与同一点的采样分开
 #其次将theta与contour采样绑定
@@ -40,8 +41,8 @@ class model():#initialize parameter
     def find_nearest(self,array1, array2):
         parity1=self.parity(array1)
         parity2=self.parity(array2)
-        array1=array1*parity1
-        array2=array2*parity2
+        array1=array1+10*parity1
+        array2=array2+10*parity2
         idx1=np.where(~np.isnan(array1.real))[0]
         idx1_n=len(idx1)
         idx2=np.where(~np.isnan(array2.real))[0]
@@ -65,7 +66,7 @@ class model():#initialize parameter
                 array2[idx],array2[i]=array2[i],array2[idx]
                 parity2[idx],parity2[i]=parity2[i],parity2[idx]
                 temp[idx]=np.nan
-        return array2/parity2
+        return array2-10*parity2
     def get_trajectory_l(self):
         alpha=self.alpha_rad
         b=self.u_0
@@ -119,9 +120,9 @@ class model():#initialize parameter
     def image_match(self,theta,roots,parity):#roots in lowmass coordinate
         sample_n=np.shape(roots)[0]
         theta_map=[]
-        uncom_theta_map=[]
+        uncom_theta_map_pos=[]
+        uncom_curve_pos=[]
         curve=[]
-        uncom_curve=[]
         temp_idx=[]
         temp_parity=[]
         flag=0
@@ -130,49 +131,60 @@ class model():#initialize parameter
             parity_ik=parity[:,k][~np.isnan(parity.real[:,k])]
             if len(parity_ik)==0:
                 continue
-            if (len(parity_ik)==sample_n) & ((np.round(roots[0,k]-roots[-1,k],4))==0):
+            if (len(parity_ik)==sample_n)&(np.abs(np.round(roots[0,k]-roots[-1,k],4))==0):
                 cur=roots[:,k]
                 curve+=[cur];theta_map+=[theta]
-                '''value,counts=np.unique(parity_ik,return_counts=True)
-                ind=np.argmax(counts)
-                parity_most=value[ind]'''
             elif (len(parity_ik)==sample_n) & (np.abs(np.round(roots[0,k]-roots[-1,k],4))!=0):
-                uncom_curve+=[roots[:,k]];uncom_theta_map+=[theta]
                 flag2=1#flag2 is the uncompleted arc so we store it to uncom_curve
+                uncom_curve_pos+=[roots[:,k]];uncom_theta_map_pos+=[theta]
             else:
                 flag=1#flag1 is the arc crossing caustic so we store it to temp
                 temp_idx+=[k]
         if flag==1:##split all roots with nan and caulcate mag
             temp_roots=roots[:,temp_idx]
             temp_parity=parity[:,temp_idx]
-            change_sum=np.sum(temp_parity,axis=1)
-            change=np.isin(1,change_sum).any()
-            if np.isin(1,change_sum).any():#只处理parity 是 -1 1 -1的情况，否则转换为 -1 1 -1的情况
-                temp_parity*=-1
-            initk,initm,counts=search_first_postion(temp_roots,temp_parity,temp_idx)
-            cur,cur_theta_map=search(initk,initm,temp_roots,temp_parity,[],counts,theta,[])
-            cur=np.array(cur)
-            if np.around(cur[0]-cur[-1],4)!=0:
-                uncom_curve+=[cur]
-                uncom_theta_map+=[cur_theta_map]
-                flag2=1
-            else:
+            while len(temp_idx)!=0:
+                initk,initm,temp_parity=search_first_postion(temp_roots,temp_parity)
+                cur,cur_theta_map,temp_roots,temp_parity=search(initk,initm,temp_roots,temp_parity,[],theta,[])
+                temp_curve=cur
+                temp_cur_theta_map=cur_theta_map
+                if (initk!=0)&(initk!=-1):
+                    temp_curve=np.append(temp_curve,temp_curve[0])
+                    temp_cur_theta_map=np.append(temp_cur_theta_map,temp_cur_theta_map[0])
+                theta_map+=[temp_cur_theta_map]
+                temp_idx=np.where(~np.isnan(temp_roots).all(axis=0))[0]
+                temp_roots=temp_roots[:,temp_idx]
+                temp_parity=temp_parity[:,temp_idx]
+                if np.around(temp_curve[0]-temp_curve[-1],4)==0:
+                    curve+=[temp_curve]
+                    theta_map+=[temp_cur_theta_map]
+                else:
+                    uncom_curve_pos+=[temp_curve]
+                    uncom_theta_map_pos+=[temp_cur_theta_map]
+                    flag2=1
+        if flag2:
+            if len(uncom_curve_pos)!=0:
+                uncom_curve=uncom_curve_pos
+                uncom_theta_map=uncom_theta_map_pos
+                cur=uncom_curve[0]
+                cur_theta_map=uncom_theta_map[0]
+                uncom_curve_n=len(uncom_curve)-1
+                while uncom_curve_n>0:
+                    for k in range(1,len(uncom_curve)):
+                        tail=cur[-1]
+                        head=uncom_curve[k][0]
+                        if np.around(tail-head,4)==0:
+                            cur=np.append(cur,uncom_curve[k][1:])
+                            cur_theta_map=np.append(cur_theta_map,uncom_theta_map[k][1:])
+                            uncom_curve_n-=1
+                        else:
+                            head=uncom_curve[k][-1]
+                            if np.around(tail-head,4)==0:
+                                cur=np.append(cur,uncom_curve[k][-1::-1])
+                                cur_theta_map=np.append(cur_theta_map,uncom_theta_map[k][-1::-1])
+                                uncom_curve_n-=1
                 curve+=[cur]
                 theta_map+=[cur_theta_map]
-        if flag2:
-            cur=uncom_curve[0]
-            cur_theta_map=uncom_theta_map[0]
-            uncom_curve_n=len(uncom_curve)-1
-            while uncom_curve_n>0:
-                for k in range(1,len(uncom_curve)):
-                    tail=cur[-1]
-                    head=uncom_curve[k][0]
-                    if np.around(tail-head,4)==0:
-                        cur=np.append(cur,uncom_curve[k][1:])
-                        cur_theta_map=np.append(cur_theta_map,uncom_theta_map[k][1:])
-                        uncom_curve_n-=1
-            curve+=[cur]
-            theta_map+=[cur_theta_map]
         return curve,theta_map
     def get_magnifaction(self):
         trajectory_l=self.trajectory_l
@@ -183,19 +195,19 @@ class model():#initialize parameter
         for i in range(trajectory_n):
             mag=0
             #error=0
-            theta_init=np.linspace(0,2*np.pi,1000)
+            theta_init=np.linspace(0,2*np.pi,100)
             zeta_l=self.get_zeta_l(trajectory_l[i],theta_init)
             coff=self.get_poly_coff(zeta_l)
             roots,parity=self.poly_root_c(zeta_l,coff)
-            if i==12:
-                print(47)
-                self.roots_print(roots,parity)
+            if i==14:
+                #self.roots_print(roots,parity)
+                print(10)
+            print(i)
             curve,theta_map=self.image_match(theta_init,roots,parity)
             for k in range(len(curve)):
                 cur=curve[k]
                 theta_map_k=theta_map[k]
                 mag_k=1/2*np.sum((cur.imag[0:-1]+cur.imag[1:])*(cur.real[0:-1]-cur.real[1:]))
-                parity=np.sign(mag_k)
                 parity=self.parity(cur[0])
                 mag+=parity*mag_k
                 '''Error=error_estimator(self.q,self.s,self.rho,cur,theta_map_k,theta_init)
@@ -219,11 +231,10 @@ class model():#initialize parameter
         for i in range(trajectory_n):
             zeta=self.to_centroid(self.get_zeta_l(trajectory_l[i],theta))
             img_root=[]
-            rgb=['b','g','y','c','m']
             img2,=axis.plot(zeta.real,zeta.imag,color='r',label=str(i))
             ttl = plt.text(0.5, 1.01, i, horizontalalignment='center', verticalalignment='bottom', transform=axis.transAxes)
             for k in range(len(curve[i])):
-                img1,=axis.plot(self.to_centroid(curve[i][k]).real,self.to_centroid(curve[i][k]).imag,color=rgb[k])
+                img1,=axis.plot(self.to_centroid(curve[i][k]).real,self.to_centroid(curve[i][k]).imag)
                 img_root+=[img1]
             ims.append(img_root+[img2]+[ttl])
         ani=animation.ArtistAnimation(fig,ims,interval=100,repeat_delay=1000)
