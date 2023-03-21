@@ -27,20 +27,210 @@ class model():#initialize parameter
         self.m1=1/(1+self.q)
         self.m2=self.q/(1+self.q)
         self.trajectory_l=self.get_trajectory_l()
-    def verify(self,zeta_l,z_l):#verify whether the root is right
-        return  z_l-self.m1/(np.conj(z_l)-self.s)-self.m2/np.conj(z_l)-zeta_l
-    def parity(self,z):#get the parity of roots
-        de_conjzeta_z1=self.m1/(np.conj(z)-self.s)**2+self.m2/np.conj(z)**2
-        return np.sign((1-np.abs(de_conjzeta_z1)**2))
     def to_centroid(self,x):#change coordinate system to cetorid
         delta_x=self.s/(1+self.q)
         return -(np.conj(x)-delta_x)
     def to_lowmass(self,x):#change coordinaate system to lowmass
         delta_x=self.s/(1+self.q)
         return -np.conj(x)+delta_x
+    def get_trajectory_l(self):
+        alpha=self.alpha_rad
+        b=self.u_0
+        trajectory_c=np.array([i*np.cos(alpha)-b*np.sin(alpha)+1j*(b*np.cos(alpha)+i*np.sin(alpha)) for i in self.times])
+        trajectory_l=self.to_lowmass(trajectory_c)
+        return trajectory_l
+    def get_zeta_l(self,trajectory_centroid_l,theta):#获得等高线采样的zeta
+        rho=self.rho
+        rel_centroid=rho*np.cos(theta)+1j*rho*np.sin(theta)
+        zeta_l=trajectory_centroid_l+rel_centroid
+        return zeta_l
+    def get_poly_coff(self,zeta_l):
+        s=self.s
+        m2=self.m2
+        zeta_conj=np.conj(zeta_l)
+        c0=s**2*zeta_l*m2**2
+        c1=-s*m2*(2*zeta_l+s*(-1+s*zeta_l-2*zeta_l*zeta_conj+m2))
+        c2=zeta_l-s**3*zeta_l*zeta_conj+s*(-1+m2-2*zeta_conj*zeta_l*(1+m2))+s**2*(zeta_conj-2*zeta_conj*m2+zeta_l*(1+zeta_conj**2+m2))
+        c3=s**3*zeta_conj+2*zeta_l*zeta_conj+s**2*(-1+2*zeta_conj*zeta_l-zeta_conj**2+m2)-s*(zeta_l+2*zeta_l*zeta_conj**2-2*zeta_conj*m2)
+        c4=zeta_conj*(-1+2*s*zeta_conj+zeta_conj*zeta_l)-s*(-1+2*s*zeta_conj+zeta_conj*zeta_l+m2)
+        c5=(s-zeta_conj)*zeta_conj
+        coff=np.stack((c5,c4,c3,c2,c1,c0),axis=1)
+        return coff
+    def image_match(self,solution):#roots in lowmass coordinate
+        sample_n=solution.sample_n;theta=solution.theta;roots=solution.roots;parity=solution.parity;roots_num=solution.roots_number
+        theta_map=[];uncom_theta_map=[];uncom_sol_num=[];sol_num=[];uncom_curve=[];curve=[]
+        roots_non_nan=np.isnan(roots).sum(axis=0)==0
+        roots_first_eq_last=np.abs(np.round(roots[0,:]-roots[-1,:],6))==0
+        complete_cond=(roots_non_nan&roots_first_eq_last)
+        uncomplete_cond=(roots_non_nan&(~roots_first_eq_last))
+        curve+=list(roots[:,complete_cond].T)
+        theta_map+=[theta]*np.sum(complete_cond);sol_num+=[roots_num]*np.sum(complete_cond)
+        flag=0;flag2=0
+        if uncomplete_cond.any():
+            flag2=1
+            uncom_curve+=list(roots[:,uncomplete_cond].T)
+            uncom_theta_map+=[theta]*np.sum(uncomplete_cond)
+            uncom_sol_num+=[roots_num]*np.sum(uncomplete_cond)
+        if ((np.isnan(roots).sum(axis=0)!=sample_n)&(~roots_non_nan)).any():
+            flag=1
+            temp_idx=np.where((np.isnan(roots).sum(axis=0)!=sample_n)&(~roots_non_nan))[0]#the arc crossing caustic we store it to temp
+        if flag:##split all roots with nan and caulcate mag
+            temp_roots=roots[:,temp_idx]
+            temp_parity=parity[:,temp_idx]
+            while np.shape(temp_idx)[0]!=0:
+                initk,initm,temp_parity=search_first_postion(temp_roots,temp_parity)
+                roots_c=np.copy(temp_roots)
+                m_map,n_map,temp_roots,temp_parity=search([initk],[initm],temp_roots,temp_parity,temp_roots[initk,initm])
+                if (initk!=0)&(initk!=-1):
+                    m_map+=[m_map[0]]
+                    n_map+=[n_map[0]]
+                temp_curve=roots_c[m_map,n_map];temp_cur_theta_map=theta[m_map];temp_cur_num_map=roots_num[m_map]
+                temp_idx=np.where((~np.isnan(temp_roots)).all(axis=0))[0]
+                temp_roots=temp_roots[:,temp_idx]
+                temp_parity=temp_parity[:,temp_idx]
+                if np.around(temp_curve[0]-temp_curve[-1],6)==0:
+                    curve+=[temp_curve];theta_map+=[temp_cur_theta_map];sol_num+=[temp_cur_num_map]
+                else:
+                    uncom_curve+=[temp_curve];uncom_theta_map+=[temp_cur_theta_map];uncom_sol_num+=[temp_cur_num_map]
+                    flag2=1
+        if flag2:#flag2 is the uncompleted arc so we store it to uncom_curve
+            if len(uncom_curve)!=0:
+                arc=uncom_curve[0]
+                arc_theta=uncom_theta_map[0]
+                arc_num=uncom_sol_num[0]
+                length=len(uncom_curve)-1
+                while length>0:
+                    for k in range(1,len(uncom_curve)):
+                        tail=arc[-1]
+                        head=uncom_curve[k][0]
+                        if np.around(tail-head,6)==0:
+                            arc=np.append(cur,uncom_curve[k][1:])
+                            arc_theta=np.append(arc_theta,uncom_theta_map[k][1:])
+                            arc_num=np.append(arc_num,uncom_sol_num[k][1:])
+                            length-=1
+                        else:
+                            head=uncom_curve[k][-1]
+                            if np.around(tail-head,4)==0:
+                                cur=np.append(cur,uncom_curve[k][-1::-1])
+                                arc_theta=np.append(arc_theta,uncom_theta_map[k][-1::-1])
+                                arc_num=np.append(arc_num,uncom_sol_num[k][-1::-1])
+                                length-=1
+                curve+=[arc]
+                theta_map+=[arc_theta]
+                sol_num+=[arc_num]
+        return curve,theta_map,sol_num
+    def get_magnifaction(self):
+        trajectory_l=self.trajectory_l
+        trajectory_n=self.trajectory_n
+        mag_curve=[];ord_curve=[];cri_curve=[]
+        image_contour_all=[]
+        for i in range(trajectory_n):
+            mag=0;ord=0;cri=0
+            theta_init=np.linspace(0,2*np.pi,1000)
+            zeta_l=self.get_zeta_l(trajectory_l[i],theta_init)
+            coff=self.get_poly_coff(zeta_l)
+            solution=Solution(self.q,self.s,zeta_l,coff,theta_init)
+            print(i)
+            if i==39:
+                print(i)
+                #solution.roots_print()
+            try:
+                curve,theta,sol_num=self.image_match(solution)
+            except IndexError:
+                print(f'idx{i} occured indexerror please check')
+                quit()
+            '''if i==27:
+                for k in range(len(curve)):
+                    plt.plot(curve[k].real,curve[k].imag)
+                    plt.show()
+                self.roots_print(roots,parity)'''
+            for k in range(len(curve)):
+                cur=curve[k]
+                theta_map_k=theta[k]
+                mag_k=1/2*np.sum((cur.imag[0:-1]+cur.imag[1:])*(cur.real[0:-1]-cur.real[1:]))
+                parity_k=np.sign(mag_k)
+                mag+=parity_k*mag_k
+                Error=Error_estimator(self.q,self.s,self.rho,cur,theta_map_k,theta_init,sol_num[k])
+                error,dap=Error.error_ordinary()
+                error_c,dacp,critial_idx=Error.error_critial()
+                ord+=parity_k*np.sum(dap)#抛物线近似的补偿项
+                cri+=np.sum(dacp)#critial 附近的抛物线近似'''
+                Error.error_sum()
+                #mag+=parity_k*np.sum(dap)
+                #mag+=parity_k*np.sum(dacp)
+            mag=mag/(np.pi*self.rho**2)
+            ord/=(np.pi*self.rho**2)
+            cri/=(np.pi*self.rho**2)
+            mag_curve+=[mag];ord_curve+=[ord];cri_curve+=[cri]
+            #error_curve+=[error_total]
+            image_contour_all+=[curve]
+        self.image_contour_all=image_contour_all
+        return np.array(mag_curve),np.array(ord_curve),np.array(cri_curve)
+    def draw_anim(self,fig,axis):#given  a series of roots return picture
+        ims=[]
+        theta=np.linspace(0,2*np.pi,100)
+        trajectory_n=self.trajectory_n
+        trajectory_l=self.trajectory_l
+        curve=self.image_contour_all
+        for i in range(trajectory_n):
+            zeta=self.to_centroid(self.get_zeta_l(trajectory_l[i],theta))
+            img_root=[]
+            img2,=axis.plot(zeta.real,zeta.imag,color='r',label=str(i))
+            ttl = plt.text(0.5, 1.01, i, horizontalalignment='center', verticalalignment='bottom', transform=axis.transAxes)
+            for k in range(len(curve[i])):
+                img1,=axis.plot(self.to_centroid(curve[i][k]).real,self.to_centroid(curve[i][k]).imag)
+                img_root+=[img1]
+            ims.append(img_root+[img2]+[ttl])
+        ani=animation.ArtistAnimation(fig,ims,interval=100,repeat_delay=1000)
+        writervideo = animation.FFMpegWriter(fps=30) 
+        ani.save('picture/animation.mp4',writer=writervideo)
+class Solution(object):
+    def __init__(self,q,s,zeta_l,coff,theta):
+        self.theta=theta
+        self.q=q;self.s=s;self.m1=1/(1+q);self.m2=q/(1+q)
+        self.zeta_l=zeta_l
+        self.coff=coff
+        self.sample_n=np.shape(zeta_l)[0]
+        self.roots,self.parity,self.roots_number=self.get_sorted_roots()
+    def get_real_roots(self):
+        roots=np.empty((self.sample_n,5),dtype=complex)
+        cond=np.empty((self.sample_n,5),dtype=bool)
+        for k in range(self.sample_n):
+            temp=np.roots(self.coff[k,:])
+            cond[k,:]=np.abs(self.verify(self.zeta_l[k],temp))>1e-6
+            parity_sum=np.nansum(self.get_parity(temp)[~cond[k,:]])
+            if (parity_sum==-1):
+                pass
+            else:
+                error=self.verify(self.zeta_l[k],temp)
+                sorted=np.argsort(error)
+                cond[k,:]=np.where((error==error[sorted[-1]])|(error==error[sorted[-2]]),True,False)
+            temp[cond[k,:]]=np.nan+1j*np.nan
+            roots[k,:]=temp
+        roots_number=5-cond.sum(axis=1)
+        cre_des_idx=np.where(np.diff(roots_number))[0]+1
+        for i in cre_des_idx:
+            if roots_number[i]==5:
+                roots_number[i]=1
+            else:
+                roots_number[i-1]=-1
+        return roots,roots_number
+    def get_sorted_roots(self):
+        sample_n=self.sample_n
+        roots,roots_number=self.get_real_roots()
+        for k in range(sample_n):
+            if k!=0:
+                root_i_re_1=roots[k-1,:]
+            root_i=roots[k,:]
+            if k==0:
+                temp=root_i
+            else:
+                temp=self.find_nearest(root_i_re_1,root_i)
+            roots[k,:]=temp
+        return roots,self.get_parity(roots),roots_number
     def find_nearest(self,array1, array2):
-        parity1=self.parity(array1)
-        parity2=self.parity(array2)
+        parity1=self.get_parity(array1)
+        parity2=self.get_parity(array2)
         array1=array1+10*parity1
         array2=array2+10*parity2
         idx1=np.where(~np.isnan(array1.real))[0]
@@ -67,184 +257,34 @@ class model():#initialize parameter
                 parity2[idx],parity2[i]=parity2[i],parity2[idx]
                 temp[idx]=np.nan
         return array2-10*parity2
-    def get_trajectory_l(self):
-        alpha=self.alpha_rad
-        b=self.u_0
-        trajectory_c=np.array([i*np.cos(alpha)-b*np.sin(alpha)+1j*(b*np.cos(alpha)+i*np.sin(alpha)) for i in self.times])
-        trajectory_l=self.to_lowmass(trajectory_c)
-        return trajectory_l
-    def get_zeta_l(self,trajectory_centroid_l,theta):#获得等高线采样的zeta
-        rho=self.rho
-        rel_centroid=rho*np.cos(theta)+1j*rho*np.sin(theta)
-        zeta_l=trajectory_centroid_l+rel_centroid
-        return zeta_l
-    def get_poly_coff(self,zeta_l):
-        s=self.s
-        m2=self.m2
-        zeta_conj=np.conj(zeta_l)
-        c0=s**2*zeta_l*m2**2
-        c1=-s*m2*(2*zeta_l+s*(-1+s*zeta_l-2*zeta_l*zeta_conj+m2))
-        c2=zeta_l-s**3*zeta_l*zeta_conj+s*(-1+m2-2*zeta_conj*zeta_l*(1+m2))+s**2*(zeta_conj-2*zeta_conj*m2+zeta_l*(1+zeta_conj**2+m2))
-        c3=s**3*zeta_conj+2*zeta_l*zeta_conj+s**2*(-1+2*zeta_conj*zeta_l-zeta_conj**2+m2)-s*(zeta_l+2*zeta_l*zeta_conj**2-2*zeta_conj*m2)
-        c4=zeta_conj*(-1+2*s*zeta_conj+zeta_conj*zeta_l)-s*(-1+2*s*zeta_conj+zeta_conj*zeta_l+m2)
-        c5=(s-zeta_conj)*zeta_conj
-        coff=np.stack((c5,c4,c3,c2,c1,c0),axis=1)
-        return coff
-    def poly_root_c(self,zeta_l,coff):
-        #find and  sort the roots of one trajectory
-        sample_n=len(zeta_l)
-        roots=np.empty((sample_n,5),dtype=complex)
-        roots_unverify=np.empty((sample_n,5),dtype=complex)
-        roots_parity=np.zeros((sample_n,5),dtype=int)
-        temp=np.zeros(5,dtype=complex)
-        for k in range(sample_n):
-            temp=np.roots(coff[k,:])
-            roots_unverify[k,:]=temp
-            cond=np.round(self.verify(zeta_l[k],temp),4)!=0
-            temp[cond]=np.nan+1j*np.nan
-            roots[k,:]=temp
-        for k in range(sample_n):
-            if k!=0:
-                root_i_re_1=roots[k-1,:]
-            root_i=roots[k,:]
-            if k==0:
-                temp=root_i
-            else:
-                temp=self.find_nearest(root_i_re_1,root_i)
-            roots[k,:]=temp
-        roots_parity=self.parity(roots)
-        return roots,roots_parity#get roots in lowmass coordinate
-    def roots_print(self,roots,roots_parity):
-        np.savetxt('result/roots.txt',np.around(roots,4),delimiter=',',fmt='%1.4f')
-        np.savetxt('result/parity.txt',np.around(roots_parity,4),delimiter=',',fmt='%1.1f')
-    def image_match(self,theta,roots,parity):#roots in lowmass coordinate
-        sample_n=np.shape(roots)[0]
-        theta_map=[]
-        uncom_theta_map_pos=[]
-        uncom_curve_pos=[]
-        curve=[]
-        temp_idx=[]
-        temp_parity=[]
-        flag=0
-        flag2=0
-        for k in range(5):
-            parity_ik=parity[:,k][~np.isnan(parity.real[:,k])]
-            if len(parity_ik)==0:
-                continue
-            if (len(parity_ik)==sample_n)&(np.abs(np.round(roots[0,k]-roots[-1,k],4))==0):
-                cur=roots[:,k]
-                curve+=[cur];theta_map+=[theta]
-            elif (len(parity_ik)==sample_n) & (np.abs(np.round(roots[0,k]-roots[-1,k],4))!=0):
-                flag2=1#flag2 is the uncompleted arc so we store it to uncom_curve
-                uncom_curve_pos+=[roots[:,k]];uncom_theta_map_pos+=[theta]
-            else:
-                flag=1#flag1 is the arc crossing caustic so we store it to temp
-                temp_idx+=[k]
-        if flag==1:##split all roots with nan and caulcate mag
-            temp_roots=roots[:,temp_idx]
-            temp_parity=parity[:,temp_idx]
-            while len(temp_idx)!=0:
-                initk,initm,temp_parity=search_first_postion(temp_roots,temp_parity)
-                cur,cur_theta_map,temp_roots,temp_parity=search(initk,initm,temp_roots,temp_parity,[],theta,[])
-                temp_curve=cur
-                temp_cur_theta_map=cur_theta_map
-                if (initk!=0)&(initk!=-1):
-                    temp_curve=np.append(temp_curve,temp_curve[0])
-                    temp_cur_theta_map=np.append(temp_cur_theta_map,temp_cur_theta_map[0])
-                theta_map+=[temp_cur_theta_map]
-                temp_idx=np.where(~np.isnan(temp_roots).all(axis=0))[0]
-                temp_roots=temp_roots[:,temp_idx]
-                temp_parity=temp_parity[:,temp_idx]
-                if np.around(temp_curve[0]-temp_curve[-1],4)==0:
-                    curve+=[temp_curve]
-                    theta_map+=[temp_cur_theta_map]
-                else:
-                    uncom_curve_pos+=[temp_curve]
-                    uncom_theta_map_pos+=[temp_cur_theta_map]
-                    flag2=1
-        if flag2:
-            if len(uncom_curve_pos)!=0:
-                uncom_curve=uncom_curve_pos
-                uncom_theta_map=uncom_theta_map_pos
-                cur=uncom_curve[0]
-                cur_theta_map=uncom_theta_map[0]
-                uncom_curve_n=len(uncom_curve)-1
-                while uncom_curve_n>0:
-                    for k in range(1,len(uncom_curve)):
-                        tail=cur[-1]
-                        head=uncom_curve[k][0]
-                        if np.around(tail-head,4)==0:
-                            cur=np.append(cur,uncom_curve[k][1:])
-                            cur_theta_map=np.append(cur_theta_map,uncom_theta_map[k][1:])
-                            uncom_curve_n-=1
-                        else:
-                            head=uncom_curve[k][-1]
-                            if np.around(tail-head,4)==0:
-                                cur=np.append(cur,uncom_curve[k][-1::-1])
-                                cur_theta_map=np.append(cur_theta_map,uncom_theta_map[k][-1::-1])
-                                uncom_curve_n-=1
-                curve+=[cur]
-                theta_map+=[cur_theta_map]
-        return curve,theta_map
-    def get_magnifaction(self):
-        trajectory_l=self.trajectory_l
-        trajectory_n=self.trajectory_n
-        mag_curve=[]
-        #error_curve=[]
-        image_contour_all=[]
-        for i in range(trajectory_n):
-            mag=0
-            #error=0
-            theta_init=np.linspace(0,2*np.pi,100)
-            zeta_l=self.get_zeta_l(trajectory_l[i],theta_init)
-            coff=self.get_poly_coff(zeta_l)
-            roots,parity=self.poly_root_c(zeta_l,coff)
-            if i==14:
-                #self.roots_print(roots,parity)
-                print(10)
-            print(i)
-            curve,theta_map=self.image_match(theta_init,roots,parity)
-            for k in range(len(curve)):
-                cur=curve[k]
-                theta_map_k=theta_map[k]
-                mag_k=1/2*np.sum((cur.imag[0:-1]+cur.imag[1:])*(cur.real[0:-1]-cur.real[1:]))
-                parity=self.parity(cur[0])
-                mag+=parity*mag_k
-                '''Error=error_estimator(self.q,self.s,self.rho,cur,theta_map_k,theta_init)
-                error,dap=Error.error_ordinary()
-                error_c,dacp,critial_idx=Error.error_critial()
-                error_total=np.sum(error+error_c)
-                mag+=parity*np.sum(dap)#抛物线近似的补偿项
-                mag+=parity*np.sum(dacp)#critial 附近的抛物线近似'''
-            mag=mag/(np.pi*self.rho**2)
-            mag_curve+=[mag]
-            #error_curve+=[error_total]
-            image_contour_all+=[curve]
-        self.image_contour_all=image_contour_all
-        return np.array(mag_curve)
-    def draw_anim(self,fig,axis):#given  a series of roots return picture
-        ims=[]
-        theta=np.linspace(0,2*np.pi,100)
-        trajectory_n=self.trajectory_n
-        trajectory_l=self.trajectory_l
-        curve=self.image_contour_all
-        for i in range(trajectory_n):
-            zeta=self.to_centroid(self.get_zeta_l(trajectory_l[i],theta))
-            img_root=[]
-            img2,=axis.plot(zeta.real,zeta.imag,color='r',label=str(i))
-            ttl = plt.text(0.5, 1.01, i, horizontalalignment='center', verticalalignment='bottom', transform=axis.transAxes)
-            for k in range(len(curve[i])):
-                img1,=axis.plot(self.to_centroid(curve[i][k]).real,self.to_centroid(curve[i][k]).imag)
-                img_root+=[img1]
-            ims.append(img_root+[img2]+[ttl])
-        ani=animation.ArtistAnimation(fig,ims,interval=100,repeat_delay=1000)
-        writervideo = animation.FFMpegWriter(fps=30) 
-        ani.save('picture/animation.mp4',writer=writervideo)
-class error_estimator(object):
-    def __init__(self,q,s,rho,matched_image_l,theta_map,theta_init):
+    def verify(self,zeta_l,z_l):#verify whether the root is right
+        return  z_l-self.m1/(np.conj(z_l)-self.s)-self.m2/np.conj(z_l)-zeta_l
+    def get_parity(self,z):#get the parity of roots
+        de_conjzeta_z1=self.m1/(np.conj(z)-self.s)**2+self.m2/np.conj(z)**2
+        return np.sign((1-np.abs(de_conjzeta_z1)**2))
+    def root_polish(self,coff,roots,epsilon):
+        p=np.poly1d(coff)
+        derp=np.polyder(coff)
+        for i in range(np.shape(roots)[0]):
+            x_0=roots[i]
+            temp=p(x_0)
+            while p(x_0)>epsilon:
+                if derp(x_0)<1e-14:
+                    break
+                x=x_0-p(x_0)/derp(x_0)
+                x_0=x
+            roots[i]=x_0
+        return roots
+    def roots_print(self):
+        np.savetxt('result/roots.txt',self.roots,delimiter=',',fmt='%.4f')
+        np.savetxt('result/parity.txt',self.parity,delimiter=',',fmt='%.0f')
+        #np.savetxt('result/roots_diff.txt',np.abs(self.roots[1:]-self.roots[0:-1]),delimiter=',')
+        #np.savetxt('result/roots_verify.txt',self.verify(np.array([self.zeta_l,self.zeta_l,self.zeta_l,self.zeta_l,zeta_l]).T,roots),delimiter=',')
+class Error_estimator(object):
+    def __init__(self,q,s,rho,matched_image_l,theta_map,theta_init,sol_num):
         self.q=q;self.s=s;self.rho=rho
         zeta_l=matched_image_l;self.zeta_l=zeta_l
-        theta=theta_map;self.theta=theta
+        theta=theta_map;self.theta=theta;self.sol_num=sol_num#length=n
         self.theta_init=theta_init
         zeta_conj=np.conj(self.zeta_l)
         parZetaConZ=1/(1+q)*(1/(zeta_conj-s)**2+q/zeta_conj**2);self.parity=s=np.sign((1-np.abs(parZetaConZ)**2))
@@ -265,9 +305,8 @@ class error_estimator(object):
         delta_theta[np.where(delta_theta<-np.pi)]+=2*np.pi
         self.delta_theta=delta_theta
     def dot_product(self,a,b):
-        return np.real(a)*np.real(b)+np.conj(a)*np.conj(b)
+        return np.real(a)*np.real(b)+np.imag(a)*np.imag(b)
     def error_ordinary(self):
-        theta=self.theta
         deXProde2X=self.product
         delta_theta=self.delta_theta
         zeta_l=self.zeta_l
@@ -286,19 +325,20 @@ class error_estimator(object):
         parity=self.parity
         parity_diff=np.diff(parity)
         critial_points=np.nonzero(parity_diff)[0]
-        temp=np.copy(parity_diff)
-        temp[critial_points+1]=1
-        cond=(temp!=0)
-        pos_idx=np.argwhere((parity[0:-1]==1)&(cond));zeta_pos=zeta_l[pos_idx]
-        neg_idx=np.argwhere((parity[0:-1]==-1)&(cond));zeta_neg=zeta_l[neg_idx]
-        theta_wave=np.abs(zeta_pos-zeta_neg)/np.sqrt(np.abs(self.dot_product(zeta_pos,zeta_neg)))
-        dAcP=1/24*(deXProde2X[pos_idx]-deXProde2X[neg_idx])*theta_wave**3
-        ce1=1/48*np.abs(deXProde2X[pos_idx]+deXProde2X[neg_idx])*theta_wave**3
-        Is_create=np.greater(neg_idx,pos_idx)*2-1#1 for ture -1 for false
-        ce2=3/2*np.abs(self.dot_product(zeta_pos-zeta_neg,de_z[pos_idx]-de_z[neg_idx])-Is_create*2*np.abs(zeta_pos-zeta_neg)*np.sqrt(np.abs(self.dot_product(zeta_pos,zeta_neg))))*theta_wave
-        ce3=1/10*np.abs(dAcP)*theta_wave**2
-        ce_tot=ce1+ce2+ce3
-        return ce_tot/(np.pi*self.rho**2),dAcP,critial_points-Is_create
+        if np.shape(critial_points)[0]!=0:
+            pos_idx=critial_points;zeta_pos=zeta_l[pos_idx]
+            neg_idx=critial_points+1;zeta_neg=zeta_l[neg_idx]
+            theta_wave=np.abs(zeta_pos-zeta_neg)/np.sqrt(np.abs(self.dot_product(de_z[pos_idx],de_z[neg_idx])))
+            mag_k=parity[pos_idx]*1/2*(zeta_pos.imag+zeta_neg.imag)*(zeta_neg.real+zeta_pos.real)
+            ce1=1/48*np.abs(deXProde2X[pos_idx]+deXProde2X[neg_idx])*theta_wave**3
+            Is_create=self.sol_num[pos_idx]#1 for ture -1 for false
+            ce2=3/2*np.abs(self.dot_product(zeta_pos-zeta_neg,de_z[pos_idx]-de_z[neg_idx])-Is_create*2*np.abs(zeta_pos-zeta_neg)*np.sqrt(np.abs(self.dot_product(de_z[pos_idx],de_z[neg_idx]))))*theta_wave
+            dAcP=parity[pos_idx]*1/24*(deXProde2X[pos_idx]-deXProde2X[neg_idx])*theta_wave**3
+            ce3=1/10*np.abs(dAcP)*theta_wave**2
+            ce_tot=ce1+ce2+ce3
+            return ce_tot/(np.pi*self.rho**2),dAcP,critial_points-Is_create
+        else:
+            return np.array([0]),np.array([0]),np.array([0])
     def error_sum(self):
         e_ord,dap=self.error_ordinary()
         e_crit,dacp,insert_point=self.error_critial()
@@ -312,7 +352,35 @@ class error_estimator(object):
         error_theta=np.zeros(len(self.theta_init))
         theta_map_idx=np.nonzero(np.isin(self.theta_init,self.theta))[0]#找到theta map对应的theta的索引
         #np.add.at(error_theta,theta_map_idx,error_zeta)
-        fig=plt.figure()
-        ax=Axes3D(fig)
-        ax.plot3D(self.zeta_l.real[0:-1],self.zeta_l.imag[0:-1],error_zeta)
-        plt.show()
+        if (dacp!=0).all():
+            fig=plt.figure()
+            ax=Axes3D(fig)
+            ax.plot3D(self.zeta_l.real[0:-1],self.zeta_l.imag[0:-1],error_zeta)
+            plt.show()
+            plt.figure()
+            plt.scatter(self.zeta_l.real[0:-1],self.zeta_l.imag[0:-1])
+            plt.show()
+if __name__=='__main__':
+    b_map=np.linspace(-0.08,0.04,1200)
+    b=b_map[747]
+    t_0=2452848.06;t_E=61.5
+    q=1e-4;alphadeg=90;s=1.0;rho=1e-3
+    trajectory_n=300
+    alpha=alphadeg*2*np.pi/360
+    times=np.linspace(t_0-0.015*t_E,t_0+0.015*t_E,trajectory_n)
+    model_uniform=model({'t_0': t_0, 'u_0': b, 't_E': t_E,
+                        'rho': rho, 'q': q, 's': s, 'alpha_deg': alphadeg,'times':times})
+    tra=model_uniform.trajectory_l[75]
+    s=model_uniform.s
+    m1=model_uniform.m1
+    m2=model_uniform.m2
+    theta_init=np.linspace(0,2*np.pi,10000)
+    zeta=model_uniform.get_zeta_l(tra,theta_init)
+    i=7532
+    i=1
+    coff=model_uniform.get_poly_coff(zeta)[i]
+    zeta=zeta[i]
+    roots_all=np.roots(coff)
+    print(np.sum(model_uniform.parity(roots_all)))
+    roots_polished=model_uniform.root_polish(coff,roots_all,1e-10)
+    print(model_uniform.verify(zeta,roots_all))
