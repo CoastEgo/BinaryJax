@@ -9,14 +9,14 @@ def search(m_map,n_map,roots,parity,fir_val):
     nextisnan=(np.isnan(roots[m_next,n]))
     if len(m_map)!=1:
     #如果下一个已经闭合
-        if np.abs(np.round(roots[m,n]-fir_val,6))==0:
+        if np.isclose(roots[m,n],fir_val,rtol=1e-7):
             parity[m,n]=0
             roots[m,n]=np.nan
             return m_map,n_map,roots,parity  
     if ((m==sample_n-1)&(m_next==0))|((m==0)&(m_next==sample_n-1)):#处理首尾相连的问题(0与2pi)
         m_next=m_next%sample_n
         try:
-            transit=np.where(np.round(roots[m_next,:]-roots[m,n],6)==0)[0][0]
+            transit=np.where(np.isclose(roots[m_next,:],roots[m,n],rtol=1e-6))[0][0]
             roots[m,n]=np.nan
             parity[m,n]=0
             m_map+=[m_next];n_map+=[transit]
