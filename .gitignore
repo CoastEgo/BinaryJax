@@ -3,3 +3,4 @@
 *.png
 *.code-workspace
 .vscode/
+*.pyc
