@@ -124,13 +124,13 @@ class model():#initialize parameter
                 sol_num+=[arc_num]
         return curve,theta_map,sol_num
     def get_magnifaction(self):
-        epsilon=1e-3
+        epsilon=1e-2
         trajectory_l=self.trajectory_l
         trajectory_n=self.trajectory_n
         mag_curve=[]
         image_contour_all=[]
         for i in range(trajectory_n):
-            sample_n=10;theta_init=np.linspace(0,2*np.pi,sample_n)
+            sample_n=1000;theta_init=np.linspace(0,2*np.pi,sample_n)
             error_tot=np.ones(1);error_hist=np.ones(1)
             print(i)
             if i==34:
@@ -171,21 +171,13 @@ class model():#initialize parameter
                     cur=curve[k]
                     theta_map_k=theta[k]
                     mag_k=1/2*np.sum((cur.imag[0:-1]+cur.imag[1:])*(cur.real[0:-1]-cur.real[1:]))
-                    parity_k=np.sign(mag_k)
+                    parity_k=solution.get_parity(cur[0])*np.sign(theta_map_k[1]-theta_map_k[0])
                     mag+=parity_k*mag_k
-                    '''if i==34:
-                        solution.roots_print()'''
                     Error=Error_estimator(self.q,self.s,self.rho,cur,theta_map_k,theta_init,sol_num[k],parity_k)
                     error_k,parab=Error.error_sum()
                     error_hist+=error_k
                     mag+=parab
                 error_tot=np.sum(error_hist)
-                if i==45:
-                    idx=np.argmax(error_hist)
-                    plt.bar(theta_init,error_hist/(np.pi*self.rho**2),width=np.diff(theta_init)[0]/10)
-                    plt.yscale('log')
-                    idx=np.argmax(error_hist)
-                    plt.show()
             mag=mag/(np.pi*self.rho**2)
             mag_curve+=[mag]
             #error_curve+=[error_total]
