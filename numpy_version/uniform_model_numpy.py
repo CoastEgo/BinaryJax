@@ -81,14 +81,16 @@ class model():#initialize parameter
             temp_parity=parity[:,temp_idx]
             while np.shape(temp_idx)[0]!=0:
                 initk,initm,temp_parity=search_first_postion(temp_roots,temp_parity)
+                if temp_parity[initk,initm]==1:
+                    temp_parity*=-1
                 roots_c=np.copy(temp_roots)
                 m_map,n_map,temp_roots,temp_parity=search([initk],[initm],temp_roots,temp_parity,temp_roots[initk,initm])
-                if (initk!=0)|(initk!=-1):
+                if (initk!=0)&(initk!=-1):
                     m_map+=[m_map[0]]
                     n_map+=[n_map[0]]
                 temp_curve=roots_c[m_map,n_map];temp_cur_theta_map=theta[m_map]
                 temp_cur_num_map=temp_Is_create[m_map,n_map]
-                temp_idx=np.where((~np.isnan(temp_roots)).all(axis=0))[0]
+                temp_idx=np.where((~np.isnan(temp_roots)).any(axis=0))[0]
                 temp_roots=temp_roots[:,temp_idx]
                 temp_parity=temp_parity[:,temp_idx]
                 temp_Is_create=temp_Is_create[:,temp_idx]
@@ -123,19 +125,15 @@ class model():#initialize parameter
                 theta_map+=[arc_theta]
                 sol_num+=[arc_num]
         return curve,theta_map,sol_num
-    def get_magnifaction(self):
-        epsilon=1e-2
+    def get_magnifaction(self,tol):
+        epsilon=tol
         trajectory_l=self.trajectory_l
         trajectory_n=self.trajectory_n
         mag_curve=[]
         image_contour_all=[]
         for i in range(trajectory_n):
-            sample_n=1000;theta_init=np.linspace(0,2*np.pi,sample_n)
+            sample_n=100;theta_init=np.linspace(0,2*np.pi,sample_n)
             error_tot=np.ones(1);error_hist=np.ones(1)
-            print(i)
-            if i==34:
-                print(i)
-                #solution.roots_print()
             while ((error_tot>epsilon)):
                 mag=0
                 if np.shape(error_hist)[0]==1:#第一次采样
@@ -166,21 +164,18 @@ class model():#initialize parameter
                 except IndexError:
                     print(f'idx{i} occured indexerror please check')
                     quit()
-                #theta_init=np.insert(theta_init,838,(theta_init[837]+theta_init[838])/2)
                 for k in range(len(curve)):
                     cur=curve[k]
                     theta_map_k=theta[k]
                     mag_k=1/2*np.sum((cur.imag[0:-1]+cur.imag[1:])*(cur.real[0:-1]-cur.real[1:]))
-                    parity_k=solution.get_parity(cur[0])*np.sign(theta_map_k[1]-theta_map_k[0])
-                    mag+=parity_k*mag_k
-                    Error=Error_estimator(self.q,self.s,self.rho,cur,theta_map_k,theta_init,sol_num[k],parity_k)
+                    mag+=mag_k*solution.get_parity(cur[0])
+                    Error=Error_estimator(self.q,self.s,self.rho,cur,theta_map_k,theta_init,sol_num[k],solution.get_parity(cur[0]))
                     error_k,parab=Error.error_sum()
                     error_hist+=error_k
                     mag+=parab
                 error_tot=np.sum(error_hist)
             mag=mag/(np.pi*self.rho**2)
             mag_curve+=[mag]
-            #error_curve+=[error_total]
             image_contour_all+=[curve]
         self.image_contour_all=image_contour_all
         return np.array(mag_curve)
@@ -265,32 +260,53 @@ class Solution(object):
     def find_nearest(self,array1, array2):
         parity1=self.get_parity(array1)
         parity2=self.get_parity(array2)
-        array1=array1+10*parity1
-        array2=array2+10*parity2
-        idx1=np.where(~np.isnan(array1.real))[0]
-        idx1_n=len(idx1)
-        idx2=np.where(~np.isnan(array2.real))[0]
-        idx2_n=len(idx2)
-        if (idx1_n==3) & (idx2_n==5):
-            temp=np.copy(array2)
-            value=array1[~np.isnan(array1.real)]
-            for value_i in value:
-                i=np.where(array1==value_i)[0][0]
-                idx=np.nanargmin(np.abs(value_i-temp))
-                array2[idx],array2[i]=array2[i],array2[idx]
-                parity2[idx],parity2[i]=parity2[i],parity2[idx]
-                temp[idx],temp[i]=temp[i],temp[idx]
-                temp[i]=np.nan
-        else:
-            temp=np.copy(array1)
-            value=array2[~np.isnan(array2.real)]
-            for value_i in value:
-                i=np.where(array2==value_i)[0][0]
-                idx=np.nanargmin(np.abs(temp-value_i))
-                array2[idx],array2[i]=array2[i],array2[idx]
-                parity2[idx],parity2[i]=parity2[i],parity2[idx]
-                temp[idx]=np.nan
-        return array2-10*parity2
+        array1_sorted=np.concatenate((np.sort(array1[parity1==1]),np.sort(array1[parity1==-1])))
+        array2_sorted=np.concatenate((np.sort(array2[parity2==1]),np.sort(array2[parity2==-1])))
+        leng1=np.shape(array1_sorted)[0]
+        leng2=np.shape(array2_sorted)[0]
+        if (leng1==5) & (leng2==5):
+            mapping=dict(zip(array1_sorted,array2_sorted))
+            array2=np.array([mapping[i] for i in array1])
+        elif (leng1==3) & (leng2==3):
+            mapping=dict(zip(array1_sorted,array2_sorted))
+            for i in range(5):
+                try:
+                    array2[i]=mapping[array1[i]]
+                except KeyError:
+                    array2[i]=np.nan+1j*np.nan
+        elif (leng1==3) & (leng2==5):#对应1，-1，-1与1，1，-1，-1，-1
+            temp=np.zeros_like(array1[0:3])
+            pos_idx=np.argmin(np.abs(array2_sorted[0:2]-array1_sorted[0]))#0,1两个parity为正的值
+            temp[0]=array2_sorted[0:2][pos_idx]
+            neg_idx_1=np.argmin(np.abs(array2_sorted[2:]-array1_sorted[1]))+2#2，3，4共三个parity为负的值，其中只能与2，3作比较
+            temp[1]=array2_sorted[neg_idx_1]
+            array2_sorted[neg_idx_1]=np.nan
+            neg_idx_2=np.nanargmin(np.abs(array2_sorted[2:]-array1_sorted[2]))+2
+            temp[2]=array2_sorted[neg_idx_2]
+            unused=np.setdiff1d(array2,temp,True)
+            mapping=dict(zip(array1_sorted,temp))
+            k=0
+            for i in range(5):
+                try:
+                    array2[i]=mapping[array1[i]]
+                except KeyError:
+                    array2[i]=unused[k]
+                    k+=1
+        elif (leng1==5) & (leng2==3):#对应1，1，-1，-1，-1与1，-1，-1
+            temp=np.zeros_like(array1)
+            temp[:]=np.nan+np.nan*1j
+            pos_idx=np.argmin(np.abs(array1_sorted[0:2]-array2_sorted[0]))
+            temp[pos_idx]=array2_sorted[0]
+            neg_idx_1=np.argmin(np.abs(array1_sorted[2:]-array2_sorted[1]))+2
+            temp[neg_idx_1]=array2_sorted[1]
+            neg_idx_2=np.argmin(np.abs(array1_sorted[2:]-array2_sorted[2]))+2
+            temp[neg_idx_2]=array2_sorted[2]
+            mapping=dict(zip(array1_sorted,temp))
+            array2=np.array([mapping[i] for i in array1])
+        else :
+            print('solution is wrong')
+            quit()
+        return array2
     def verify(self,zeta_l,z_l):#verify whether the root is right
         return  z_l-self.m1/(np.conj(z_l)-self.s)-self.m2/np.conj(z_l)-zeta_l
     def get_parity(self,z):#get the parity of roots
@@ -401,39 +417,5 @@ if __name__=='__main__':
         print(np.sum(model_uniform.parity(roots_all)))
         roots_polished=model_uniform.root_polish(coff,roots_all,1e-10)
         print(model_uniform.verify(zeta,roots_all))
-    if 0:
-        theta_init=np.linspace(0,10,11)
-        idx=np.array([1,5,4,6])
-        add_number=np.array([3]*4)
-        add_item=[np.linspace(theta_init[idx[i]-1],theta_init[idx[i]],add_number[i],endpoint=False)[0:-1] for i in range(np.shape(idx)[0])]
-        print(add_item)
-        theta_init=np.insert(theta_init,idx,add_item)
-        print(theta_init)
-    if 0:
-        roots_number=np.array([5,3,5,5,5])
-        cre_des_idx=np.where(np.diff(roots_number))[0]+1
-        for i in cre_des_idx:
-            if (roots_number[i]==5):
-                roots_number[i]=1
-            elif (roots_number[i]==3)&(roots_number[i-1]!=1):
-                roots_number[i-1]=-1
-            else:
-                roots_number[i-1]-=1
-        print(roots_number)
-    if 1:
-        roots=np.array([[1,np.nan,np.nan],[2,3,4],[np.nan,np.nan,5]])
-        cond=np.isnan(roots)
-        Is_create=np.zeros_like(roots)
-        idx_x,idx_y=np.where(np.diff(cond,axis=0))
-        idx_x+=1
-        for x,y in zip(idx_x,idx_y):
-            if ~cond[x,y]:#如果这个不是nan
-                Is_create[x,y]=1#这个是destruction
-            elif (cond[x,y])&(Is_create[x-1,y]!=1):#如果这个不是
-                Is_create[x-1,y]=-1
-            else:
-                Is_create[x-1,y]-=1
-        print(Is_create)
-
 
 

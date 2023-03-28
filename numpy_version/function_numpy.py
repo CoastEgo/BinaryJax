@@ -64,7 +64,6 @@ def search(m_map,n_map,roots,parity,fir_val):
         roots[m,n]=np.nan
         return m_map,n_map,roots,parity   
 def search_first_postion(temp_roots,temp_parity):
-    sample_n=np.shape(temp_roots)[0]
     roots_now=temp_roots[0,:][~np.isnan(temp_roots[0,:])]
     change_sum=np.sum(temp_parity,axis=1)
     if (np.isin(1,change_sum).any()):#只处理parity 是 -1 1 -1的情况，否则转换为 -1 1 -1的情况
