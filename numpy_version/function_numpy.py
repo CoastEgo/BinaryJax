@@ -1,5 +1,5 @@
 import numpy as np
-def search(m_map,n_map,roots,parity,fir_val):
+def search(m_map,n_map,roots,parity,fir_val,Is_create):
     m=m_map[-1]
     n=n_map[-1]
     sample_n=np.shape(roots)[0]
@@ -20,7 +20,7 @@ def search(m_map,n_map,roots,parity,fir_val):
             roots[m,n]=np.nan
             parity[m,n]=0
             m_map+=[m_next];n_map+=[transit]
-            m_map_res,n_map_res,temp_roots,temp_parity=search(m_map,n_map,roots,parity,fir_val)
+            m_map_res,n_map_res,temp_roots,temp_parity=search(m_map,n_map,roots,parity,fir_val,Is_create)
             return m_map_res,n_map_res,temp_roots,temp_parity
         except IndexError:
             parity[m,n]=0
@@ -38,17 +38,17 @@ def search(m_map,n_map,roots,parity,fir_val):
         parity[m:real_m:par,n]=0
         m_map+=[i for i in range(m+par,real_m+par,par)]
         n_map+=[n]*(abs(real_m-m))
-        m_map_res,n_map_res,temp_roots,temp_parity=search(m_map,n_map,roots,parity,fir_val)
+        m_map_res,n_map_res,temp_roots,temp_parity=search(m_map,n_map,roots,parity,fir_val,Is_create)
         return m_map_res,n_map_res,temp_roots,temp_parity
     #如果下一个是nan并且当前还有别的列，就转换列,换列不能发生在最后一行因为 2*pi=0此时根个数相同不存在create destruct
-    elif (nextisnan & (len(np.where(~np.isnan(roots[m,:]))[0])>1)) :
+    elif (nextisnan & (len(np.where(~np.isnan(roots[m,:]))[0])>1) & (Is_create[m,:]!=0).any()):
         #parity更换符号的位置，并且该位置的下一个位置为nan（撞墙了）
         transit=np.where((parity[m,:]==-parity[m,n])&(np.isnan(roots[m_next,:])))[0][0]
         roots[m,n]=np.nan
         parity[m,n]=0
         m_map+=[m];n_map+=[transit]
         #将遍历过的位置设置为nan，将parity设置为0
-        m_map_res,n_map_res,temp_roots,temp_parity=search(m_map,n_map,roots,parity,fir_val)
+        m_map_res,n_map_res,temp_roots,temp_parity=search(m_map,n_map,roots,parity,fir_val,Is_create)
         return m_map_res,n_map_res,temp_roots,temp_parity
     #如果当前有一个不是nan，并且下一行也只有一个parity相同的,并且不是最后一行
     elif (len(np.where(parity[m_next,:]==parity[m,n])[0])==1):
@@ -57,7 +57,7 @@ def search(m_map,n_map,roots,parity,fir_val):
         m-=int(parity[m,n])
         transit=np.where((~np.isnan(roots[m,:])))[0][0]
         m_map+=[m];n_map+=[transit]
-        m_map_res,n_map_res,temp_roots,temp_parity=search(m_map,n_map,roots,parity,fir_val)
+        m_map_res,n_map_res,temp_roots,temp_parity=search(m_map,n_map,roots,parity,fir_val,Is_create)
         return m_map_res,n_map_res,temp_roots,temp_parity
     else:
         parity[m,n]=0
