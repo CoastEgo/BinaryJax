@@ -1,15 +1,12 @@
 import numpy as np
+from scipy.optimize import linear_sum_assignment
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from function_numpy import search,search_first_postion
 import sys
 from matplotlib import colors
+from matplotlib import cm
 import time
-#实现自适应采点算法
-#首先将轨道与同一点的采样分开
-#其次将theta与contour采样绑定
-#实现误差计算
-#实现自适应采点算法
 sys.setrecursionlimit(10000)
 np.seterr(divide='ignore', invalid='ignore')
 class model():#initialize parameter
@@ -57,7 +54,7 @@ class model():#initialize parameter
         c5=(s-zeta_conj)*zeta_conj
         coff=np.stack((c5,c4,c3,c2,c1,c0),axis=1)
         return coff
-    def image_match(self,solution):#roots in lowmass coordinate
+    def image_match(self,solution,i):#roots in lowmass coordinate
         sample_n=solution.sample_n;theta=solution.theta;roots=solution.roots;parity=solution.parity;roots_is_create=solution.Is_create
         theta_map=[];uncom_theta_map=[];uncom_sol_num=[];sol_num=[];uncom_curve=[];curve=[];parity_map=[];uncom_parity_map=[]
         roots_non_nan=np.isnan(roots).sum(axis=0)==0
@@ -91,12 +88,12 @@ class model():#initialize parameter
                     m_map+=[m_map[0]]
                     n_map+=[n_map[0]]
                 temp_curve=roots_c[m_map,n_map];temp_cur_theta_map=theta[m_map];temp_parity_map=real_parity[m_map,n_map]
-                plt.plot(temp_curve.real,temp_curve.imag)
-                #np.savetxt('result/curve.txt',temp_curve,delimiter=',',fmt='%.4f')
-                plt.show()
                 temp_cur_num_map=temp_Is_create[m_map,n_map]
                 temp_idx=np.where((~np.isnan(temp_roots)).any(axis=0))[0]
                 temp_roots=temp_roots[:,temp_idx];temp_parity=temp_parity[:,temp_idx];temp_Is_create=temp_Is_create[:,temp_idx];real_parity=real_parity[:,temp_idx]
+                if i==26:
+                    plt.plot(temp_curve.real,temp_curve.imag)
+                    plt.show()
                 if np.isclose(temp_curve[0],temp_curve[-1],rtol=1e-6):
                     curve+=[temp_curve];theta_map+=[temp_cur_theta_map];sol_num+=[temp_cur_num_map];parity_map+=[temp_parity_map]
                 else:
@@ -140,13 +137,9 @@ class model():#initialize parameter
         image_contour_all=[]
         add_list=[]
         for i in range(trajectory_n):
-            sample_n=100;theta_init=np.linspace(0,2*np.pi,sample_n,dtype=np.float128)
-            error_tot=np.ones(1);error_hist=np.ones(1)
             print(i)
-            if i==140:
-                print(140)
-            else:
-                continue
+            sample_n=10;theta_init=np.linspace(0,2*np.pi,sample_n,dtype=np.float128)
+            error_tot=np.ones(1);error_hist=np.ones(1)
             while ((error_hist>epsilon/np.sqrt(sample_n)).any()):#多点采样但精度不同
             #while ((error_tot>epsilon).any()):
                 mag=0
@@ -156,7 +149,6 @@ class model():#initialize parameter
                     zeta_l=self.get_zeta_l(trajectory_l[i],theta_init).astype(np.complex128)
                     coff=self.get_poly_coff(zeta_l)
                     solution=Solution(self.q,self.s,zeta_l,coff,theta_init)
-                    test=0
                 else:#自适应采点插入theta
                     if 0:#单区间多点采样
                         idx=np.array([np.argmax(error_hist)]).reshape(1)
@@ -188,24 +180,12 @@ class model():#initialize parameter
                     sample_n=solution.sample_n
                     theta_init=solution.theta
                     error_hist=np.zeros_like(theta_init)
+                if i==20:
+                    print(i)
                     #solution.roots_print()
-                    '''try:
-                        test=1
-                        print(solution.zeta_l[4509])
-                        print(solution.theta[4509])
-                        print(solution.roots[4509])
-                        print(solution.parity[4509])
-                        print(solution.coff[4509])
-                        temp=np.roots(solution.coff[4513])
-                        print(temp)
-                        print(solution.verify(solution.zeta_l[4513],temp))
-                        de_conjzeta_z1=self.m1/(np.conj(temp)-self.s)**2+self.m2/np.conj(temp)**2
-                        print((1-(de_conjzeta_z1)*np.conj(de_conjzeta_z1)))
-                    except IndexError:
-                        test=0
-                        pass'''
+                    #quit()
                 try:
-                    curve,theta,sol_num,parity_map=self.image_match(solution)
+                    curve,theta,sol_num,parity_map=self.image_match(solution,i)
                 except IndexError:
                     print(f'idx{i} occured indexerror please check')
                     quit()
@@ -216,24 +196,19 @@ class model():#initialize parameter
                     mag_k=1/2*np.sum((cur.imag[0:-1]+cur.imag[1:])*(cur.real[0:-1]-cur.real[1:]))
                     mag+=mag_k*parity_k[0]
                     Error=Error_estimator(self.q,self.s,self.rho,cur,theta_map_k,theta_init,sol_num[k],parity_k)
-                    error_k,parab=Error.error_sum()
+                    error_k,parab,er=Error.error_sum()
                     error_hist+=error_k
                     mag+=parab
                     idx=np.where(error_hist>epsilon/np.sqrt(sample_n))[0]
-                    if (k==1) :
-                        plt.plot(cur.real,cur.imag,color='b')
-                        plt.scatter(cur.real[idx],cur.imag[idx],color='r')
-                        plt.show()
                 error_tot=np.sum(error_hist)
-                #print('error=',np.max(error_hist))
             add_list+=[sample_n]
             mag=mag/(np.pi*self.rho**2)
             mag_curve+=[mag]
             image_contour_all+=[curve]
+        self.image_contour_all=image_contour_all
         #np.savetxt('result/多区间多点采样tol设置为每个间隔的.txt',np.array(add_list),delimiter=',',fmt='%d')
             #print('idx =',i)
             #print('sample number =',sample_n)
-        self.image_contour_all=image_contour_all
         return np.array(mag_curve)
     def draw_anim(self,fig,axis):#given  a series of roots return picture
         ims=[]
@@ -287,8 +262,6 @@ class Solution(object):
         real_parity=np.where(cond,np.nan,parity)
         parity_sum=np.nansum(real_parity,axis=1)
         nan_num=cond.sum(axis=1)
-        '''idx_normal=np.where(~((parity_sum==-1)&
-                              ((nan_num==2)|(nan_num==0))))[0]#正确的根的索引'''
         idx_parity_wrong=np.where((nan_num==0)&
                                   (parity_sum!=-1))[0]#parity计算出现错误的根的索引
         ##对于parity计算错误的点，分为fifth principal left center right，其中left center right 的parity为-1，1，-1
@@ -326,71 +299,28 @@ class Solution(object):
                 Is_create[x-1,y]-=1
         self.Is_create=Is_create
     def get_sorted_roots(self,sample_n,roots,parity):
-        for k in range(sample_n):
-            if k!=0:
-                root_i_re_1=roots[k-1,:]
-                parity_i_re_1=parity[k-1,:]
-            root_i=roots[k,:]
-            parity_i=parity[k,:]
-            if k==0:
-                idx=np.array([0,1,2,3,4])
-            else:
-                idx=self.find_nearest(root_i_re_1,parity_i_re_1,root_i,parity_i)
-            roots[k,:]=root_i[idx]
-            parity[k,:]=parity_i[idx]
+        for k in range(1,sample_n):
+            root_i_re_1=roots[k-1,:];parity_i_re_1=parity[k-1,:]
+            root_i=roots[k,:];parity_i=parity[k,:]
+            sort_indices=self.find_nearest(root_i_re_1,parity_i_re_1,root_i,parity_i)
+            roots[k,:]=root_i[sort_indices]
+            parity[k,:]=parity_i[sort_indices]
         return roots,parity
-    def find_nearest(self,array1, parity1, array2, parity2):
-        array2=np.copy(array2)
-        array2_c=np.copy(array2)
-        array1_sorted=np.concatenate((np.sort(array1[parity1==1]),np.sort(array1[parity1==-1])))
-        array2_sorted=np.concatenate((np.sort(array2[parity2==1]),np.sort(array2[parity2==-1])))
-        leng1=np.shape(array1_sorted)[0]
-        leng2=np.shape(array2_sorted)[0]
-        if (leng1==5) & (leng2==5):
-            mapping=dict(zip(array1_sorted,array2_sorted))
-            array2=np.array([mapping[i] for i in array1])
-        elif (leng1==3) & (leng2==3):
-            mapping=dict(zip(array1_sorted,array2_sorted))
-            for i in range(5):
-                try:
-                    array2[i]=mapping[array1[i]]
-                except KeyError:
-                    array2[i]=np.nan+1j*np.nan
-        elif (leng1==3) & (leng2==5):#对应1，-1，-1与1，1，-1，-1，-1
-            temp=np.zeros_like(array1[0:3])
-            pos_idx=np.argmin(np.abs(array2_sorted[0:2]-array1_sorted[0]))#0,1两个parity为正的值
-            temp[0]=array2_sorted[0:2][pos_idx]
-            neg_idx_1=np.argmin(np.abs(array2_sorted[2:]-array1_sorted[1]))+2#2，3，4共三个parity为负的值，其中只能与2，3作比较
-            temp[1]=array2_sorted[neg_idx_1]
-            array2_sorted[neg_idx_1]=np.nan
-            neg_idx_2=np.nanargmin(np.abs(array2_sorted[2:]-array1_sorted[2]))+2
-            temp[2]=array2_sorted[neg_idx_2]
-            unused=np.setdiff1d(array2,temp,True)
-            mapping=dict(zip(array1_sorted,temp))
-            k=0
-            for i in range(5):
-                try:
-                    array2[i]=mapping[array1[i]]
-                except KeyError:
-                    array2[i]=unused[k]
-                    k+=1
-        elif (leng1==5) & (leng2==3):#对应1，1，-1，-1，-1与1，-1，-1
-            temp=np.zeros_like(array1)
-            temp[:]=np.nan+np.nan*1j
-            pos_idx=np.argmin(np.abs(array1_sorted[0:2]-array2_sorted[0]))
-            temp[pos_idx]=array2_sorted[0]
-            neg_idx_1=np.argmin(np.abs(array1_sorted[2:]-array2_sorted[1]))+2
-            temp[neg_idx_1]=array2_sorted[1]
-            neg_idx_2=np.argmin(np.abs(array1_sorted[2:]-array2_sorted[2]))+2
-            temp[neg_idx_2]=array2_sorted[2]
-            mapping=dict(zip(array1_sorted,temp))
-            array2=np.array([mapping[i] for i in array1])
-        else :
-            print('solution is wrong')
-            quit()
-        sort_indices = np.argsort(array2_c)
-        indices = sort_indices[np.searchsorted(array2_c[sort_indices], array2)]
-        return indices
+    def find_nearest(self,array1, parity1, array2, parity2):#线性分配问题
+        idx_all=np.linspace(0,4,5,dtype=int)
+        pos_idx1=np.where(~np.isnan(array1))[0]
+        pos_idx2=np.where(~np.isnan(array2))[0]
+        cost=np.abs(array2[pos_idx2]-array1[pos_idx1][:,None])+np.abs(parity2[pos_idx2]-parity1[pos_idx1][:,None])
+        row_ind, col_idx = linear_sum_assignment(cost)
+        idx1=pos_idx1[row_ind]
+        idx2=pos_idx2[col_idx]
+        if np.size(idx1)==5:
+            pass
+        else:
+            idx1=np.append(idx1,np.setdiff1d(idx_all,idx1,assume_unique=True))
+            idx2=np.append(idx2,np.setdiff1d(idx_all,idx2,assume_unique=True))
+        arg=np.argsort(idx1)
+        return idx2[arg]
     def verify(self,zeta_l,z_l):#verify whether the root is right
         return  z_l-self.m1/(np.conj(z_l)-self.s)-self.m2/np.conj(z_l)-zeta_l
     def get_parity(self,z):#get the parity of roots
@@ -469,12 +399,7 @@ class Error_estimator(object):
     def error_sum(self):
         theta_init=self.theta_init
         e_ord,parab=self.error_ordinary()
-        pos=np.argmax(e_ord)
         interval_theta=((self.theta[0:-1]+self.theta[1:])/2)#error 对应的区间的中心的theta值
-        '''print(self.theta[pos]%(2*np.pi))
-        print(self.theta[pos+1]%(2*np.pi))
-        print((self.theta[pos]%(2*np.pi)+self.theta[pos+1]%(2*np.pi))/2)
-        print(interval_theta[pos]%(2*np.pi))'''
         critial_points=np.nonzero(np.diff(self.parity))[0]
         if  np.shape(critial_points)[0]!=0:
             e_crit,dacp,Is_create=self.error_critial(critial_points)
@@ -484,8 +409,7 @@ class Error_estimator(object):
         error_map=np.zeros_like(theta_init)#error 按照theta 排序
         indices = np.searchsorted(theta_init, interval_theta%(2*np.pi))
         np.add.at(error_map,indices,e_ord)
-        #print(theta_init[np.argmax(error_map)])
-        return error_map,parab
+        return error_map,parab,e_ord
 if __name__=='__main__':
     if 0:
         b_map=np.linspace(-0.08,0.04,1200)
@@ -510,13 +434,6 @@ if __name__=='__main__':
         print(np.sum(model_uniform.parity(roots_all)))
         roots_polished=model_uniform.root_polish(coff,roots_all,1e-10)
         print(model_uniform.verify(zeta,roots_all))
-    if 1:
-        a = np.array([5,4,3,2,1])
-        b = np.array([1,2,3,4,5])
-        # Get the indices of b in a using numpy.searchsorted()
-        sort_indices = np.argsort(a)
-        indices = sort_indices[np.searchsorted(a[sort_indices], b)]
-        print(indices)
 
 
 
