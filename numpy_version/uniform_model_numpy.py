@@ -138,7 +138,7 @@ class model():#initialize parameter
         mag_curve=[]
         image_contour_all=[]
         for i in range(trajectory_n):
-            sample_n=10;theta_init=np.linspace(0,2*np.pi,sample_n,dtype=np.float128)
+            sample_n=3;theta_init=np.linspace(0,2*np.pi,sample_n,dtype=np.float128)
             error_tot_rel=np.ones(1);error_hist=np.ones(1)
             while ((error_hist>epsilon/np.sqrt(sample_n)).any() & (np.abs(error_tot_rel)>rel_epsilon)):#相对误差
             #while ((error_hist>epsilon/np.sqrt(sample_n)).any()):#多点采样但精度不同
@@ -168,6 +168,7 @@ class model():#initialize parameter
                     theta_init=solution.theta
                     error_hist=np.zeros_like(theta_init)
                 try:
+                    solution.roots_print()
                     curve,theta,sol_num,parity_map=self.image_match(solution,i)
                 except IndexError:
                     print(f'idx{i} occured indexerror please check')
@@ -182,7 +183,7 @@ class model():#initialize parameter
                     error_k,parab=Error.error_sum()
                     error_hist+=error_k
                     mag+=parab
-                    idx=np.where(error_hist>epsilon/np.sqrt(sample_n))[0]
+                error_hist+=solution.buried_error
                 error_tot_rel=np.sum(error_hist)/mag*(np.pi*self.rho**2)
             mag=mag/(np.pi*self.rho**2)
             mag_curve+=[mag]
@@ -215,9 +216,9 @@ class Solution(object):
         self.zeta_l=zeta_l
         self.coff=coff
         self.sample_n=np.shape(zeta_l)[0]
-        roots,parity,ghost_roots,cond=self.get_real_roots(coff,zeta_l)#cond非nan为true
-        self.ghost_roots=ghost_roots
-        self.roots,self.parity,self.cond=self.get_sorted_roots(self.sample_n,roots,parity,cond)
+        roots,parity,self.ghost_roots_dis=self.get_real_roots(coff,zeta_l)#cond非nan为true
+        self.buried_error=self.get_buried_error()
+        self.roots,self.parity=self.get_sorted_roots(self.sample_n,roots,parity)
         self.sort_flag=np.repeat(np.array(True),self.sample_n)
         self.find_create_points()
     def add_points(self,idx,add_zeta,add_coff,add_theta):
@@ -225,30 +226,35 @@ class Solution(object):
         self.theta=np.insert(self.theta,idx,add_theta)
         self.zeta_l=np.insert(self.zeta_l,idx,add_zeta)
         self.coff=np.insert(self.coff,idx,add_coff,axis=0)
-        add_roots,add_parity,add_ghost_roots,add_cond=self.get_real_roots(add_coff,add_zeta)
-        self.ghost_roots=np.insert(self.ghost_roots,idx,add_ghost_roots,axis=0)
+        add_roots,add_parity,add_ghost_roots=self.get_real_roots(add_coff,add_zeta)
+        self.ghost_roots_dis=np.insert(self.ghost_roots_dis,idx,add_ghost_roots,axis=0)
+        self.buried_error=self.get_buried_error()
         self.sort_flag=np.insert(self.sort_flag,idx,np.array(False))
-        self.roots,self.parity,self.cond=self.add_sorted_roots(roots=np.insert(self.roots,idx,add_roots,axis=0),parity=np.insert(self.parity,idx,add_parity,axis=0),cond=np.insert(self.cond,idx,add_cond,axis=0))
+        self.roots,self.parity=self.add_sorted_roots(roots=np.insert(self.roots,idx,add_roots,axis=0),parity=np.insert(self.parity,idx,add_parity,axis=0))
         self.find_create_points()
     def get_buried_error(self):
-        ghost_roots=self.ghost_roots
-        error_buried=1
+        error_buried=np.zeros(self.sample_n)
+        ghost_roots_dis=self.ghost_roots_dis.ravel()
+        idx1=np.where(ghost_roots_dis[0:-2]>2*ghost_roots_dis[1:-1])[0]+1
+        idx1=idx1[~np.isnan(ghost_roots_dis[idx1+1])]
+        error_buried[idx1+1]+=(ghost_roots_dis[idx1]-ghost_roots_dis[idx1-1])**2
+        idx1=np.where(2*ghost_roots_dis[1:-1]<ghost_roots_dis[2:])[0]+1
+        idx1=idx1[~np.isnan(ghost_roots_dis[idx1-1])]
+        error_buried[idx1]+=(ghost_roots_dis[idx1+1]-ghost_roots_dis[idx1])**2
         return error_buried
-    def add_sorted_roots(self,roots,parity,cond):
+    def add_sorted_roots(self,roots,parity):
         sort_flag=self.sort_flag
         flase_i=np.where(~sort_flag)[0]
         for i in flase_i:
-            sort_indices=self.find_nearest(roots[i-1],parity[i-1],roots[i],parity[i],cond[i-1],cond[i])
+            sort_indices=self.find_nearest(roots[i-1],parity[i-1],roots[i],parity[i])
             roots[i]=roots[i][sort_indices]
             parity[i]=parity[i][sort_indices]
-            cond[i]=cond[i][sort_indices]
             if sort_flag[i+1]:
-                sort_indices=self.find_nearest(roots[i],parity[i],roots[i+1],parity[i+1],cond[i],cond[i+1])
+                sort_indices=self.find_nearest(roots[i],parity[i],roots[i+1],parity[i+1])
                 roots[i+1:]=roots[i+1:,sort_indices]
                 parity[i+1:]=parity[i+1:,sort_indices]
-                cond[i+1:]=cond[i+1:,sort_indices]
         self.sort_flag[:]=True
-        return roots,parity,cond
+        return roots,parity
     def get_roots(self,sample_n,coff,zeta_l):
         roots=np.empty((sample_n,5),dtype=complex)
         for k in range(sample_n):
@@ -287,10 +293,13 @@ class Solution(object):
         ###计算得到最终的
         real_roots=np.where(cond,np.nan+np.nan*1j,roots)
         real_parity=np.where(cond,np.nan,parity)
-        ghost_roots=np.where(cond,roots,np.nan+np.nan*1j)
-        return real_roots,real_parity,ghost_roots,~cond
+        ghost_roots=np.where(cond,roots,np.inf)
+        ghost_roots=np.sort(ghost_roots,axis=1)[:,0:2]
+        ghost_roots[ghost_roots==np.inf]=np.nan
+        ghost_roots_dis=np.abs(np.diff(ghost_roots,axis=1))
+        return real_roots,real_parity,ghost_roots_dis
     def find_create_points(self):
-        cond=~self.cond
+        cond=np.isnan(self.roots)
         Is_create=np.zeros_like(self.roots,dtype=int)
         idx_x,idx_y=np.where(np.diff(cond,axis=0))
         idx_x+=1
@@ -302,20 +311,17 @@ class Solution(object):
             else:
                 Is_create[x-1,y]-=1
         self.Is_create=Is_create
-    def get_sorted_roots(self,sample_n,roots,parity,cond):#非nan为true
+    def get_sorted_roots(self,sample_n,roots,parity):#非nan为true
         for k in range(1,sample_n):
-            root_i_re_1=roots[k-1,:];parity_i_re_1=parity[k-1,:];cond_i_re_1=cond[k-1,:]
-            root_i=roots[k,:];parity_i=parity[k,:];cond_i=cond[k,:]
-            sort_indices=self.find_nearest(root_i_re_1,parity_i_re_1,root_i,parity_i,cond_i_re_1,cond_i)
-            cond[k,:]=cond_i[sort_indices]
+            root_i_re_1=roots[k-1,:];parity_i_re_1=parity[k-1,:]
+            root_i=roots[k,:];parity_i=parity[k,:]
+            sort_indices=self.find_nearest(root_i_re_1,parity_i_re_1,root_i,parity_i)
             roots[k,:]=root_i[sort_indices]
             parity[k,:]=parity_i[sort_indices]
-        return roots,parity,cond
-    def find_nearest(self,array1, parity1, array2, parity2,cond1,cond2):#线性分配问题
-        pos_idx1=np.where(cond1)[0]
-        pos_idx2=np.where(cond2)[0]
-        #pos_idx1=np.where(~np.isnan(array1))[0]
-        #pos_idx2=np.where(~np.isnan(array2))[0]
+        return roots,parity
+    def find_nearest(self,array1, parity1, array2, parity2):#线性分配问题
+        pos_idx1=np.where(~np.isnan(array1))[0]
+        pos_idx2=np.where(~np.isnan(array2))[0]
         cost=np.abs(array2[pos_idx2]-array1[pos_idx1][:,None])+np.abs(parity2[pos_idx2]-parity1[pos_idx1][:,None])
         row_ind, col_idx = linear_sum_assignment(cost)
         pos_idx1=pos_idx1[row_ind]
@@ -408,44 +414,15 @@ class Error_estimator(object):
         if  np.shape(critial_points)[0]!=0:
             e_crit,dacp,Is_create=self.error_critial(critial_points)
             e_ord[critial_points]=e_crit
-            interval_theta[critial_points]-=0.5*Is_create*np.min(np.abs(self.delta_theta[self.delta_theta!=0]))#如果error出现在creat则theta减小，缶则theta增加
+            try:
+                interval_theta[critial_points]-=0.5*Is_create*np.min(np.abs(self.delta_theta[self.delta_theta!=0]))#如果error出现在creat则theta减小，缶则theta增加
+            except ValueError:
+                interval_theta[critial_points]-=0.5*Is_create*np.min(np.abs(np.diff(theta_init)))
             parab+=dacp
         error_map=np.zeros_like(theta_init)#error 按照theta 排序
         indices = np.searchsorted(theta_init, interval_theta%(2*np.pi))
         np.add.at(error_map,indices,e_ord)
         return error_map,parab
-if __name__=='__main__':
-    if 0:
-        b_map=np.linspace(-0.08,0.04,1200)
-        b=b_map[797]
-        t_0=2452848.06;t_E=61.5
-        q=1e-4;alphadeg=90;s=1.0;rho=1e-3
-        trajectory_n=300
-        alpha=alphadeg*2*np.pi/360
-        times=np.linspace(t_0-0.015*t_E,t_0+0.015*t_E,trajectory_n)
-        model_uniform=model({'t_0': t_0, 'u_0': b, 't_E': t_E,
-                            'rho': rho, 'q': q, 's': s, 'alpha_deg': alphadeg,'times':times})
-        tra=model_uniform.trajectory_l[159]
-        s=model_uniform.s
-        m1=model_uniform.m1
-        m2=model_uniform.m2
-        theta_init=np.linspace(0,2*np.pi,10000)
-        zeta=model_uniform.get_zeta_l(tra,theta_init)
-        i=4513
-        coff=model_uniform.get_poly_coff(zeta)[i]
-        zeta=zeta[i]
-        roots_all=np.roots(coff)
-    if 1:
-        start=time.perf_counter()
-        for i in range(1000):
-            a=np.repeat(np.array(True),1000)
-        end=time.perf_counter()
-        print(end-start)
-        start=time.perf_counter()
-        for i in range(1000):
-            a=np.array([True]*1000)
-        end=time.perf_counter()
-        print(end-start)
 
 
 
