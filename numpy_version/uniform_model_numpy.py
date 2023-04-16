@@ -18,7 +18,6 @@ class model():#initialize parameter
         self.rho=par['rho']
         self.q=par['q']
         self.s=par['s']
-        self.alpha_deg=par['alpha_deg']
         self.alpha_rad=par['alpha_deg']*2*np.pi/360
         self.times=(par['times']-self.t_0)/self.t_E
         self.trajectory_n=len(self.times)
@@ -35,7 +34,7 @@ class model():#initialize parameter
     def get_trajectory_l(self):
         alpha=self.alpha_rad
         b=self.u_0
-        trajectory_c=np.array([i*np.cos(alpha)-b*np.sin(alpha)+1j*(b*np.cos(alpha)+i*np.sin(alpha)) for i in self.times])
+        trajectory_c=self.times*np.cos(alpha)-b*np.sin(alpha)+1j*(b*np.cos(alpha)+self.times*np.sin(alpha))
         trajectory_l=self.to_lowmass(trajectory_c)
         return trajectory_l
     def get_zeta_l(self,trajectory_centroid_l,theta):#获得等高线采样的zeta
@@ -55,7 +54,7 @@ class model():#initialize parameter
         c5=(s-zeta_conj)*zeta_conj
         coff=np.stack((c5,c4,c3,c2,c1,c0),axis=1)
         return coff
-    def image_match(self,solution,i):#roots in lowmass coordinate
+    def image_match(self,solution):#roots in lowmass coordinate
         sample_n=solution.sample_n;theta=solution.theta;roots=solution.roots;parity=solution.parity;roots_is_create=solution.Is_create
         theta_map=[];uncom_theta_map=[];uncom_sol_num=[];sol_num=[];uncom_curve=[];curve=[];parity_map=[];uncom_parity_map=[]
         roots_non_nan=np.isnan(roots).sum(axis=0)==0
@@ -92,9 +91,6 @@ class model():#initialize parameter
                 temp_cur_num_map=temp_Is_create[m_map,n_map]
                 temp_idx=np.where((~np.isnan(temp_roots)).any(axis=0))[0]
                 temp_roots=temp_roots[:,temp_idx];temp_parity=temp_parity[:,temp_idx];temp_Is_create=temp_Is_create[:,temp_idx];real_parity=real_parity[:,temp_idx]
-                if i==26:
-                    plt.plot(temp_curve.real,temp_curve.imag)
-                    plt.show()
                 if np.isclose(temp_curve[0],temp_curve[-1],rtol=1e-6):
                     curve+=[temp_curve];theta_map+=[temp_cur_theta_map];sol_num+=[temp_cur_num_map];parity_map+=[temp_parity_map]
                 else:
@@ -136,17 +132,18 @@ class model():#initialize parameter
         trajectory_l=self.trajectory_l
         trajectory_n=self.trajectory_n
         mag_curve=[]
+        sample_n_all=[]
         image_contour_all=[]
         for i in range(trajectory_n):
-            sample_n=3;theta_init=np.linspace(0,2*np.pi,sample_n,dtype=np.float128)
-            error_tot_rel=np.ones(1);error_hist=np.ones(1)
-            while ((error_hist>epsilon/np.sqrt(sample_n)).any() & (np.abs(error_tot_rel)>rel_epsilon)):#相对误差
-            #while ((error_hist>epsilon/np.sqrt(sample_n)).any()):#多点采样但精度不同
-            #while ((error_tot>epsilon).any()):
+            #print(i)
+            sample_n=3;theta_init=np.array([0,np.pi,2*np.pi],dtype=np.float128)
+            #error_tot_rel=np.ones(1);
+            error_hist=np.ones(1)
+            #while ((error_hist>epsilon/np.sqrt(sample_n)).any() & (np.abs(error_tot_rel)>rel_epsilon)):#相对误差
+            while ((error_hist>epsilon/np.sqrt(sample_n)).any()):#多点采样但精度不同
                 mag=0
                 if np.shape(error_hist)[0]==1:#第一次采样
                     error_hist=np.zeros_like(theta_init)
-                    theta_init=np.linspace(0,2*np.pi,sample_n,dtype=np.float128)
                     zeta_l=self.get_zeta_l(trajectory_l[i],theta_init).astype(np.complex128)
                     coff=self.get_poly_coff(zeta_l)
                     solution=Solution(self.q,self.s,zeta_l,coff,theta_init,self.idx_all)
@@ -168,8 +165,7 @@ class model():#initialize parameter
                     theta_init=solution.theta
                     error_hist=np.zeros_like(theta_init)
                 try:
-                    solution.roots_print()
-                    curve,theta,sol_num,parity_map=self.image_match(solution,i)
+                    curve,theta,sol_num,parity_map=self.image_match(solution)
                 except IndexError:
                     print(f'idx{i} occured indexerror please check')
                     quit()
@@ -184,7 +180,9 @@ class model():#initialize parameter
                     error_hist+=error_k
                     mag+=parab
                 error_hist+=solution.buried_error
-                error_tot_rel=np.sum(error_hist)/mag*(np.pi*self.rho**2)
+                #error_tol=np.sum(error_hist)
+                #error_tot_rel=np.sum(error_hist)/mag*(np.pi*self.rho**2)
+            sample_n_all+=[sample_n]
             mag=mag/(np.pi*self.rho**2)
             mag_curve+=[mag]
             image_contour_all+=[curve]
@@ -238,9 +236,11 @@ class Solution(object):
         idx1=np.where(ghost_roots_dis[0:-2]>2*ghost_roots_dis[1:-1])[0]+1
         idx1=idx1[~np.isnan(ghost_roots_dis[idx1+1])]
         error_buried[idx1+1]+=(ghost_roots_dis[idx1]-ghost_roots_dis[idx1-1])**2
+        error_buried[idx1]+=(ghost_roots_dis[idx1]-ghost_roots_dis[idx1-1])**2
         idx1=np.where(2*ghost_roots_dis[1:-1]<ghost_roots_dis[2:])[0]+1
         idx1=idx1[~np.isnan(ghost_roots_dis[idx1-1])]
         error_buried[idx1]+=(ghost_roots_dis[idx1+1]-ghost_roots_dis[idx1])**2
+        error_buried[idx1+1]+=(ghost_roots_dis[idx1+1]-ghost_roots_dis[idx1])**2
         return error_buried
     def add_sorted_roots(self,roots,parity):
         sort_flag=self.sort_flag
@@ -260,8 +260,8 @@ class Solution(object):
         for k in range(sample_n):
             roots[k,:]=np.roots(coff[k,:])
         parity=self.get_parity(roots)
-        error=self.verify(zeta_l[:,None],roots)
-        cond=np.abs(error)>1e-6
+        error=np.abs(self.verify(zeta_l[:,None],roots))
+        cond=error>1e-6
         parity_sum=np.nansum(parity[~cond])
         return roots,cond,parity,parity_sum,error
     def get_real_roots(self,coff,zeta_l):
@@ -271,24 +271,27 @@ class Solution(object):
         real_parity=np.where(cond,np.nan,parity)
         parity_sum=np.nansum(real_parity,axis=1)
         nan_num=cond.sum(axis=1)
-        idx_parity_wrong=np.where((nan_num==0)&
-                                  (parity_sum!=-1))[0]#parity计算出现错误的根的索引
+        idx_parity_wrong=np.where(((nan_num==2)&(parity_sum!=-1))
+                                  |((nan_num==0)&(parity_sum!=-1)))[0]#parity计算出现错误的根的索引
         ##对于parity计算错误的点，分为fifth principal left center right，其中left center right 的parity为-1，1，-1
         if np.size(idx_parity_wrong)!=0:
             for i in idx_parity_wrong:
                 temp=real_roots[i]
-                prin_root=temp[np.sign(temp.imag)==np.sign(zeta_l.imag[i])][0]
-                prin_root=np.append(prin_root,temp[np.argmax(self.get_parity_error(temp))])
-                other=np.setdiff1d(temp,prin_root)
-                x_sort=np.argsort(other.real)
-                parity[i][(temp==other[x_sort[0]])|(temp==other[x_sort[-1]])]=-1
-                parity[i][(temp==other[x_sort[1]])]=1
+                if nan_num[i]==5:
+                    prin_root=temp[np.sign(temp.imag)==np.sign(zeta_l.imag[i])][0]
+                    prin_root=np.concatenate((prin_root,temp[np.argmax(self.get_parity_error(temp))]))
+                    other=np.setdiff1d(temp,prin_root)
+                    x_sort=np.argsort(other.real)
+                    parity[i][(temp==other[x_sort[0]])|(temp==other[x_sort[-1]])]=-1
+                    parity[i][(temp==other[x_sort[1]])]=1
+                else:
+                    parity[i,:]=-1
+                    parity[i][np.sign(temp.imag)==np.sign(zeta_l.imag[i])]=1
         ####计算verify,如果parity出现错误或者nan个数错误，则重新规定error最大的为nan
-        idx_verify_wrong=np.where(((nan_num==2)&(parity_sum!=-1))
-                                  |((nan_num!=0)&(nan_num!=2)))[0]#verify出现错误的根的索引
+        idx_verify_wrong=np.where(((nan_num!=0)&(nan_num!=2)))[0]#verify出现错误的根的索引
         if np.size(idx_verify_wrong)!=0:
             sorted=np.argsort(error[idx_verify_wrong],axis=1)
-            cond[idx_verify_wrong]=np.array([error[i,:]==error[i,sorted[-1]]|(error[i,:]==error[i,sorted[-2]])] 
+            cond[idx_verify_wrong]=np.array([error[i,:]==error[i,sorted[i,-1]]|(error[i,:]==error[i,sorted[i,-2]])] 
                                             for i in range(np.size(idx_verify_wrong)))
         ###计算得到最终的
         real_roots=np.where(cond,np.nan+np.nan*1j,roots)
@@ -313,23 +316,26 @@ class Solution(object):
         self.Is_create=Is_create
     def get_sorted_roots(self,sample_n,roots,parity):#非nan为true
         for k in range(1,sample_n):
-            root_i_re_1=roots[k-1,:];parity_i_re_1=parity[k-1,:]
-            root_i=roots[k,:];parity_i=parity[k,:]
-            sort_indices=self.find_nearest(root_i_re_1,parity_i_re_1,root_i,parity_i)
-            roots[k,:]=root_i[sort_indices]
-            parity[k,:]=parity_i[sort_indices]
+            sort_indices=self.find_nearest(roots[k-1,:],parity[k-1,:],roots[k,:],parity[k,:])
+            roots[k,:]=roots[k,:][sort_indices]
+            parity[k,:]=parity[k,:][sort_indices]
         return roots,parity
     def find_nearest(self,array1, parity1, array2, parity2):#线性分配问题
         pos_idx1=np.where(~np.isnan(array1))[0]
         pos_idx2=np.where(~np.isnan(array2))[0]
         cost=np.abs(array2[pos_idx2]-array1[pos_idx1][:,None])+np.abs(parity2[pos_idx2]-parity1[pos_idx1][:,None])
         row_ind, col_idx = linear_sum_assignment(cost)
-        pos_idx1=pos_idx1[row_ind]
-        pos_idx2=pos_idx2[col_idx]
-        if pos_idx1.size!=5:
-            pos_idx1=np.append(pos_idx1,np.setdiff1d(self.idx_all,pos_idx1,assume_unique=True))
-            pos_idx2=np.append(pos_idx2,np.setdiff1d(self.idx_all,pos_idx2,assume_unique=True))
+        if (pos_idx1.size!=pos_idx2.size):
+            pos_idx1=np.concatenate((pos_idx1[row_ind],np.setdiff1d(self.idx_all,pos_idx1[row_ind],assume_unique=True)))
+            pos_idx2=np.concatenate((pos_idx2[col_idx],np.setdiff1d(self.idx_all,pos_idx2[col_idx],assume_unique=True)))
             pos_idx1=np.argsort(pos_idx1)
+        elif pos_idx1.size==3:
+            pos_idx1=np.concatenate((pos_idx1[row_ind],np.where(np.isnan(array1))[0]))
+            pos_idx2=np.concatenate((pos_idx2[col_idx],np.where(np.isnan(array2))[0]))
+            pos_idx1=np.argsort(pos_idx1)
+        else:
+            pos_idx1=pos_idx1[row_ind]
+            pos_idx2=pos_idx2[col_idx]
         return pos_idx2[pos_idx1]
     def verify(self,zeta_l,z_l):#verify whether the root is right
         return  z_l-self.m1/(np.conj(z_l)-self.s)-self.m2/np.conj(z_l)-zeta_l
