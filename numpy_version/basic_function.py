@@ -1,5 +1,50 @@
 import numpy as np
-def search(m_map,n_map,roots,parity,fir_val,Is_create):
+from scipy.optimize import linear_sum_assignment
+import jax.numpy as jnp
+idx_all=np.linspace(0,4,5,dtype=int)
+def get_poly_coff(zeta_l,s,m2):
+    zeta_conj=np.conj(zeta_l)
+    c0=s**2*zeta_l*m2**2
+    c1=-s*m2*(2*zeta_l+s*(-1+s*zeta_l-2*zeta_l*zeta_conj+m2))
+    c2=zeta_l-s**3*zeta_l*zeta_conj+s*(-1+m2-2*zeta_conj*zeta_l*(1+m2))+s**2*(zeta_conj-2*zeta_conj*m2+zeta_l*(1+zeta_conj**2+m2))
+    c3=s**3*zeta_conj+2*zeta_l*zeta_conj+s**2*(-1+2*zeta_conj*zeta_l-zeta_conj**2+m2)-s*(zeta_l+2*zeta_l*zeta_conj**2-2*zeta_conj*m2)
+    c4=zeta_conj*(-1+2*s*zeta_conj+zeta_conj*zeta_l)-s*(-1+2*s*zeta_conj+zeta_conj*zeta_l+m2)
+    c5=(s-zeta_conj)*zeta_conj
+    coff=np.stack((c5,c4,c3,c2,c1,c0),axis=1)
+    return coff
+def verify(zeta_l,z_l,s,m1,m2):#verify whether the root is right
+    return  z_l-m1/(np.conj(z_l)-s)-m2/np.conj(z_l)-zeta_l
+def get_parity(z,s,m1,m2):#get the parity of roots
+    de_conjzeta_z1=m1/(np.conj(z)-s)**2+m2/np.conj(z)**2
+    return np.sign((1-np.abs(de_conjzeta_z1)**2))
+def get_parity_error(z,s,m1,m2):
+    de_conjzeta_z1=m1/(np.conj(z)-s)**2+m2/np.conj(z)**2
+    return np.abs((1-np.abs(de_conjzeta_z1)**2))
+def get_roots(sample_n,coff):
+    roots=np.empty((sample_n,5),dtype=complex)
+    for k in range(sample_n):
+        roots[k,:]=np.roots(coff[k,:])
+    return roots
+def dot_product(a,b):
+    return np.real(a)*np.real(b)+np.imag(a)*np.imag(b)
+def find_nearest(array1, parity1, array2, parity2):#线性分配问题
+    pos_idx1=np.where(~np.isnan(array1))[0]
+    pos_idx2=np.where(~np.isnan(array2))[0]
+    cost=np.abs(array2[pos_idx2]-array1[pos_idx1][:,None])+np.abs(parity2[pos_idx2]-parity1[pos_idx1][:,None])
+    row_ind, col_idx = linear_sum_assignment(cost)
+    if (pos_idx1.size!=pos_idx2.size):
+        pos_idx1=np.concatenate((pos_idx1[row_ind],np.setdiff1d(idx_all,pos_idx1[row_ind],assume_unique=True)))
+        pos_idx2=np.concatenate((pos_idx2[col_idx],np.setdiff1d(idx_all,pos_idx2[col_idx],assume_unique=True)))
+        pos_idx1=np.argsort(pos_idx1)
+    elif pos_idx1.size==3:
+        pos_idx1=np.concatenate((pos_idx1[row_ind],np.where(np.isnan(array1))[0]))
+        pos_idx2=np.concatenate((pos_idx2[col_idx],np.where(np.isnan(array2))[0]))
+        pos_idx1=np.argsort(pos_idx1)
+    else:
+        pos_idx1=pos_idx1[row_ind]
+        pos_idx2=pos_idx2[col_idx]
+    return pos_idx2[pos_idx1]
+def search(m_map,n_map,roots,parity,fir_val,Is_create):#图像匹配算法
     m=m_map[-1]
     n=n_map[-1]
     sample_n=np.shape(roots)[0]
@@ -63,7 +108,7 @@ def search(m_map,n_map,roots,parity,fir_val,Is_create):
         parity[m,n]=0
         roots[m,n]=np.nan
         return m_map,n_map,roots,parity   
-def search_first_postion(temp_roots,temp_parity):
+def search_first_postion(temp_roots,temp_parity):#搜索图像匹配开始的索引
     roots_now=temp_roots[0,:][~np.isnan(temp_roots[0,:])]
     change_sum=np.sum(temp_parity,axis=1)
     if (np.isin(1,change_sum).any()):#只处理parity 是 -1 1 -1的情况，否则转换为 -1 1 -1的情况

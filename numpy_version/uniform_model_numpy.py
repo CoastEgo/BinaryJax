@@ -1,13 +1,7 @@
 import numpy as np
-from scipy.optimize import linear_sum_assignment
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-from function_numpy import search,search_first_postion
-import sys
-from matplotlib import colors
-from matplotlib import cm
-import time
-sys.setrecursionlimit(10000)
+from basic_function import *
 np.seterr(divide='ignore', invalid='ignore')
 class model():#initialize parameter
     def __init__(self,par):
@@ -18,14 +12,12 @@ class model():#initialize parameter
         self.rho=par['rho']
         self.q=par['q']
         self.s=par['s']
-        self.alpha_deg=par['alpha_deg']
         self.alpha_rad=par['alpha_deg']*2*np.pi/360
         self.times=(par['times']-self.t_0)/self.t_E
         self.trajectory_n=len(self.times)
         self.m1=1/(1+self.q)
         self.m2=self.q/(1+self.q)
         self.trajectory_l=self.get_trajectory_l()
-        self.idx_all=np.linspace(0,4,5,dtype=int)
     def to_centroid(self,x):#change coordinate system to cetorid
         delta_x=self.s/(1+self.q)
         return -(np.conj(x)-delta_x)
@@ -35,27 +27,14 @@ class model():#initialize parameter
     def get_trajectory_l(self):
         alpha=self.alpha_rad
         b=self.u_0
-        trajectory_c=np.array([i*np.cos(alpha)-b*np.sin(alpha)+1j*(b*np.cos(alpha)+i*np.sin(alpha)) for i in self.times])
-        trajectory_l=self.to_lowmass(trajectory_c)
+        trajectory_l=self.to_lowmass(self.times*np.cos(alpha)-b*np.sin(alpha)+1j*(b*np.cos(alpha)+self.times*np.sin(alpha)))
         return trajectory_l
     def get_zeta_l(self,trajectory_centroid_l,theta):#获得等高线采样的zeta
         rho=self.rho
         rel_centroid=rho*np.cos(theta)+1j*rho*np.sin(theta)
         zeta_l=trajectory_centroid_l+rel_centroid
         return zeta_l
-    def get_poly_coff(self,zeta_l):
-        s=self.s
-        m2=self.m2
-        zeta_conj=np.conj(zeta_l)
-        c0=s**2*zeta_l*m2**2
-        c1=-s*m2*(2*zeta_l+s*(-1+s*zeta_l-2*zeta_l*zeta_conj+m2))
-        c2=zeta_l-s**3*zeta_l*zeta_conj+s*(-1+m2-2*zeta_conj*zeta_l*(1+m2))+s**2*(zeta_conj-2*zeta_conj*m2+zeta_l*(1+zeta_conj**2+m2))
-        c3=s**3*zeta_conj+2*zeta_l*zeta_conj+s**2*(-1+2*zeta_conj*zeta_l-zeta_conj**2+m2)-s*(zeta_l+2*zeta_l*zeta_conj**2-2*zeta_conj*m2)
-        c4=zeta_conj*(-1+2*s*zeta_conj+zeta_conj*zeta_l)-s*(-1+2*s*zeta_conj+zeta_conj*zeta_l+m2)
-        c5=(s-zeta_conj)*zeta_conj
-        coff=np.stack((c5,c4,c3,c2,c1,c0),axis=1)
-        return coff
-    def image_match(self,solution,i):#roots in lowmass coordinate
+    def image_match(self,solution):#roots in lowmass coordinate
         sample_n=solution.sample_n;theta=solution.theta;roots=solution.roots;parity=solution.parity;roots_is_create=solution.Is_create
         theta_map=[];uncom_theta_map=[];uncom_sol_num=[];sol_num=[];uncom_curve=[];curve=[];parity_map=[];uncom_parity_map=[]
         roots_non_nan=np.isnan(roots).sum(axis=0)==0
@@ -92,9 +71,6 @@ class model():#initialize parameter
                 temp_cur_num_map=temp_Is_create[m_map,n_map]
                 temp_idx=np.where((~np.isnan(temp_roots)).any(axis=0))[0]
                 temp_roots=temp_roots[:,temp_idx];temp_parity=temp_parity[:,temp_idx];temp_Is_create=temp_Is_create[:,temp_idx];real_parity=real_parity[:,temp_idx]
-                if i==26:
-                    plt.plot(temp_curve.real,temp_curve.imag)
-                    plt.show()
                 if np.isclose(temp_curve[0],temp_curve[-1],rtol=1e-6):
                     curve+=[temp_curve];theta_map+=[temp_cur_theta_map];sol_num+=[temp_cur_num_map];parity_map+=[temp_parity_map]
                 else:
@@ -130,6 +106,87 @@ class model():#initialize parameter
                 sol_num+=[arc_num]
                 parity_map+=[arc_parity]
         return curve,theta_map,sol_num,parity_map
+    def Quadrupole_test(self,zeta,z,zG,tol,fz0,fz1,fz2,fz3,J):
+        rho=self.rho;q=self.q
+        s=self.s
+        cQ=6;cG=2;cP=2
+        ####Quadrupole test
+        miu_Q=np.abs(-2*np.real(3*np.conj(fz1(z))**3*fz2(z)**2-(3-3*J(z)+J(z)**2/2)*np.abs(fz2(z))**2+J(z)*np.conj(fz1(z))**2*fz3(z))/(J(z)**5))
+        miu_C=np.abs(6*np.imag(3*np.conj(fz1(z))**3*fz2(z)**2)/(J(z)**5))
+        cond1=np.sum(miu_Q+miu_C)*cQ*(rho**2+1e-4*tol)<tol
+        ####ghost image test
+        cond2=np.array([True])
+        if zG.size!=0:
+            zwave=np.conj(zeta)-fz0(zG)
+            J_wave=1-fz1(zG)*fz1(zwave)
+            miu_G=1/2*np.abs(J(zG)*J_wave**2/(J_wave*fz2(np.conj(zG))*fz1(zG)-np.conj(J_wave)*fz2(zG)*fz1(np.conj(zG))*fz1(zwave)))
+            cond2=cG*(rho+1e-3)<miu_G
+        #####planet test
+        cond3=True
+        if self.q<1e-2:
+            s=self.s
+            cond3=(np.abs(zeta+1/s)**2>cP*(rho**2+9*q/s**2))|(rho*rho*s*s<q)
+        return cond1&cond2.any()&cond3,np.sum(np.abs(1/J(z)))
+    def get_magnifaction2(self,tol):
+        trajectory_l=self.trajectory_l
+        trajectory_n=self.trajectory_n
+        mag=np.zeros(trajectory_n)
+        m1=self.m1;m2=self.m2;s=self.s
+        fz0=lambda z :-m1/(z-s)-m2/z
+        fz1=lambda z :m1/(z-s)**2+m2/z**2
+        fz2=lambda z :-2*m1/(z-s)**3-2*m2/z**3
+        fz3=lambda z :6*m1/(z-s)**4+6*m2/z**4
+        J=lambda z : 1-fz1(z)*np.conj(fz1(z))
+        zeta_l=trajectory_l
+        coff=get_poly_coff(zeta_l,self.s,self.m2)
+        for i in range(trajectory_n):
+            z_l=np.roots(coff[i])
+            cond=verify(zeta_l[i],z_l,self.s,self.m1,self.m2)<1e-6
+            cond,mag[i]=self.Quadrupole_test(zeta_l[i],z_l[cond],z_l[cond==False],tol,fz0,fz1,fz2,fz3,J)
+            if ~cond:
+                mag[i],curve=self.contour_integrate(trajectory_l[i],tol,i)
+        return mag
+    def contour_integrate(self,trajectory_l,epsilon,i):
+        sample_n=3;theta_init=np.array([0,np.pi,2*np.pi],dtype=np.float128)
+        #error_tot_rel=np.ones(1)
+        error_hist=np.ones(1)
+        while ((error_hist>epsilon/np.sqrt(sample_n)).any()):#多点采样但精度不同
+            mag=0
+            if np.shape(error_hist)[0]==1:#第一次采样
+                error_hist=np.zeros_like(theta_init)
+                zeta_l=self.get_zeta_l(trajectory_l,theta_init).astype(np.complex128)
+                coff=get_poly_coff(zeta_l,self.s,self.m2)
+                solution=Solution(self.q,self.s,zeta_l,coff,theta_init)
+            else:#自适应采点插入theta
+                idx=np.where(error_hist>epsilon/np.sqrt(sample_n))[0]#不满足要求的点
+                add_number=np.ceil((error_hist[idx]/epsilon*np.sqrt(sample_n))**0.2).astype(int)+1#至少要插入一个点，不包括相同的第一个
+                add_theta=[np.linspace(theta_init[idx[i]-1],theta_init[idx[i]],add_number[i],endpoint=False,dtype=np.float128)[1:] for i in range(np.shape(idx)[0])]
+                idx = np.repeat(idx, add_number-1) # create an index array with the same length as add_item
+                add_theta = np.concatenate(add_theta) # concatenate the list of arrays into a 1-D array
+                add_zeta_l=self.get_zeta_l(trajectory_l,add_theta).astype(np.complex128)
+                add_coff=get_poly_coff(add_zeta_l,self.s,self.m2)
+                solution.add_points(idx,add_zeta_l,add_coff,add_theta)
+                sample_n=solution.sample_n
+                theta_init=solution.theta
+                error_hist=np.zeros_like(theta_init)
+            try:
+                curve,theta,sol_num,parity_map=self.image_match(solution)
+            except IndexError:
+                print(f'idx{i} occured indexerror please check')
+                quit()
+            for k in range(len(curve)):
+                cur=curve[k]
+                theta_map_k=theta[k]
+                parity_k=parity_map[k]
+                mag_k=1/2*np.sum((cur.imag[0:-1]+cur.imag[1:])*(cur.real[0:-1]-cur.real[1:]))
+                mag+=mag_k*parity_k[0]
+                Error=Error_estimator(self.q,self.s,self.rho,cur,theta_map_k,theta_init,sol_num[k],parity_k)
+                error_k,parab=Error.error_sum()
+                error_hist+=error_k
+                mag+=parab
+            error_hist+=solution.buried_error
+        mag=mag/(np.pi*self.rho**2)
+        return (mag,curve)
     def get_magnifaction(self,tol):
         epsilon=tol
         rel_epsilon=tol/10
@@ -137,19 +194,20 @@ class model():#initialize parameter
         trajectory_n=self.trajectory_n
         mag_curve=[]
         image_contour_all=[]
+        #add_max=np.ceil(-2*np.log(self.rho)-np.log(tol)/np.log(5))*10
         for i in range(trajectory_n):
-            sample_n=3;theta_init=np.linspace(0,2*np.pi,sample_n,dtype=np.float128)
-            error_tot_rel=np.ones(1);error_hist=np.ones(1)
-            while ((error_hist>epsilon/np.sqrt(sample_n)).any() & (np.abs(error_tot_rel)>rel_epsilon)):#相对误差
-            #while ((error_hist>epsilon/np.sqrt(sample_n)).any()):#多点采样但精度不同
-            #while ((error_tot>epsilon).any()):
+            sample_n=3;theta_init=np.array([0,np.pi,2*np.pi],dtype=np.float128)
+            #error_tot_rel=np.ones(1)
+            error_hist=np.ones(1)
+            #while ((error_hist>epsilon/np.sqrt(sample_n)).any() & (np.abs(error_tot_rel)>rel_epsilon)):#相对误差
+            #while ((error_hist>epsilon/np.sqrt(sample_n)).any() & ((error_tot_rel)>rel_epsilon/np.sqrt(sample_n)).any()):#相对误差
+            while ((error_hist>epsilon/np.sqrt(sample_n)).any()):#多点采样但精度不同
                 mag=0
                 if np.shape(error_hist)[0]==1:#第一次采样
                     error_hist=np.zeros_like(theta_init)
-                    theta_init=np.linspace(0,2*np.pi,sample_n,dtype=np.float128)
                     zeta_l=self.get_zeta_l(trajectory_l[i],theta_init).astype(np.complex128)
-                    coff=self.get_poly_coff(zeta_l)
-                    solution=Solution(self.q,self.s,zeta_l,coff,theta_init,self.idx_all)
+                    coff=get_poly_coff(zeta_l,self.s,self.m2)
+                    solution=Solution(self.q,self.s,zeta_l,coff,theta_init)
                 else:#自适应采点插入theta
                     if 0:#单区间单点采样
                         idx=np.array([np.argmax(error_hist)]).reshape(1)
@@ -162,14 +220,13 @@ class model():#initialize parameter
                     idx = np.repeat(idx, add_number-1) # create an index array with the same length as add_item
                     add_theta = np.concatenate(add_theta) # concatenate the list of arrays into a 1-D array
                     add_zeta_l=self.get_zeta_l(trajectory_l[i],add_theta).astype(np.complex128)
-                    add_coff=self.get_poly_coff(add_zeta_l)
+                    add_coff=get_poly_coff(add_zeta_l,self.s,self.m2)
                     solution.add_points(idx,add_zeta_l,add_coff,add_theta)
                     sample_n=solution.sample_n
                     theta_init=solution.theta
                     error_hist=np.zeros_like(theta_init)
                 try:
-                    solution.roots_print()
-                    curve,theta,sol_num,parity_map=self.image_match(solution,i)
+                    curve,theta,sol_num,parity_map=self.image_match(solution)
                 except IndexError:
                     print(f'idx{i} occured indexerror please check')
                     quit()
@@ -184,7 +241,7 @@ class model():#initialize parameter
                     error_hist+=error_k
                     mag+=parab
                 error_hist+=solution.buried_error
-                error_tot_rel=np.sum(error_hist)/mag*(np.pi*self.rho**2)
+                #error_tot_rel=error_hist/np.abs(mag)*(np.pi*self.rho**2)
             mag=mag/(np.pi*self.rho**2)
             mag_curve+=[mag]
             image_contour_all+=[curve]
@@ -209,9 +266,8 @@ class model():#initialize parameter
         writervideo = animation.FFMpegWriter(fps=30) 
         ani.save('picture/animation.mp4',writer=writervideo)
 class Solution(object):
-    def __init__(self,q,s,zeta_l,coff,theta,idx_all):
+    def __init__(self,q,s,zeta_l,coff,theta):
         self.theta=theta
-        self.idx_all=idx_all
         self.q=q;self.s=s;self.m1=1/(1+q);self.m2=q/(1+q)
         self.zeta_l=zeta_l
         self.coff=coff
@@ -238,57 +294,58 @@ class Solution(object):
         idx1=np.where(ghost_roots_dis[0:-2]>2*ghost_roots_dis[1:-1])[0]+1
         idx1=idx1[~np.isnan(ghost_roots_dis[idx1+1])]
         error_buried[idx1+1]+=(ghost_roots_dis[idx1]-ghost_roots_dis[idx1-1])**2
+        error_buried[idx1]+=(ghost_roots_dis[idx1]-ghost_roots_dis[idx1-1])**2
         idx1=np.where(2*ghost_roots_dis[1:-1]<ghost_roots_dis[2:])[0]+1
         idx1=idx1[~np.isnan(ghost_roots_dis[idx1-1])]
         error_buried[idx1]+=(ghost_roots_dis[idx1+1]-ghost_roots_dis[idx1])**2
+        error_buried[idx1+1]+=(ghost_roots_dis[idx1+1]-ghost_roots_dis[idx1])**2
         return error_buried
     def add_sorted_roots(self,roots,parity):
         sort_flag=self.sort_flag
         flase_i=np.where(~sort_flag)[0]
         for i in flase_i:
-            sort_indices=self.find_nearest(roots[i-1],parity[i-1],roots[i],parity[i])
+            sort_indices=find_nearest(roots[i-1],parity[i-1],roots[i],parity[i])
             roots[i]=roots[i][sort_indices]
             parity[i]=parity[i][sort_indices]
             if sort_flag[i+1]:
-                sort_indices=self.find_nearest(roots[i],parity[i],roots[i+1],parity[i+1])
+                sort_indices=find_nearest(roots[i],parity[i],roots[i+1],parity[i+1])
                 roots[i+1:]=roots[i+1:,sort_indices]
                 parity[i+1:]=parity[i+1:,sort_indices]
         self.sort_flag[:]=True
         return roots,parity
-    def get_roots(self,sample_n,coff,zeta_l):
-        roots=np.empty((sample_n,5),dtype=complex)
-        for k in range(sample_n):
-            roots[k,:]=np.roots(coff[k,:])
-        parity=self.get_parity(roots)
-        error=self.verify(zeta_l[:,None],roots)
-        cond=np.abs(error)>1e-6
-        parity_sum=np.nansum(parity[~cond])
-        return roots,cond,parity,parity_sum,error
     def get_real_roots(self,coff,zeta_l):
         sample_n=np.shape(zeta_l)[0]
-        roots,cond,parity,parity_sum,error=self.get_roots(sample_n,coff,zeta_l)
+        roots=get_roots(sample_n,coff)
+        parity=get_parity(roots,self.s,self.m1,self.m2)
+        error=np.abs(verify(zeta_l[:,None],roots,self.s,self.m1,self.m2))
+        cond=error>1e-6
+        ####根的处理
+        parity_sum=np.nansum(parity[~cond])
         real_roots=np.where(cond,np.nan+np.nan*1j,roots)
         real_parity=np.where(cond,np.nan,parity)
         parity_sum=np.nansum(real_parity,axis=1)
         nan_num=cond.sum(axis=1)
-        idx_parity_wrong=np.where((nan_num==0)&
-                                  (parity_sum!=-1))[0]#parity计算出现错误的根的索引
+        idx_parity_wrong=np.where(((nan_num==2)&(parity_sum!=-1))
+                                  |((nan_num==0)&(parity_sum!=-1)))[0]#parity计算出现错误的根的索引
         ##对于parity计算错误的点，分为fifth principal left center right，其中left center right 的parity为-1，1，-1
         if np.size(idx_parity_wrong)!=0:
             for i in idx_parity_wrong:
                 temp=real_roots[i]
-                prin_root=temp[np.sign(temp.imag)==np.sign(zeta_l.imag[i])][0]
-                prin_root=np.append(prin_root,temp[np.argmax(self.get_parity_error(temp))])
-                other=np.setdiff1d(temp,prin_root)
-                x_sort=np.argsort(other.real)
-                parity[i][(temp==other[x_sort[0]])|(temp==other[x_sort[-1]])]=-1
-                parity[i][(temp==other[x_sort[1]])]=1
+                if nan_num[i]==5:
+                    prin_root=temp[np.sign(temp.imag)==np.sign(zeta_l.imag[i])][0]
+                    prin_root=np.concatenate((prin_root,temp[np.argmax(get_parity_error(temp,self.s,self.m1,self.m2))]))
+                    other=np.setdiff1d(temp,prin_root)
+                    x_sort=np.argsort(other.real)
+                    parity[i][(temp==other[x_sort[0]])|(temp==other[x_sort[-1]])]=-1
+                    parity[i][(temp==other[x_sort[1]])]=1
+                else:
+                    parity[i,:]=-1
+                    parity[i][np.sign(temp.imag)==np.sign(zeta_l.imag[i])]=1
         ####计算verify,如果parity出现错误或者nan个数错误，则重新规定error最大的为nan
-        idx_verify_wrong=np.where(((nan_num==2)&(parity_sum!=-1))
-                                  |((nan_num!=0)&(nan_num!=2)))[0]#verify出现错误的根的索引
+        idx_verify_wrong=np.where(((nan_num!=0)&(nan_num!=2)))[0]#verify出现错误的根的索引
         if np.size(idx_verify_wrong)!=0:
             sorted=np.argsort(error[idx_verify_wrong],axis=1)
-            cond[idx_verify_wrong]=np.array([error[i,:]==error[i,sorted[-1]]|(error[i,:]==error[i,sorted[-2]])] 
+            cond[idx_verify_wrong]=np.array([error[i,:]==error[i,sorted[i,-1]]|(error[i,:]==error[i,sorted[i,-2]])] 
                                             for i in range(np.size(idx_verify_wrong)))
         ###计算得到最终的
         real_roots=np.where(cond,np.nan+np.nan*1j,roots)
@@ -313,32 +370,10 @@ class Solution(object):
         self.Is_create=Is_create
     def get_sorted_roots(self,sample_n,roots,parity):#非nan为true
         for k in range(1,sample_n):
-            root_i_re_1=roots[k-1,:];parity_i_re_1=parity[k-1,:]
-            root_i=roots[k,:];parity_i=parity[k,:]
-            sort_indices=self.find_nearest(root_i_re_1,parity_i_re_1,root_i,parity_i)
-            roots[k,:]=root_i[sort_indices]
-            parity[k,:]=parity_i[sort_indices]
+            sort_indices=find_nearest(roots[k-1,:],parity[k-1,:],roots[k,:],parity[k,:])
+            roots[k,:]=roots[k,:][sort_indices]
+            parity[k,:]=parity[k,:][sort_indices]
         return roots,parity
-    def find_nearest(self,array1, parity1, array2, parity2):#线性分配问题
-        pos_idx1=np.where(~np.isnan(array1))[0]
-        pos_idx2=np.where(~np.isnan(array2))[0]
-        cost=np.abs(array2[pos_idx2]-array1[pos_idx1][:,None])+np.abs(parity2[pos_idx2]-parity1[pos_idx1][:,None])
-        row_ind, col_idx = linear_sum_assignment(cost)
-        pos_idx1=pos_idx1[row_ind]
-        pos_idx2=pos_idx2[col_idx]
-        if pos_idx1.size!=5:
-            pos_idx1=np.append(pos_idx1,np.setdiff1d(self.idx_all,pos_idx1,assume_unique=True))
-            pos_idx2=np.append(pos_idx2,np.setdiff1d(self.idx_all,pos_idx2,assume_unique=True))
-            pos_idx1=np.argsort(pos_idx1)
-        return pos_idx2[pos_idx1]
-    def verify(self,zeta_l,z_l):#verify whether the root is right
-        return  z_l-self.m1/(np.conj(z_l)-self.s)-self.m2/np.conj(z_l)-zeta_l
-    def get_parity(self,z):#get the parity of roots
-        de_conjzeta_z1=self.m1/(np.conj(z)-self.s)**2+self.m2/np.conj(z)**2
-        return np.sign((1-np.abs(de_conjzeta_z1)**2))
-    def get_parity_error(self,z):
-        de_conjzeta_z1=self.m1/(np.conj(z)-self.s)**2+self.m2/np.conj(z)**2
-        return np.abs((1-np.abs(de_conjzeta_z1)**2))
     def root_polish(self,coff,roots,epsilon):
         p=np.poly1d(coff)
         derp=np.polyder(coff)
@@ -357,7 +392,7 @@ class Solution(object):
         np.savetxt('result/parity.txt',self.parity,delimiter=',',fmt='%.0f')
         np.savetxt('result/create.txt',self.Is_create,delimiter=',',fmt='%.0f')
         np.savetxt('result/roots_diff.txt',np.abs(self.roots[1:]-self.roots[0:-1]),delimiter=',')
-        np.savetxt('result/roots_verify.txt',self.verify(np.array([self.zeta_l,self.zeta_l,self.zeta_l,self.zeta_l,self.zeta_l]).T,self.roots),delimiter=',')
+        np.savetxt('result/roots_verify.txt',verify(np.array([self.zeta_l,self.zeta_l,self.zeta_l,self.zeta_l,self.zeta_l]).T,self.roots),delimiter=',')
 class Error_estimator(object):
     def __init__(self,q,s,rho,matched_image_l,theta_map,theta_init,sol_num,parity_map):
         self.q=q;self.s=s;self.rho=rho;self.cur_par=parity_map[0]
@@ -377,8 +412,6 @@ class Error_estimator(object):
         deXProde2X=(self.rho**2+np.imag(de_z**2*de_zeta*par2ConZetaZ))/detJ
         self.product=deXProde2X
         self.de_z=de_z
-    def dot_product(self,a,b):
-        return np.real(a)*np.real(b)+np.imag(a)*np.imag(b)
     def error_ordinary(self):
         deXProde2X=self.product
         delta_theta=self.delta_theta
@@ -386,7 +419,7 @@ class Error_estimator(object):
         e1=np.abs(1/48*np.abs(np.abs(deXProde2X[0:-1]-np.abs(deXProde2X[1:])))*delta_theta**3)
         dAp_1=1/24*((deXProde2X[0:-1]+deXProde2X[1:]))*delta_theta
         dAp=dAp_1*delta_theta**2
-        delta_theta_wave=np.abs(zeta_l[0:-1]-zeta_l[1:])**2/np.abs(self.dot_product(self.de_z[0:-1],self.de_z[1:]))
+        delta_theta_wave=np.abs(zeta_l[0:-1]-zeta_l[1:])**2/np.abs(dot_product(self.de_z[0:-1],self.de_z[1:]))
         e2=3/2*np.abs(dAp_1*(delta_theta_wave-delta_theta**2))
         e3=1/10*np.abs(dAp)*delta_theta**2
         e_tot=(e1+e2+e3)/(np.pi*self.rho**2)
@@ -398,10 +431,10 @@ class Error_estimator(object):
         parity=self.parity
         pos_idx=critial_points;zeta_pos=zeta_l[pos_idx]
         neg_idx=critial_points+1;zeta_neg=zeta_l[neg_idx]
-        theta_wave=np.abs(zeta_pos-zeta_neg)/np.sqrt(np.abs(self.dot_product(de_z[pos_idx],de_z[neg_idx])))
+        theta_wave=np.abs(zeta_pos-zeta_neg)/np.sqrt(np.abs(dot_product(de_z[pos_idx],de_z[neg_idx])))
         ce1=1/48*np.abs(deXProde2X[pos_idx]+deXProde2X[neg_idx])*theta_wave**3
         Is_create=self.sol_num[pos_idx-(np.abs(self.sol_num[pos_idx])).astype(int)+1]#1 for ture -1 for false
-        ce2=3/2*np.abs(self.dot_product(zeta_pos-zeta_neg,de_z[pos_idx]-de_z[neg_idx])-Is_create*2*np.abs(zeta_pos-zeta_neg)*np.sqrt(np.abs(self.dot_product(de_z[pos_idx],de_z[neg_idx]))))*theta_wave
+        ce2=3/2*np.abs(dot_product(zeta_pos-zeta_neg,de_z[pos_idx]-de_z[neg_idx])-Is_create*2*np.abs(zeta_pos-zeta_neg)*np.sqrt(np.abs(dot_product(de_z[pos_idx],de_z[neg_idx]))))*theta_wave
         dAcP=parity[pos_idx]*1/24*(deXProde2X[pos_idx]-deXProde2X[neg_idx])*theta_wave**3
         ce3=1/10*np.abs(dAcP)*theta_wave**2
         ce_tot=(ce1+ce2+ce3)/(np.pi*self.rho**2)
