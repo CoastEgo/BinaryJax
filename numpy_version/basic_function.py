@@ -13,7 +13,7 @@ def get_poly_coff(zeta_l,s,m2):
     coff=np.stack((c5,c4,c3,c2,c1,c0),axis=1)
     return coff
 def verify(zeta_l,z_l,s,m1,m2):#verify whether the root is right
-    return  z_l-m1/(np.conj(z_l)-s)-m2/np.conj(z_l)-zeta_l
+    return  np.abs(z_l-m1/(np.conj(z_l)-s)-m2/np.conj(z_l)-zeta_l)
 def get_parity(z,s,m1,m2):#get the parity of roots
     de_conjzeta_z1=m1/(np.conj(z)-s)**2+m2/np.conj(z)**2
     return np.sign((1-np.abs(de_conjzeta_z1)**2))

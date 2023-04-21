@@ -120,13 +120,13 @@ class model():#initialize parameter
             zwave=np.conj(zeta)-fz0(zG)
             J_wave=1-fz1(zG)*fz1(zwave)
             miu_G=1/2*np.abs(J(zG)*J_wave**2/(J_wave*fz2(np.conj(zG))*fz1(zG)-np.conj(J_wave)*fz2(zG)*fz1(np.conj(zG))*fz1(zwave)))
-            cond2=cG*(rho+1e-3)<miu_G
+            cond2=(cG*(rho+1e-3)<miu_G).all()#any更加宽松，因为ghost roots应该是同时消失的，理论上是没问题的
         #####planet test
         cond3=True
         if self.q<1e-2:
             s=self.s
             cond3=(np.abs(zeta+1/s)**2>cP*(rho**2+9*q/s**2))|(rho*rho*s*s<q)
-        return cond1&cond2.any()&cond3,np.sum(np.abs(1/J(z)))
+        return cond1&cond2&cond3,np.sum(np.abs(1/J(z)))
     def get_magnifaction2(self,tol):
         trajectory_l=self.trajectory_l
         trajectory_n=self.trajectory_n
@@ -141,10 +141,16 @@ class model():#initialize parameter
         coff=get_poly_coff(zeta_l,self.s,self.m2)
         for i in range(trajectory_n):
             z_l=np.roots(coff[i])
-            cond=verify(zeta_l[i],z_l,self.s,self.m1,self.m2)<1e-6
-            cond,mag[i]=self.Quadrupole_test(zeta_l[i],z_l[cond],z_l[cond==False],tol,fz0,fz1,fz2,fz3,J)
+            error=verify(zeta_l[i],z_l,self.s,self.m1,self.m2)
+            cond=error<1e-6
+            z=z_l[cond];zG=z_l[cond==False]
+            if (cond.sum()!=3) & (cond.sum()!=5):
+                sortidx=np.argsort(error)
+                z=z_l[sortidx[0:3]];zG=z_l[sortidx[-2:]]
+            cond,mag[i]=self.Quadrupole_test(zeta_l[i],z,zG,tol,fz0,fz1,fz2,fz3,J)
             if ~cond:
                 mag[i],curve=self.contour_integrate(trajectory_l[i],tol,i)
+                #mag[i]=1
         return mag
     def contour_integrate(self,trajectory_l,epsilon,i):
         sample_n=3;theta_init=np.array([0,np.pi,2*np.pi],dtype=np.float128)
@@ -185,6 +191,7 @@ class model():#initialize parameter
                 error_hist+=error_k
                 mag+=parab
             error_hist+=solution.buried_error
+        error_tol=np.sum(error_hist)
         mag=mag/(np.pi*self.rho**2)
         return (mag,curve)
     def get_magnifaction(self,tol):
@@ -317,7 +324,7 @@ class Solution(object):
         sample_n=np.shape(zeta_l)[0]
         roots=get_roots(sample_n,coff)
         parity=get_parity(roots,self.s,self.m1,self.m2)
-        error=np.abs(verify(zeta_l[:,None],roots,self.s,self.m1,self.m2))
+        error=verify(zeta_l[:,None],roots,self.s,self.m1,self.m2)
         cond=error>1e-6
         ####根的处理
         parity_sum=np.nansum(parity[~cond])
