@@ -60,7 +60,7 @@ class model():#initialize parameter
             real_parity=np.copy(temp_parity)
             while np.shape(temp_idx)[0]!=0:
                 initk,initm,temp_parity=search_first_postion(temp_roots,temp_parity)
-                if temp_parity[initk,initm]==1:
+                if (temp_parity[initk,initm]==1)&(initk!=-1):
                     temp_parity*=-1
                 roots_c=np.copy(temp_roots)
                 m_map,n_map,temp_roots,temp_parity=search([initk],[initm],temp_roots,temp_parity,temp_roots[initk,initm],temp_Is_create)
@@ -397,9 +397,9 @@ class Solution(object):
     def roots_print(self):
         np.savetxt('result/roots.txt',self.roots,delimiter=',',fmt='%.4f')
         np.savetxt('result/parity.txt',self.parity,delimiter=',',fmt='%.0f')
-        np.savetxt('result/create.txt',self.Is_create,delimiter=',',fmt='%.0f')
-        np.savetxt('result/roots_diff.txt',np.abs(self.roots[1:]-self.roots[0:-1]),delimiter=',')
-        np.savetxt('result/roots_verify.txt',verify(np.array([self.zeta_l,self.zeta_l,self.zeta_l,self.zeta_l,self.zeta_l]).T,self.roots),delimiter=',')
+        #np.savetxt('result/create.txt',self.Is_create,delimiter=',',fmt='%.0f')
+        #np.savetxt('result/roots_diff.txt',np.abs(self.roots[1:]-self.roots[0:-1]),delimiter=',')
+        #np.savetxt('result/roots_verify.txt',verify(np.array([self.zeta_l,self.zeta_l,self.zeta_l,self.zeta_l,self.zeta_l]).T,self.roots),delimiter=',')
 class Error_estimator(object):
     def __init__(self,q,s,rho,matched_image_l,theta_map,theta_init,sol_num,parity_map):
         self.q=q;self.s=s;self.rho=rho;self.cur_par=parity_map[0]

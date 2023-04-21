@@ -116,7 +116,7 @@ def search_first_postion(temp_roots,temp_parity):#搜索图像匹配开始的索
     if np.shape(roots_now)[0]!=0:#如果第一行不是全部都为nan
         temp_cond=np.where((~np.isnan(temp_roots.real[0,:])) & (temp_parity[0,:]==-1))[0]#第一行存在的parity=sum(parity)的根
         initk=0
-        if np.shape(temp_roots)[1]==2:
+        if np.shape(temp_roots)[1]==2:#如果有两列
             try:
                 initm=np.where(~np.isin(np.round(temp_roots[0,:],6),np.round(temp_roots[-1,:],6)))[0][0]#第一行不在最后一行的值
             except IndexError:
@@ -127,8 +127,8 @@ def search_first_postion(temp_roots,temp_parity):#搜索图像匹配开始的索
             Nan_idx=np.where(np.isnan(temp_roots[:,temp_cond]).any(axis=1))[0][0]
             initm=temp_cond[np.where(np.isnan(temp_roots[Nan_idx,temp_cond]))[0][0]]
     else:#如果有两列待链接,并且第一行全部为nan
-        roots_last=temp_roots[-1,:][~np.isnan(temp_roots[-1,:])]
-        if np.shape(roots_last)[0]==0:
+        roots_last=temp_roots[-1,:][~np.isnan(temp_roots[-1,:])]#最后一行不是nan的地方
+        if np.shape(roots_last)[0]==0:#如果最后一行都是nan
             initm=np.where((temp_parity==-1).any(axis=0))[0][0]
             initk=np.where(~np.isnan(temp_roots[:,initm]))[0][0]
         else:
