@@ -1,6 +1,5 @@
 import numpy as np
 from scipy.optimize import linear_sum_assignment
-import jax.numpy as jnp
 idx_all=np.linspace(0,4,5,dtype=int)
 def get_poly_coff(zeta_l,s,m2):
     zeta_conj=np.conj(zeta_l)
@@ -30,7 +29,7 @@ def dot_product(a,b):
 def find_nearest(array1, parity1, array2, parity2):#线性分配问题
     pos_idx1=np.where(~np.isnan(array1))[0]
     pos_idx2=np.where(~np.isnan(array2))[0]
-    cost=np.abs(array2[pos_idx2]-array1[pos_idx1][:,None])+np.abs(parity2[pos_idx2]-parity1[pos_idx1][:,None])
+    cost=np.abs(array2[pos_idx2]-array1[pos_idx1][:,None])+np.abs(parity2[pos_idx2]-parity1[pos_idx1][:,None])*5#系数可以指定防止出现错误，系数越大鲁棒性越好，但是速度会变慢些
     row_ind, col_idx = linear_sum_assignment(cost)
     if (pos_idx1.size!=pos_idx2.size):
         pos_idx1=np.concatenate((pos_idx1[row_ind],np.setdiff1d(idx_all,pos_idx1[row_ind],assume_unique=True)))

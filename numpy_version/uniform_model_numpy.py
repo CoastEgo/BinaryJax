@@ -156,7 +156,11 @@ class model():#initialize parameter
         sample_n=3;theta_init=np.array([0,np.pi,2*np.pi],dtype=np.float128)
         #error_tot_rel=np.ones(1)
         error_hist=np.ones(1)
+        max_ite=0
         while ((error_hist>epsilon/np.sqrt(sample_n)).any()):#多点采样但精度不同
+            max_ite+=1##最大采样数，超过则break
+            if max_ite>30:
+                break
             mag=0
             if np.shape(error_hist)[0]==1:#第一次采样
                 error_hist=np.zeros_like(theta_init)
@@ -191,7 +195,7 @@ class model():#initialize parameter
                 error_hist+=error_k
                 mag+=parab
             error_hist+=solution.buried_error
-        error_tol=np.sum(error_hist)
+            error_tol=np.sum(error_hist)
         mag=mag/(np.pi*self.rho**2)
         return (mag,curve)
     def get_magnifaction(self,tol):
@@ -454,10 +458,7 @@ class Error_estimator(object):
         if  np.shape(critial_points)[0]!=0:
             e_crit,dacp,Is_create=self.error_critial(critial_points)
             e_ord[critial_points]=e_crit
-            try:
-                interval_theta[critial_points]-=0.5*Is_create*np.min(np.abs(self.delta_theta[self.delta_theta!=0]))#如果error出现在creat则theta减小，缶则theta增加
-            except ValueError:
-                interval_theta[critial_points]-=0.5*Is_create*np.min(np.abs(np.diff(theta_init)))
+            interval_theta[critial_points]-=0.5*Is_create*np.min(np.abs(np.diff(theta_init)))
             parab+=dacp
         error_map=np.zeros_like(theta_init)#error 按照theta 排序
         indices = np.searchsorted(theta_init, interval_theta%(2*np.pi))
