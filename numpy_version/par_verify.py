@@ -31,7 +31,6 @@ def mag_gen(i):
     return i
     #return (x,y,VBBL_mag,uniform_mag,i)
 if __name__=="__main__":
-    start = time.monotonic()
     trajectory_n=1000
     sample_n=1200
     tol=1e-3
@@ -46,12 +45,12 @@ if __name__=="__main__":
     mycode_map=np.zeros((sample_n,trajectory_n))
     traj_x=np.zeros((sample_n,trajectory_n))
     traj_y=np.zeros((sample_n,trajectory_n))
-    result=[]
     for i in range(1):
-        '''q=10**(np.random.uniform(-9.,0.))
+        result=[]
+        q=10**(np.random.uniform(-9.,0.))
         s=np.random.uniform(0.1,4.)
-        rho=10**(np.random.uniform(-3.,-1.))'''
-        q=0.0006943022058639565;s=3.6261560264322408;rho=0.010084752886582907
+        rho=10**(np.random.uniform(-3.,-1.))
+        q=0.0002438676940541978;s=0.9805249771666431;rho=0.017181855742657577
         print(f'parameter:q={q};s={s};rho={rho}')
         with Pool(processes=150) as pool:
             i= pool.imap(mag_gen,range(sample_n))
@@ -63,8 +62,9 @@ if __name__=="__main__":
                 except Exception as e:
                     # do something
                     result.append(e)
-        print(f'time took: {time.monotonic() - start:.1f}')
-        print(result)
+        for k in range(len(result)):
+            if result[k]!=k:
+                print(f'{k} error is ',result[k])
         '''for x,y,vbbl,uniform,i in pool.imap(mag_gen,range(sample_n)):
                 VBBL_mag_map[i,:]=vbbl
                 traj_x[i,:]=x
