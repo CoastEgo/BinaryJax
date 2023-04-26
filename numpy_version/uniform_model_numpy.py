@@ -358,13 +358,14 @@ class Solution(object):
                 if nan_num[i]==0:
                     prin_root=temp[np.sign(temp.imag)==np.sign(zeta_l.imag[i])][0][np.newaxis]
                     prin_root=np.concatenate([prin_root,temp[np.argmax(get_parity_error(temp,self.s,self.m1,self.m2))][np.newaxis]])
-                    #real_parity[i][temp==prin_root[0]]=1;real_parity[i][temp==prin_root[1]]=-1#是否对主图像与负图像进行parity的赋值
+                    if (np.shape(real_parity)[0]==3)|(np.abs(zeta_l.imag[i])>1e-5):#初始三个点必须全部正确
+                        real_parity[i][temp==prin_root[0]]=1;real_parity[i][temp==prin_root[1]]=-1#是否对主图像与负图像进行parity的赋值
                     other=np.setdiff1d(temp,prin_root)
                     x_sort=np.argsort(other.real)
                     real_parity[i][(temp==other[x_sort[0]])|(temp==other[x_sort[-1]])]=-1
                     real_parity[i][(temp==other[x_sort[1]])]=1
                 else:##对于三个根怎么判断其parity更加合理
-                    if np.abs(zeta_l.imag[i])>1e-5:
+                    if (np.abs(zeta_l.imag[i])>1e-5)|((np.shape(real_parity)[0]==3)):#初始三个点必须全部正确
                         real_parity[i,~cond[i]]=-1
                         real_parity[i,np.sign(temp.imag)==np.sign(zeta_l.imag[i])]=1##通过主图像判断，与zeta位于y轴同一侧的为1'''
         parity_sum=np.nansum(real_parity,axis=1)
