@@ -7,7 +7,32 @@ from jax import lax
 from functools import partial
 jax.config.update("jax_enable_x64", True)
 idx_all=jnp.linspace(0,4,5,dtype=int)
-@partial(jax.jit,static_argnums=(1,2))
+def fz0(z,m1,m2,s):
+    return -m1/(z-s)-m2/z
+def fz1(z,m1,m2,s):
+    return m1/(z-s)**2+m2/z**2
+def fz2(z,m1,m2,s):
+    return -2*m1/(z-s)**3-2*m2/z**3
+def fz3(z,m1,m2,s):
+    return 6*m1/(z-s)**4+6*m2/z**4
+def J(z,m1,m2,s):
+    return 1-fz1(z,m1,m2,s)*jnp.conj(fz1(z,m1,m2,s))
+def Quadrupole_test(rho,s,q,zeta,z,zG,tol):
+    m1=1/(1+q)
+    m2=q/(1+q)
+    cQ=6;cG=2;cP=2
+    ####Quadrupole test
+    miu_Q=jnp.abs(-2*jnp.real(3*jnp.conj(fz1(z,m1,m2,s))**3*fz2(z,m1,m2,s)**2-(3-3*J(z,m1,m2,s)+J(z,m1,m2,s)**2/2)*jnp.abs(fz2(z,m1,m2,s))**2+J(z,m1,m2,s)*jnp.conj(fz1(z,m1,m2,s))**2*fz3(z,m1,m2,s))/(J(z,m1,m2,s)**5))
+    miu_C=jnp.abs(6*jnp.imag(3*jnp.conj(fz1(z,m1,m2,s))**3*fz2(z,m1,m2,s)**2)/(J(z,m1,m2,s)**5))
+    cond1=jnp.nansum(miu_Q+miu_C,axis=1)*cQ*(rho**2+1e-4*tol)<tol
+    ####ghost image test
+    zwave=jnp.conj(zeta[:,jnp.newaxis])-fz0(zG,m1,m2,s)
+    J_wave=1-fz1(zG,m1,m2,s)*fz1(zwave,m1,m2,s)
+    miu_G=1/2*jnp.abs(J(zG,m1,m2,s)*J_wave**2/(J_wave*fz2(jnp.conj(zG),m1,m2,s)*fz1(zG,m1,m2,s)-jnp.conj(J_wave)*fz2(zG,m1,m2,s)*fz1(jnp.conj(zG),m1,m2,s)*fz1(zwave,m1,m2,s)))
+    cond2=~((cG*(rho+1e-3)>miu_G).any(axis=1))#any更加宽松，因为ghost roots应该是同时消失的，理论上是没问题的
+    #####planet test
+    cond3=(q>1e-2)|(jnp.abs(zeta+1/s)**2>cP*(rho**2+9*q/s**2))|(rho*rho*s*s<q)
+    return cond1&cond2&cond3,jnp.nansum(jnp.abs(1/J(z,m1,m2,s)),axis=1)
 def get_poly_coff(zeta_l,s,m2):
     zeta_conj=jnp.conj(zeta_l)
     c0=s**2*zeta_l*m2**2
@@ -29,10 +54,13 @@ def get_parity(z,s,m1,m2):#get the parity of roots
 def get_parity_error(z,s,m1,m2):
     de_conjzeta_z1=m1/(jnp.conj(z)-s)**2+m2/jnp.conj(z)**2
     return jnp.abs((1-jnp.abs(de_conjzeta_z1)**2))
+@jax.jit
+def solve(coff):
+    return jnp.roots(coff,strip_zeros=False)
 def get_roots(sample_n, coff):
     # 定义函数以进行矢量化
     def loop_body(k, coff):
-        return jnp.roots(coff[k, :], strip_zeros=False)
+        return solve(coff[k])
     # 使用 vmap 进行矢量化，并指定输入参数的轴数
     roots = jax.vmap(loop_body, in_axes=(0, None))(jnp.arange(sample_n), coff)
     return roots
@@ -48,16 +76,15 @@ def find_nearest(array1, parity1, array2, parity2):#线性分配问题
 def lsa(cost):
     row_ind, col_idx=linear_sum_assignment(cost)
     return col_idx
-def get_sorted_roots(sample_n, roots, parity):
-    def body_fun(k, values):
+def get_sorted_roots(index, roots, parity):
+    def body_fun(values,k):
         roots, parity = values
         sort_indices = find_nearest(roots[k - 1, :], parity[k - 1, :], roots[k, :], parity[k, :])
         roots = roots.at[k, :].set(roots[k, sort_indices])
         parity = parity.at[k, :].set(parity[k, sort_indices])
-        return (roots,parity)
-    init_val = (roots, parity)
-    roots,parity = lax.fori_loop(1, sample_n, body_fun, init_val)
-    return roots, parity
+        return (roots,parity),k
+    carry,_=lax.scan(body_fun,(roots, parity),index)
+    return carry
 def search(m_map,n_map,roots,parity,fir_val,Is_create):#图像匹配算法
     m=m_map[-1]
     n=n_map[-1]
@@ -96,7 +123,7 @@ def search(m_map,n_map,roots,parity,fir_val,Is_create):#图像匹配算法
         roots=roots.at[m:real_m:par,n].set(jnp.nan)
         parity=parity.at[m:real_m:par,n].set(0)
         m_map+=[i for i in range(m+par,real_m+par,par)]
-        n_map+=[n]*(abs(real_m-m))
+        n_map+=[n]*np.asarray(abs(real_m-m)).item()
         m_map_res,n_map_res,temp_roots,temp_parity=search(m_map,n_map,roots,parity,fir_val,Is_create)
         return m_map_res,n_map_res,temp_roots,temp_parity
     #如果下一个是nan并且当前还有别的列，就转换列,换列不能发生在最后一行因为 2*pi=0此时根个数相同不存在create destruct

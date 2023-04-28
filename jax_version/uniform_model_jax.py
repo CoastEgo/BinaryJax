@@ -110,54 +110,29 @@ class model():#initialize parameter
                 sol_num+=[arc_num]
                 parity_map+=[arc_parity]
         return curve,theta_map,sol_num,parity_map
-    def Quadrupole_test(self,zeta,z,zG,tol,fz0,fz1,fz2,fz3,J):
-        rho=self.rho;q=self.q
-        s=self.s
-        cQ=6;cG=2;cP=2
-        ####Quadrupole test
-        miu_Q=jnp.abs(-2*jnp.real(3*jnp.conj(fz1(z))**3*fz2(z)**2-(3-3*J(z)+J(z)**2/2)*jnp.abs(fz2(z))**2+J(z)*jnp.conj(fz1(z))**2*fz3(z))/(J(z)**5))
-        miu_C=jnp.abs(6*jnp.imag(3*jnp.conj(fz1(z))**3*fz2(z)**2)/(J(z)**5))
-        cond1=jnp.sum(miu_Q+miu_C)*cQ*(rho**2+1e-4*tol)<tol
-        ####ghost image test
-        cond2=jnp.array([True])
-        if zG.size!=0:
-            zwave=jnp.conj(zeta)-fz0(zG)
-            J_wave=1-fz1(zG)*fz1(zwave)
-            miu_G=1/2*jnp.abs(J(zG)*J_wave**2/(J_wave*fz2(jnp.conj(zG))*fz1(zG)-jnp.conj(J_wave)*fz2(zG)*fz1(jnp.conj(zG))*fz1(zwave)))
-            cond2=(cG*(rho+1e-3)<miu_G).all()#any更加宽松，因为ghost roots应该是同时消失的，理论上是没问题的
-        #####planet test
-        cond3=True
-        if self.q<1e-2:
-            s=self.s
-            cond3=(jnp.abs(zeta+1/s)**2>cP*(rho**2+9*q/s**2))|(rho*rho*s*s<q)
-        return cond1&cond2&cond3,jnp.sum(jnp.abs(1/J(z)))
     def get_magnifaction2(self,tol):
         trajectory_l=self.trajectory_l
         trajectory_n=self.trajectory_n
-        mag=jnp.zeros(trajectory_n)
-        m1=self.m1;m2=self.m2;s=self.s
-        fz0=lambda z :-m1/(z-s)-m2/z
-        fz1=lambda z :m1/(z-s)**2+m2/z**2
-        fz2=lambda z :-2*m1/(z-s)**3-2*m2/z**3
-        fz3=lambda z :6*m1/(z-s)**4+6*m2/z**4
-        J=lambda z : 1-fz1(z)*jnp.conj(fz1(z))
         zeta_l=trajectory_l
         coff=get_poly_coff(zeta_l,self.s,self.m2)
-        for i in range(trajectory_n):
-            z_l=jnp.roots(coff[i])
-            error=verify(zeta_l[i],z_l,self.s,self.m1,self.m2)
-            cond=error<1e-6
-            z=z_l[cond];zG=z_l[cond==False]
-            if (cond.sum()!=3) & (cond.sum()!=5):
-                sortidx=jnp.argsort(error)
-                z=z_l[sortidx[0:3]];zG=z_l[sortidx[-2:]]
-            cond,temp_mag=self.Quadrupole_test(zeta_l[i],z,zG,tol,fz0,fz1,fz2,fz3,J)
-            if ~cond:
-                temp_mag,curve=self.contour_integrate(trajectory_l[i],tol,i)
+        z_l=get_roots(trajectory_n,coff)
+        error=verify(zeta_l[:,jnp.newaxis],z_l,self.s,self.m1,self.m2)
+        cond=error<1e-6
+        index=jnp.where((cond.sum(axis=1)!=3) & (cond.sum(axis=1)!=5))[0]
+        if index.size!=0:
+            sortidx=jnp.argsort(error[index],axis=1)
+            cond.at[index].set(False)
+            cond.at[index,sortidx[0:3]].set(True)
+        z=jnp.where(cond,z_l,np.nan)
+        zG=jnp.where(cond,np.nan,z_l)
+        cond,mag=Quadrupole_test(self.rho,self.s,self.q,zeta_l,z,zG,tol)
+        idx=np.where(~cond)[0]
+        for i in idx:
+            temp_mag,curve=self.contour_integrate(trajectory_l[i],tol,i)
             mag=mag.at[i].set(temp_mag)
         return mag
     def contour_integrate(self,trajectory_l,epsilon,i,epsilon_rel=0):
-        sample_n=3;theta_init=jnp.array([0,jnp.pi,2*jnp.pi],dtype=jnp.float64)
+        sample_n=3;theta_init=jnp.array([0,jnp.pi,2*jnp.pi])
         error_hist=jnp.ones(1)
         mag=1
         outloop=False
@@ -178,7 +153,7 @@ class model():#initialize parameter
             else:#自适应采点插入theta
                 idx=jnp.where(error_hist>epsilon/jnp.sqrt(sample_n))[0]#不满足要求的点
                 add_number=jnp.ceil((error_hist[idx]/epsilon*jnp.sqrt(sample_n))**0.2).astype(int)+1#至少要插入一个点，不包括相同的第一个
-                add_theta=[jnp.linspace(theta_init[idx[i]-1],theta_init[idx[i]],add_number[i],endpoint=False,dtype=jnp.float64)[1:] for i in range(jnp.shape(idx)[0])]
+                add_theta=[jnp.linspace(theta_init[idx[i]-1],theta_init[idx[i]],add_number[i],endpoint=False)[1:] for i in range(jnp.shape(idx)[0])]
                 idx = jnp.repeat(idx, add_number-1) # create an index array with the same length as add_item
                 add_theta = jnp.concatenate(add_theta) # concatenate the list of arrays into a 1-D array
                 add_zeta_l=self.get_zeta_l(trajectory_l,add_theta)
@@ -214,7 +189,7 @@ class Solution(object):
         self.sample_n=jnp.shape(zeta_l)[0]
         roots,parity,self.ghost_roots_dis=self.get_real_roots(coff,zeta_l)#cond非nan为true
         self.buried_error=self.get_buried_error()
-        self.roots,self.parity=get_sorted_roots(self.sample_n,roots,parity)
+        self.roots,self.parity=get_sorted_roots(jnp.arange(1,self.sample_n),roots,parity)
         self.sort_flag=jnp.repeat(jnp.array(True),self.sample_n)
         self.find_create_points()
         self.outofloop=False
@@ -246,14 +221,17 @@ class Solution(object):
     def add_sorted_roots(self,roots,parity):
         sort_flag=self.sort_flag
         flase_i=jnp.where(~sort_flag)[0]
-        for i in flase_i:
-            sort_indices=find_nearest(roots[i-1],parity[i-1],roots[i],parity[i])
-            roots=roots.at[i].set(roots[i][sort_indices])
-            parity=parity.at[i].set(parity[i][sort_indices])
-            if sort_flag[i+1]:
-                sort_indices=find_nearest(roots[i],parity[i],roots[i+1],parity[i+1])
-                roots=roots.at[i+1:].set(roots[i+1:,sort_indices])
-                parity=parity.at[i+1:].set(parity[i+1:,sort_indices])
+        carry=get_sorted_roots(flase_i,roots,parity)
+        resort_i=jnp.where((~sort_flag[0:-1])&(sort_flag[1:]))[0]
+        def sort_body(carry,i):
+            roots,parity=carry
+            sort_indices=find_nearest(roots[i],parity[i],roots[i+1],parity[i+1])
+            cond = jnp.tile(jnp.arange(roots.shape[0])[:, None], (1, roots.shape[1])) < i+1
+            roots=jnp.where(cond,roots,roots[:,sort_indices])
+            parity=jnp.where(cond,parity,parity[:,sort_indices])
+            return (roots,parity),i
+        carry,_=lax.scan(sort_body,carry,resort_i)
+        roots,parity=carry
         self.sort_flag=self.sort_flag.at[:].set(True)
         return roots,parity
     def get_real_roots(self,coff,zeta_l):
@@ -326,13 +304,6 @@ class Solution(object):
             else:
                 Is_create=Is_create.at[x-1,y].add(-1)
         self.Is_create=Is_create
-    '''def get_sorted_roots(self,sample_n,roots,parity):#非nan为true
-        def loop_body(roots,partiy)
-        for k in range(1,sample_n):
-            sort_indices=find_nearest(roots[k-1,:],parity[k-1,:],roots[k,:],parity[k,:])
-            roots=roots.at[k,:].set(roots[k,sort_indices])
-            parity=parity.at[k,:].set(parity[k,sort_indices])
-        return roots,parity'''
 class Error_estimator(object):
     def __init__(self,q,s,rho,matched_image_l,theta_map,theta_init,sol_num,parity_map):
         self.q=q;self.s=s;self.rho=rho;self.cur_par=parity_map[0]
@@ -342,13 +313,10 @@ class Error_estimator(object):
         self.delta_theta=jnp.diff(theta)
         zeta_conj=jnp.conj(self.zeta_l)
         parZetaConZ=1/(1+q)*(1/(zeta_conj-s)**2+q/zeta_conj**2);self.parity=parity_map
-        #par2ZetaConZ=-2/(1+q)*(1/(zeta_conj-s)**3+q/(zeta_conj)**3)
         par2ConZetaZ=-2/(1+q)*(1/(zeta_l-s)**3+q/(zeta_l)**3)
         de_zeta=1j*self.rho*jnp.exp(1j*theta)
-        #de2_zeta=-self.rho*jnp.exp(1j*theta)
         detJ=1-jnp.abs(parZetaConZ)**2
         de_z=(de_zeta-parZetaConZ*jnp.conj(de_zeta))/detJ
-        #de2_z=(de2_zeta-par2ZetaConZ*(jnp.conj(de_z)**2)-parZetaConZ*(jnp.conj(de2_zeta)-par2ConZetaZ*(de_z)**2))/detJ
         deXProde2X=(self.rho**2+jnp.imag(de_z**2*de_zeta*par2ConZetaZ))/detJ
         self.product=deXProde2X
         self.de_z=de_z
