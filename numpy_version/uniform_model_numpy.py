@@ -106,50 +106,26 @@ class model():#initialize parameter
                 sol_num+=[arc_num]
                 parity_map+=[arc_parity]
         return curve,theta_map,sol_num,parity_map
-    def Quadrupole_test(self,zeta,z,zG,tol,fz0,fz1,fz2,fz3,J):
-        rho=self.rho;q=self.q
-        s=self.s
-        cQ=6;cG=2;cP=2
-        ####Quadrupole test
-        miu_Q=np.abs(-2*np.real(3*np.conj(fz1(z))**3*fz2(z)**2-(3-3*J(z)+J(z)**2/2)*np.abs(fz2(z))**2+J(z)*np.conj(fz1(z))**2*fz3(z))/(J(z)**5))
-        miu_C=np.abs(6*np.imag(3*np.conj(fz1(z))**3*fz2(z)**2)/(J(z)**5))
-        cond1=np.sum(miu_Q+miu_C)*cQ*(rho**2+1e-4*tol)<tol
-        ####ghost image test
-        cond2=np.array([True])
-        if zG.size!=0:
-            zwave=np.conj(zeta)-fz0(zG)
-            J_wave=1-fz1(zG)*fz1(zwave)
-            miu_G=1/2*np.abs(J(zG)*J_wave**2/(J_wave*fz2(np.conj(zG))*fz1(zG)-np.conj(J_wave)*fz2(zG)*fz1(np.conj(zG))*fz1(zwave)))
-            cond2=(cG*(rho+1e-3)<miu_G).all()#any更加宽松，因为ghost roots应该是同时消失的，理论上是没问题的
-        #####planet test
-        cond3=True
-        if self.q<1e-2:
-            s=self.s
-            cond3=(np.abs(zeta+1/s)**2>cP*(rho**2+9*q/s**2))|(rho*rho*s*s<q)
-        return cond1&cond2&cond3,np.sum(np.abs(1/J(z)))
     def get_magnifaction2(self,tol):
         trajectory_l=self.trajectory_l
         trajectory_n=self.trajectory_n
-        mag=np.zeros(trajectory_n)
-        m1=self.m1;m2=self.m2;s=self.s
-        fz0=lambda z :-m1/(z-s)-m2/z
-        fz1=lambda z :m1/(z-s)**2+m2/z**2
-        fz2=lambda z :-2*m1/(z-s)**3-2*m2/z**3
-        fz3=lambda z :6*m1/(z-s)**4+6*m2/z**4
-        J=lambda z : 1-fz1(z)*np.conj(fz1(z))
         zeta_l=trajectory_l
         coff=get_poly_coff(zeta_l,self.s,self.m2)
-        for i in range(trajectory_n):
-            z_l=np.roots(coff[i])
-            error=verify(zeta_l[i],z_l,self.s,self.m1,self.m2)
-            cond=error<1e-6
-            z=z_l[cond];zG=z_l[cond==False]
-            if (cond.sum()!=3) & (cond.sum()!=5):
-                sortidx=np.argsort(error)
-                z=z_l[sortidx[0:3]];zG=z_l[sortidx[-2:]]
-            cond,mag[i]=self.Quadrupole_test(zeta_l[i],z,zG,tol,fz0,fz1,fz2,fz3,J)
-            if ~cond:
-                mag[i],curve=self.contour_integrate(trajectory_l[i],tol,i)
+        z_l=get_roots(trajectory_n,coff)
+        error=verify(zeta_l[:,np.newaxis],z_l,self.s,self.m1,self.m2)
+        cond=error<1e-6
+        index=np.where((cond.sum(axis=1)!=3) & (cond.sum(axis=1)!=5))[0]
+        if index.size!=0:
+            sortidx=np.argsort(error[index],axis=1)
+            cond[index]=False
+            cond[index,sortidx[0:3]]=True
+        z=np.where(cond,z_l,np.nan)
+        zG=np.where(cond,np.nan,z_l)
+        cond,mag=Quadrupole_test(self.rho,self.s,self.q,zeta_l,z,zG,tol)
+        idx=np.where(~cond)[0]
+        for i in idx:
+            temp_mag,curve=self.contour_integrate(trajectory_l[i],tol,i)
+            mag[i]=temp_mag
         return mag
     def contour_integrate(self,trajectory_l,epsilon,i,epsilon_rel=0):
         sample_n=3;theta_init=np.array([0,np.pi,2*np.pi],dtype=np.float64)

@@ -1,6 +1,32 @@
 import numpy as np
 from scipy.optimize import linear_sum_assignment
 idx_all=np.linspace(0,4,5,dtype=int)
+def fz0(z,m1,m2,s):
+    return -m1/(z-s)-m2/z
+def fz1(z,m1,m2,s):
+    return m1/(z-s)**2+m2/z**2
+def fz2(z,m1,m2,s):
+    return -2*m1/(z-s)**3-2*m2/z**3
+def fz3(z,m1,m2,s):
+    return 6*m1/(z-s)**4+6*m2/z**4
+def J(z,m1,m2,s):
+    return 1-fz1(z,m1,m2,s)*np.conj(fz1(z,m1,m2,s))
+def Quadrupole_test(rho,s,q,zeta,z,zG,tol):
+    m1=1/(1+q)
+    m2=q/(1+q)
+    cQ=6;cG=2;cP=2
+    ####Quadrupole test
+    miu_Q=np.abs(-2*np.real(3*np.conj(fz1(z,m1,m2,s))**3*fz2(z,m1,m2,s)**2-(3-3*J(z,m1,m2,s)+J(z,m1,m2,s)**2/2)*np.abs(fz2(z,m1,m2,s))**2+J(z,m1,m2,s)*np.conj(fz1(z,m1,m2,s))**2*fz3(z,m1,m2,s))/(J(z,m1,m2,s)**5))
+    miu_C=np.abs(6*np.imag(3*np.conj(fz1(z,m1,m2,s))**3*fz2(z,m1,m2,s)**2)/(J(z,m1,m2,s)**5))
+    cond1=np.nansum(miu_Q+miu_C,axis=1)*cQ*(rho**2+1e-4*tol)<tol
+    ####ghost image test
+    zwave=np.conj(zeta[:,np.newaxis])-fz0(zG,m1,m2,s)
+    J_wave=1-fz1(zG,m1,m2,s)*fz1(zwave,m1,m2,s)
+    miu_G=1/2*np.abs(J(zG,m1,m2,s)*J_wave**2/(J_wave*fz2(np.conj(zG),m1,m2,s)*fz1(zG,m1,m2,s)-np.conj(J_wave)*fz2(zG,m1,m2,s)*fz1(np.conj(zG),m1,m2,s)*fz1(zwave,m1,m2,s)))
+    cond2=~((cG*(rho+1e-3)>miu_G).any(axis=1))#any更加宽松，因为ghost roots应该是同时消失的，理论上是没问题的
+    #####planet test
+    cond3=(q>1e-2)|(np.abs(zeta+1/s)**2>cP*(rho**2+9*q/s**2))|(rho*rho*s*s<q)
+    return cond1&cond2&cond3,np.nansum(np.abs(1/J(z,m1,m2,s)),axis=1)
 def get_poly_coff(zeta_l,s,m2):
     zeta_conj=np.conj(zeta_l)
     c0=s**2*zeta_l*m2**2
