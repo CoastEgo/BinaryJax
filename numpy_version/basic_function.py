@@ -27,22 +27,10 @@ def get_roots(sample_n,coff):
 def dot_product(a,b):
     return np.real(a)*np.real(b)+np.imag(a)*np.imag(b)
 def find_nearest(array1, parity1, array2, parity2):#线性分配问题
-    pos_idx1=np.where(~np.isnan(array1))[0]
-    pos_idx2=np.where(~np.isnan(array2))[0]
-    cost=np.abs(array2[pos_idx2]-array1[pos_idx1][:,None])+np.abs(parity2[pos_idx2]-parity1[pos_idx1][:,None])*5#系数可以指定防止出现错误，系数越大鲁棒性越好，但是速度会变慢些
+    cost=np.abs(array2-array1[:,None])+np.abs(parity2-parity1[:,None])*5#系数可以指定防止出现错误，系数越大鲁棒性越好，但是速度会变慢些
+    cost=np.where(np.isnan(cost),100,cost)
     row_ind, col_idx = linear_sum_assignment(cost)
-    if (pos_idx1.size!=pos_idx2.size):
-        pos_idx1=np.concatenate((pos_idx1[row_ind],np.setdiff1d(idx_all,pos_idx1[row_ind],assume_unique=True)))
-        pos_idx2=np.concatenate((pos_idx2[col_idx],np.setdiff1d(idx_all,pos_idx2[col_idx],assume_unique=True)))
-        pos_idx1=np.argsort(pos_idx1)
-    elif pos_idx1.size==3:
-        pos_idx1=np.concatenate((pos_idx1[row_ind],np.where(np.isnan(array1))[0]))
-        pos_idx2=np.concatenate((pos_idx2[col_idx],np.where(np.isnan(array2))[0]))
-        pos_idx1=np.argsort(pos_idx1)
-    else:
-        pos_idx1=pos_idx1[row_ind]
-        pos_idx2=pos_idx2[col_idx]
-    return pos_idx2[pos_idx1]
+    return col_idx
 def search(m_map,n_map,roots,parity,fir_val,Is_create):#图像匹配算法
     m=m_map[-1]
     n=n_map[-1]
