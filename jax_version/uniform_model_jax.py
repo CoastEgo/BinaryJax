@@ -1,11 +1,13 @@
-import numpy as np
+import numpy as jnp
 import jax.numpy as jnp
 import jax
 from jax import lax
+from jax import custom_jvp
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from basic_function_jax import *
 jax.config.update("jax_enable_x64", True)
+jax.config.update("jax_platform_name", "cpu")
 class model():#initialize parameter
     def __init__(self,par):
         self.t_0=par['t_0']
@@ -36,80 +38,6 @@ class model():#initialize parameter
         rel_centroid=rho*jnp.cos(theta)+1j*rho*jnp.sin(theta)
         zeta_l=trajectory_centroid_l+rel_centroid
         return zeta_l
-    def image_match(self,solution):#roots in lowmass coordinate
-        sample_n=solution.sample_n;theta=solution.theta;roots=solution.roots;parity=solution.parity;roots_is_create=solution.Is_create
-        theta_map=[];uncom_theta_map=[];uncom_sol_num=[];sol_num=[];uncom_curve=[];curve=[];parity_map=[];uncom_parity_map=[]
-        roots_non_nan=jnp.isnan(roots).sum(axis=0)==0
-        roots_first_eq_last=jnp.isclose(roots[0,:],roots[-1,:],rtol=1e-6)
-        complete_cond=(roots_non_nan&roots_first_eq_last)
-        uncomplete_cond=(roots_non_nan&(~roots_first_eq_last))
-        curve+=list(roots[:,complete_cond].T)
-        theta_map+=[theta]*np.asarray(jnp.sum(complete_cond)).item()
-        sol_num+=list(roots_is_create[:,complete_cond].T)
-        parity_map+=list(parity[:,complete_cond].T)
-        flag=0;flag2=0
-        if uncomplete_cond.any():
-            flag2=1
-            uncom_curve+=list(roots[:,uncomplete_cond].T)
-            uncom_theta_map+=[theta]*np.asarray(jnp.sum(uncomplete_cond)).item()
-            uncom_sol_num+=list(roots_is_create[:,uncomplete_cond].T)
-            uncom_parity_map+=list(parity[:,uncomplete_cond].T)
-        if ((jnp.isnan(roots).sum(axis=0)!=sample_n)&(~roots_non_nan)).any():
-            flag=1
-            temp_idx=jnp.where((jnp.isnan(roots).sum(axis=0)!=sample_n)&(~roots_non_nan))[0]#the arc crossing caustic we store it to temp
-        if flag:##split all roots with nan and caulcate mag
-            temp_roots=roots[:,temp_idx]
-            temp_Is_create=roots_is_create[:,temp_idx]
-            temp_parity=parity[:,temp_idx]
-            real_parity=jnp.copy(temp_parity)
-            while jnp.shape(temp_idx)[0]!=0:
-                initk,initm,temp_parity=search_first_postion(temp_roots,temp_parity)
-                if (temp_parity[initk,initm]==1)&(initk!=-1):
-                    temp_parity*=-1
-                roots_c=jnp.copy(temp_roots)
-                m_map,n_map,temp_roots,temp_parity=search([initk],[initm],temp_roots,temp_parity,temp_roots[initk,initm],temp_Is_create)
-                if (initk!=0)&(initk!=-1):
-                    m_map+=[m_map[0]]
-                    n_map+=[n_map[0]]
-                temp_curve=roots_c[jnp.array(m_map),jnp.array(n_map)];temp_cur_theta_map=theta[jnp.array(m_map)];temp_parity_map=real_parity[jnp.array(m_map),jnp.array(n_map)]
-                temp_cur_num_map=temp_Is_create[jnp.array(m_map),jnp.array(n_map)]
-                temp_idx=jnp.where((~jnp.isnan(temp_roots)).any(axis=0))[0]
-                temp_roots=temp_roots[:,temp_idx];temp_parity=temp_parity[:,temp_idx];temp_Is_create=temp_Is_create[:,temp_idx];real_parity=real_parity[:,temp_idx]
-                if jnp.isclose(temp_curve[0],temp_curve[-1],rtol=1e-6):
-                    curve+=[temp_curve];theta_map+=[temp_cur_theta_map];sol_num+=[temp_cur_num_map];parity_map+=[temp_parity_map]
-                else:
-                    uncom_curve+=[temp_curve];uncom_theta_map+=[temp_cur_theta_map];uncom_sol_num+=[temp_cur_num_map];uncom_parity_map+=[temp_parity_map]
-                    flag2=1
-        if flag2:#flag2 is the uncompleted arc so we store it to uncom_curve
-            if len(uncom_curve)!=0:
-                arc=uncom_curve[0]
-                arc_theta=uncom_theta_map[0]
-                arc_num=uncom_sol_num[0]
-                arc_parity=uncom_parity_map[0]
-                length=len(uncom_curve)-1
-                while length>0:
-                    for k in range(1,len(uncom_curve)):
-                        tail=arc[-1]
-                        head=uncom_curve[k][0]
-                        if jnp.isclose(tail,head,rtol=1e-6):
-                            arc=jnp.append(arc,uncom_curve[k][1:])
-                            arc_theta=jnp.append(arc_theta,uncom_theta_map[k][1:])
-                            arc_num=jnp.append(arc_num,uncom_sol_num[k][1:])
-                            arc_parity=jnp.append(arc_parity,uncom_parity_map[k][1:])
-                            length-=1
-                        else:
-                            head=uncom_curve[k][-1]
-                            if jnp.isclose(tail,head,rtol=1e-6):
-                                arc=jnp.append(arc,uncom_curve[k][-1::-1][1:])
-                                arc_theta=jnp.append(arc_theta,uncom_theta_map[k][-1::-1][1:])
-                                arc_num=jnp.append(arc_num,uncom_sol_num[k][-1::-1][1:])
-                                arc_parity=jnp.append(arc_parity,uncom_parity_map[k][-1::-1][1:])
-                                length-=1
-                curve+=[arc]
-                theta_map+=[arc_theta]
-                sol_num+=[arc_num]
-                parity_map+=[arc_parity]
-        return curve,theta_map,sol_num,parity_map
     def get_magnifaction2(self,tol):
         trajectory_l=self.trajectory_l
         trajectory_n=self.trajectory_n
@@ -123,12 +51,12 @@ class model():#initialize parameter
             sortidx=jnp.argsort(error[index],axis=1)
             cond.at[index].set(False)
             cond.at[index,sortidx[0:3]].set(True)
-        z=jnp.where(cond,z_l,np.nan)
-        zG=jnp.where(cond,np.nan,z_l)
+        z=jnp.where(cond,z_l,jnp.nan)
+        zG=jnp.where(cond,jnp.nan,z_l)
         cond,mag=Quadrupole_test(self.rho,self.s,self.q,zeta_l,z,zG,tol)
-        idx=np.where(~cond)[0]
+        idx=jnp.where(~cond)[0]
         for i in idx:
-            temp_mag,curve=self.contour_integrate(trajectory_l[i],tol,i)
+            temp_mag=self.contour_integrate(trajectory_l[i],tol,i)
             mag=mag.at[i].set(temp_mag)
         return mag
     def contour_integrate(self,trajectory_l,epsilon,i,epsilon_rel=0):
@@ -140,7 +68,7 @@ class model():#initialize parameter
             mini_interval=jnp.min(jnp.abs(jnp.diff(theta_init)))
             if mini_interval<1e-14:
                 #print(f'Warnning! idx{i} theta sampling may lower than float64 limit')
-                break
+                break 
             if outloop:
                 #print(f'idx{i} did not reach the accuracy goal due to the ambigious of roots and parity')
                 break
@@ -163,23 +91,16 @@ class model():#initialize parameter
                 theta_init=solution.theta
                 error_hist=jnp.zeros_like(theta_init)
                 outloop=solution.outofloop
-            try:
-                curve,theta,sol_num,parity_map=self.image_match(solution)
-            except IndexError:
-                raise SyntaxError('image match function error')
-            for k in range(len(curve)):
-                cur=curve[k]
-                theta_map_k=theta[k]
-                parity_k=parity_map[k]
-                mag_k=1/2*jnp.sum((cur.imag[0:-1]+cur.imag[1:])*(cur.real[0:-1]-cur.real[1:]))
-                mag+=mag_k*parity_k[0]
-                Error=Error_estimator(self.q,self.s,self.rho,cur,theta_map_k,theta_init,sol_num[k],parity_k)
-                error_k,parab=Error.error_sum()
-                error_hist+=error_k
-                mag+=parab
+            arc=solution.roots
+            arc_parity=solution.parity
+            mag=1/2*jnp.nansum(jnp.nansum((arc.imag[0:-1]+arc.imag[1:])*(arc.real[0:-1]-arc.real[1:])*arc_parity[0:-1],axis=0))
+            Error=Error_estimator(solution,self.rho)
+            error_hist,magc,parab=Error.error_sum()
+            mag+=magc
+            mag+=parab
             mag=mag/(jnp.pi*self.rho**2)
             error_hist+=solution.buried_error
-        return (mag,curve)
+        return mag
 class Solution(object):
     def __init__(self,q,s,zeta_l,coff,theta):
         self.theta=theta
@@ -223,14 +144,7 @@ class Solution(object):
         flase_i=jnp.where(~sort_flag)[0]
         carry=get_sorted_roots(flase_i,roots,parity)
         resort_i=jnp.where((~sort_flag[0:-1])&(sort_flag[1:]))[0]
-        def sort_body(carry,i):
-            roots,parity=carry
-            sort_indices=find_nearest(roots[i],parity[i],roots[i+1],parity[i+1])
-            cond = jnp.tile(jnp.arange(roots.shape[0])[:, None], (1, roots.shape[1])) < i+1
-            roots=jnp.where(cond,roots,roots[:,sort_indices])
-            parity=jnp.where(cond,parity,parity[:,sort_indices])
-            return (roots,parity),i
-        carry,_=lax.scan(sort_body,carry,resort_i)
+        carry,_=lax.scan(sort_body2,carry,resort_i)
         roots,parity=carry
         self.sort_flag=self.sort_flag.at[:].set(True)
         return roots,parity
@@ -305,62 +219,80 @@ class Solution(object):
                 Is_create=Is_create.at[x-1,y].add(-1)
         self.Is_create=Is_create
 class Error_estimator(object):
-    def __init__(self,q,s,rho,matched_image_l,theta_map,theta_init,sol_num,parity_map):
-        self.q=q;self.s=s;self.rho=rho;self.cur_par=parity_map[0]
-        zeta_l=matched_image_l;self.zeta_l=zeta_l
-        theta=jnp.unwrap(theta_map);self.theta=theta;self.sol_num=sol_num#length=n
-        self.theta_init=theta_init
-        self.delta_theta=jnp.diff(theta)
+    def __init__(self,arc,rho):
+        q=arc.q;s=arc.s;self.rho=rho;self.paritypar=arc.parity
+        zeta_l=arc.roots
+        self.parity=arc.parity
+        self.zeta_l=zeta_l
+        theta=arc.theta
+        self.theta=arc.theta;self.Is_create=arc.Is_create
+        self.delta_theta=jnp.diff(self.theta)
         zeta_conj=jnp.conj(self.zeta_l)
-        parZetaConZ=1/(1+q)*(1/(zeta_conj-s)**2+q/zeta_conj**2);self.parity=parity_map
+        parZetaConZ=1/(1+q)*(1/(zeta_conj-s)**2+q/zeta_conj**2)
         par2ConZetaZ=-2/(1+q)*(1/(zeta_l-s)**3+q/(zeta_l)**3)
         de_zeta=1j*self.rho*jnp.exp(1j*theta)
         detJ=1-jnp.abs(parZetaConZ)**2
-        de_z=(de_zeta-parZetaConZ*jnp.conj(de_zeta))/detJ
-        deXProde2X=(self.rho**2+jnp.imag(de_z**2*de_zeta*par2ConZetaZ))/detJ
+        de_z=(de_zeta[:,jnp.newaxis]-parZetaConZ*jnp.conj(de_zeta[:,jnp.newaxis]))/detJ
+        deXProde2X=(self.rho**2+jnp.imag(de_z**2*de_zeta[:,jnp.newaxis]*par2ConZetaZ))/detJ
         self.product=deXProde2X
         self.de_z=de_z
     def error_ordinary(self):
         deXProde2X=self.product
         delta_theta=self.delta_theta
         zeta_l=self.zeta_l
-        e1=jnp.abs(1/48*jnp.abs(jnp.abs(deXProde2X[0:-1]-jnp.abs(deXProde2X[1:])))*delta_theta**3)
-        dAp_1=1/24*((deXProde2X[0:-1]+deXProde2X[1:]))*delta_theta
-        dAp=dAp_1*delta_theta**2
+        e1=jnp.nansum(jnp.abs(1/48*jnp.abs(jnp.abs(deXProde2X[0:-1]-jnp.abs(deXProde2X[1:])))*delta_theta[:,jnp.newaxis]**3),axis=1)
+        dAp_1=1/24*((deXProde2X[0:-1]+deXProde2X[1:]))*delta_theta[:,jnp.newaxis]
+        dAp=dAp_1*delta_theta[:,jnp.newaxis]**2*self.parity[0:-1]
         delta_theta_wave=jnp.abs(zeta_l[0:-1]-zeta_l[1:])**2/jnp.abs(dot_product(self.de_z[0:-1],self.de_z[1:]))
-        e2=3/2*jnp.abs(dAp_1*(delta_theta_wave-delta_theta**2))
-        e3=1/10*jnp.abs(dAp)*delta_theta**2
+        e2=jnp.nansum(3/2*jnp.abs(dAp_1*(delta_theta_wave-delta_theta[:,jnp.newaxis]**2)),axis=1)
+        e3=jnp.nansum(1/10*jnp.abs(dAp)*delta_theta[:,jnp.newaxis]**2,axis=1)
         e_tot=(e1+e2+e3)/(jnp.pi*self.rho**2)
-        return e_tot,self.cur_par*jnp.sum(dAp)#抛物线近似的补偿项
-    def error_critial(self,critial_points):
+        return e_tot,jnp.nansum(dAp)#抛物线近似的补偿项
+    def error_critial(self,i,pos_idx,neg_idx,Is_create):
         zeta_l=self.zeta_l
         de_z=self.de_z
         deXProde2X=self.product
-        parity=self.parity
-        pos_idx=critial_points;zeta_pos=zeta_l[pos_idx]
-        neg_idx=critial_points+1;zeta_neg=zeta_l[neg_idx]
-        theta_wave=jnp.abs(zeta_pos-zeta_neg)/jnp.sqrt(jnp.abs(dot_product(de_z[pos_idx],de_z[neg_idx])))
-        ce1=1/48*jnp.abs(deXProde2X[pos_idx]+deXProde2X[neg_idx])*theta_wave**3
-        Is_create=self.sol_num[pos_idx-(jnp.abs(self.sol_num[pos_idx])).astype(int)+1]#1 for ture -1 for false
-        ce2=3/2*jnp.abs(dot_product(zeta_pos-zeta_neg,de_z[pos_idx]-de_z[neg_idx])-Is_create*2*jnp.abs(zeta_pos-zeta_neg)*jnp.sqrt(jnp.abs(dot_product(de_z[pos_idx],de_z[neg_idx]))))*theta_wave
-        dAcP=parity[pos_idx]*1/24*(deXProde2X[pos_idx]-deXProde2X[neg_idx])*theta_wave**3
+        zeta_pos=zeta_l[i,pos_idx]
+        zeta_neg=zeta_l[i,neg_idx]
+        theta_wave=jnp.abs(zeta_pos-zeta_neg)/jnp.sqrt(jnp.abs(dot_product(de_z[i,pos_idx],de_z[i,neg_idx])))
+        ce1=1/48*jnp.abs(deXProde2X[i,pos_idx]+deXProde2X[i,neg_idx])*theta_wave**3
+        ce2=3/2*jnp.abs(dot_product(zeta_pos-zeta_neg,de_z[i,pos_idx]-de_z[i,neg_idx])-Is_create*2*jnp.abs(zeta_pos-zeta_neg)*jnp.sqrt(jnp.abs(dot_product(de_z[i,pos_idx],de_z[i,neg_idx]))))*theta_wave
+        dAcP=self.parity[i,pos_idx]*1/24*(deXProde2X[i,pos_idx]-deXProde2X[i,neg_idx])*theta_wave**3
         ce3=1/10*jnp.abs(dAcP)*theta_wave**2
         ce_tot=(ce1+ce2+ce3)/(jnp.pi*self.rho**2)
-        return ce_tot,jnp.sum(dAcP),Is_create#critial 附近的抛物线近似'''
+        return ce_tot,jnp.sum(dAcP)#critial 附近的抛物线近似'''
     def error_sum(self):
-        theta_init=self.theta_init
+        error_hist=jnp.zeros_like(self.theta)
+        mag=0
         e_ord,parab=self.error_ordinary()
-        interval_theta=((self.theta[0:-1]+self.theta[1:])/2)#error 对应的区间的中心的theta值
-        critial_points=jnp.nonzero(jnp.diff(self.parity))[0]
-        if  jnp.shape(critial_points)[0]!=0:
-            e_crit,dacp,Is_create=self.error_critial(critial_points)
-            e_ord=e_ord.at[critial_points].set(e_crit)
-            interval_theta=interval_theta.at[critial_points].add(-0.5*Is_create*jnp.min(jnp.abs(jnp.diff(theta_init))))
-            parab+=dacp
-        error_map=jnp.zeros_like(theta_init)#error 按照theta 排序
-        indices = jnp.searchsorted(theta_init, interval_theta%(2*jnp.pi))
-        error_map=error_map.at[indices].add(e_ord)
-        return error_map,parab
+        error_hist=error_hist.at[1:].set(e_ord)
+        if  (self.Is_create!=0).any():
+            critial_idx_row=jnp.where((self.Is_create!=0).any(axis=1))[0]
+            for i in critial_idx_row:
+                if jnp.abs(self.Is_create[i].sum())/2==1:
+                    create=self.Is_create[i].sum()/2
+                    idx1=jnp.where((self.Is_create[i]!=0)&(self.parity[i]==-1*create))[0]
+                    idx2=jnp.where((self.Is_create[i]!=0)&(self.parity[i]==1*create))[0]
+                    e_crit,dacp=self.error_critial(i,idx1,idx2,create)
+                    error_hist=error_hist.at[int(i-(create-1)/2)].add(e_crit[0])
+                    mag+=(1/2*(self.zeta_l[i,idx1].imag+self.zeta_l[i,idx2].imag)*(self.zeta_l[i,idx1].real-self.zeta_l[i,idx2].real))[0]
+                    parab+=dacp
+                else:
+                    create=1
+                    idx1=jnp.where(((self.Is_create[i]==1)|(self.Is_create[i]==10))&(self.parity[i]==-1*create))[0]
+                    idx2=jnp.where(((self.Is_create[i]==1)|(self.Is_create[i]==10))&(self.parity[i]==1*create))[0]
+                    mag+=(1/2*(self.zeta_l[i,idx1].imag+self.zeta_l[i,idx2].imag)*(self.zeta_l[i,idx1].real-self.zeta_l[i,idx2].real))[0]
+                    e_crit,dacp=self.error_critial(i,idx1,idx2,create)
+                    error_hist=error_hist.at[int(i-(create-1)/2)].add(e_crit[0])
+                    parab+=dacp
+                    create=-1
+                    idx1=jnp.where(((self.Is_create[i]==-1)|(self.Is_create[i]==10))&(self.parity[i]==-1*create))[0]
+                    idx2=jnp.where(((self.Is_create[i]==-1)|(self.Is_create[i]==10))&(self.parity[i]==1*create))[0]
+                    mag+=(1/2*(self.zeta_l[i,idx1].imag+self.zeta_l[i,idx2].imag)*(self.zeta_l[i,idx1].real-self.zeta_l[i,idx2].real))[0]
+                    e_crit,dacp=self.error_critial(i,idx1,idx2,create)
+                    error_hist=error_hist.at[int(i-(create-1)/2)].add(e_crit[0])
+                    parab+=dacp
+        return error_hist,mag,parab
 
 
 
