@@ -130,7 +130,7 @@ class model():#initialize parameter
     def contour_integrate(self,trajectory_l,epsilon,i,epsilon_rel=0):
         sample_n=3;theta_init=np.array([0,np.pi,2*np.pi],dtype=np.float64)
         error_hist=np.ones(1)
-        #add_max=np.ceil(-2*np.log(self.rho)-np.log(epsilon)/np.log(5))*10
+        add_max=np.ceil(-2*np.log(self.rho)-np.log(epsilon)/np.log(5))*10
         mag=1
         outloop=False
         while ((error_hist>epsilon/np.sqrt(sample_n)).any() & (error_hist/np.abs(mag)>epsilon_rel/np.sqrt(sample_n)).any()):#相对误差
@@ -150,6 +150,7 @@ class model():#initialize parameter
             else:#自适应采点插入theta
                 idx=np.where(error_hist>epsilon/np.sqrt(sample_n))[0]#不满足要求的点
                 add_number=np.ceil((error_hist[idx]/epsilon*np.sqrt(sample_n))**0.2).astype(int)+1#至少要插入一个点，不包括相同的第一个
+                add_number[add_number>add_max]=add_max
                 add_theta=[np.linspace(theta_init[idx[i]-1],theta_init[idx[i]],add_number[i],endpoint=False,dtype=np.float64)[1:] for i in range(np.shape(idx)[0])]
                 idx = np.repeat(idx, add_number-1) # create an index array with the same length as add_item
                 add_theta = np.concatenate(add_theta) # concatenate the list of arrays into a 1-D array
