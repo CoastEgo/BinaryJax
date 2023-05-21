@@ -28,7 +28,7 @@ def Quadrupole_test(rho,s,q,zeta,z,zG,tol):
     miu_C=jnp.abs(6*jnp.imag(3*jnp.conj(fz1(z,m1,m2,s))**3*fz2(z,m1,m2,s)**2)/(J(z,m1,m2,s)**5))
     cond1=jnp.nansum(miu_Q+miu_C,axis=1)*cQ*(rho**2+1e-4*tol)<tol
     ####ghost image test
-    zwave=jnp.conj(zeta[:,jnp.newaxis])-fz0(zG,m1,m2,s)
+    zwave=jnp.conj(zeta)-fz0(zG,m1,m2,s)
     J_wave=1-fz1(zG,m1,m2,s)*fz1(zwave,m1,m2,s)
     miu_G=1/2*jnp.abs(J(zG,m1,m2,s)*J_wave**2/(J_wave*fz2(jnp.conj(zG),m1,m2,s)*fz1(zG,m1,m2,s)-jnp.conj(J_wave)*fz2(zG,m1,m2,s)*fz1(jnp.conj(zG),m1,m2,s)*fz1(zwave,m1,m2,s)))
     cond2=~((cG*(rho+1e-3)>miu_G).any(axis=1))#any更加宽松，因为ghost roots应该是同时消失的，理论上是没问题的
@@ -44,8 +44,12 @@ def get_poly_coff(zeta_l,s,m2):
     c3=s**3*zeta_conj+2*zeta_l*zeta_conj+s**2*(-1+2*zeta_conj*zeta_l-zeta_conj**2+m2)-s*(zeta_l+2*zeta_l*zeta_conj**2-2*zeta_conj*m2)
     c4=zeta_conj*(-1+2*s*zeta_conj+zeta_conj*zeta_l)-s*(-1+2*s*zeta_conj+zeta_conj*zeta_l+m2)
     c5=(s-zeta_conj)*zeta_conj
-    coff=jnp.stack((c5,c4,c3,c2,c1,c0),axis=1)
+    coff=jnp.concatenate((c5,c4,c3,c2,c1,c0),axis=1)
     return coff
+def get_zeta_l(rho,trajectory_centroid_l,theta):#获得等高线采样的zeta
+    rel_centroid=rho*jnp.cos(theta)+1j*rho*jnp.sin(theta)
+    zeta_l=trajectory_centroid_l+rel_centroid
+    return zeta_l
 def verify(zeta_l,z_l,s,m1,m2):#verify whether the root is right
     return  jnp.abs(z_l-m1/(jnp.conj(z_l)-s)-m2/jnp.conj(z_l)-zeta_l)
 def get_parity(z,s,m1,m2):#get the parity of roots
@@ -73,31 +77,36 @@ def find_nearest(array1, parity1, array2, parity2):#线性分配问题
 @find_nearest.defjvp
 def find_nearest_jvp(primals, tangents):
     a1,p1,a2,p2=primals
-    da1,dp1,da2,dp2=tangents
+    #da1,dp1,da2,dp2=tangents
     primals_out=find_nearest(a1,p1,a2,p2)
-    idx=primals_out[2]
-    idx_bcast = jnp.broadcast_to(idx, da2.shape)
-    da2_out = jnp.take(da2, idx_bcast)
-    dp2_out = jnp.take(dp2, idx_bcast)
+    #idx=primals_out[2]
+    #idx_bcast = jnp.broadcast_to(idx, da2.shape)
+    #da2_out = jnp.take(da2, idx_bcast)
+    #dp2_out = jnp.take(dp2, idx_bcast)
     return primals_out,jnp.zeros_like(primals_out)
 def lsa(cost):
     row_ind, col_idx=linear_sum_assignment(cost)
     return col_idx
 @jax.jit
-def sort_body1(values,k):
-    roots, parity = values
-    sort_indices = find_nearest(roots[k - 1, :], parity[k - 1, :], roots[k, :], parity[k, :])
-    roots = roots.at[k, :].set(roots[k, sort_indices])
-    parity = parity.at[k, :].set(parity[k, sort_indices])
-    return (roots,parity),k
-def get_sorted_roots(index, roots, parity):
-    carry,_=lax.scan(sort_body1,(roots, parity),index)
-    return carry
+def custom_insert(array,idx,add_array,add_number):
+    ite=jnp.arange(array.shape[0])
+    mask = ite < idx
+    array=jnp.where(mask[:,None],array,jnp.roll(array,add_number,axis=0))
+    mask2=(ite >=idx)&(ite<idx+add_number)
+    #add_array=jnp.resize(add_array,array.shape)
+    add_array=jnp.roll(add_array,idx,axis=0)
+    array=jnp.where(mask2[:,None],add_array,array)
+    return array
 @jax.jit
-def sort_body2(carry,i):
-    roots,parity=carry
-    sort_indices=find_nearest(roots[i],parity[i],roots[i+1],parity[i+1])
-    cond = jnp.tile(jnp.arange(roots.shape[0])[:, None], (1, roots.shape[1])) < i+1
-    roots=jnp.where(cond,roots,roots[:,sort_indices])
-    parity=jnp.where(cond,parity,parity[:,sort_indices])
-    return (roots,parity),i
+def delete_body(carry, k):
+    array, ite2 = carry
+    mask = ite2 < k
+    array = jnp.where(mask[:,None], array, jnp.roll(array, -1,axis=0))
+    return (array, ite2 + 1), k
+@jax.jit
+def custom_delete(array, idx):
+    ite = jnp.arange(array.shape[0])
+    carry, _ = lax.scan(delete_body, (array, ite), idx)
+    array, _ = carry
+    array = jnp.where((ite < ite.size - (idx<array.shape[0]).sum())[:,None], array, jnp.nan)
+    return array
