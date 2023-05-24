@@ -49,15 +49,21 @@ class model():#initialize parameter
         zG=jnp.where(cond,jnp.nan,z_l)
         cond,mag=Quadrupole_test(self.rho,self.s,self.q,zeta_l,z,zG,tol)
         idx=jnp.where(~cond)[0]
-        carry,_=lax.scan(contour_scan,(mag,trajectory_l,tol,retol,self.rho,self.s,self.q,self.m1,self.m2),idx)
-        mag,trajectory_l,tol,retol,rho,s,q,m1,m2=carry
+        carry,_=lax.scan(contour_scan,(mag,trajectory_l,tol,retol,self.rho,self.s,self.q,self.m1,self.m2,
+                                       jnp.array([0]),jnp.zeros((200,1)),False),idx)
+        mag,trajectory_l,tol,retol,rho,s,q,m1,m2,sample_n,error_hist,outloop=carry
+        #print(sample_n)
+        #print(jnp.nansum(error_hist))
         return mag
 def contour_scan(carry,i):
-    mag,trajectory_l,tol,retol,rho,s,q,m1,m2=carry
-    temp_mag=contour_integrate(rho,s,q,m1,m2,trajectory_l[i],tol,epsilon_rel=retol)
-    mag=mag.at[i].set(temp_mag[0])
-    return (mag,trajectory_l,tol,retol,rho,s,q,m1,m2),i
-def contour_integrate(rho,s,q,m1,m2,trajectory_l,epsilon,epsilon_rel=0,inite=5,n_ite=500):
+    mag_all,trajectory_l,tol,retol,rho,s,q,m1,m2,sample_n,error_hist,outloop=carry
+    result=contour_integrate(rho,s,q,m1,m2,trajectory_l[i],tol,epsilon_rel=retol)
+    (sample_n,theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,
+        Is_create,_,rho,s,q,m1,m2,epsilon,epsilon_rel,mag,maglast,outloop)=result
+    mag_all=mag_all.at[i].set(mag[0])
+    return (mag_all,trajectory_l,tol,retol,rho,s,q,m1,m2,sample_n,error_hist,outloop),i
+@jax.jit
+def contour_integrate(rho,s,q,m1,m2,trajectory_l,epsilon,epsilon_rel=0,inite=3,n_ite=200):
     ###初始化
     sample_n=jnp.array([inite])
     theta=jnp.where(jnp.arange(n_ite)<inite,jnp.resize(jnp.linspace(0,2*jnp.pi,inite),n_ite),jnp.nan)[:,None]#shape(500,1)
@@ -70,43 +76,53 @@ def contour_integrate(rho,s,q,m1,m2,trajectory_l,epsilon,epsilon_rel=0,inite=5,n
     roots,parity,sort_flag=get_sorted_roots(roots,parity,sort_flag)
     Is_create=find_create_points(roots,sample_n)
     #####计算第一次的误差，放大率
+    maglast=jnp.array([1.])
     mag=1/2*jnp.nansum(jnp.nansum((roots.imag[0:-1]+roots.imag[1:])*(roots.real[0:-1]-roots.real[1:])*parity[0:-1],axis=0))
     error_hist,magc,parab=error_sum(Is_create,roots,parity,theta,rho,q,s)
     mag=(mag+magc+parab)/(jnp.pi*rho**2)
     error_hist+=buried_error
     carry=(sample_n,theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,
-            Is_create,trajectory_l,rho,s,q,m1,m2,epsilon,epsilon_rel,mag,outloop)
+            Is_create,trajectory_l,rho,s,q,m1,m2,epsilon,epsilon_rel,mag,maglast,outloop)
     result=lax.while_loop(cond_fun,while_body_fun,carry)
-    return result[-2]
+    return result
 def cond_fun(carry):
     (sample_n,theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,
-        Is_create,trajectory_l,rho,s,q,m1,m2,epsilon,epsilon_rel,mag,outloop)=carry
+        Is_create,trajectory_l,rho,s,q,m1,m2,epsilon,epsilon_rel,mag,maglast,outloop)=carry
     mini_interval=jnp.nanmin(jnp.abs(jnp.diff(theta,axis=0)))
-    loop=((error_hist>epsilon/jnp.sqrt(sample_n)).any() & (error_hist/jnp.abs(mag)>epsilon_rel/jnp.sqrt(sample_n)).any() & (mini_interval>1e-14) & (~outloop))
+    abs_mag_cond=(jnp.nansum(error_hist)>epsilon)
+    rel_mag_cond=(error_hist/jnp.abs(mag)>epsilon_rel/jnp.sqrt(sample_n)).any()
+    #rel_mag_cond=(jnp.nansum(error_hist)/jnp.abs(mag)>epsilon_rel)[0]
+    relmag_diff_cond=(jnp.abs((mag-maglast)/maglast)>1/2*epsilon_rel)[0]
+    mag_diff_cond=(jnp.abs(mag-maglast)>1/2*epsilon_rel)[0]
+    loop=(rel_mag_cond& (mini_interval>1e-14) & (~outloop))
     return loop
 def while_body_fun(carry):
     (sample_n,theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,
-        Is_create,trajectory_l,rho,s,q,m1,m2,epsilon,epsilon_rel,mag,outloop)=carry
-    idx=jnp.nanargmax(error_hist)#单区间多点采样
-    #idx=jnp.where(error_hist>epsilon/jnp.sqrt(sample_n))[0]#不满足要求的点
+        Is_create,trajectory_l,rho,s,q,m1,m2,epsilon,epsilon_rel,mag,maglast,outloop)=carry
+    add_max=6
     ######迭代加点
-    add_number=jnp.ceil((error_hist[idx]/epsilon*jnp.sqrt(sample_n))**0.2).astype(int)#至少要插入一个点，不包括相同的第一个
+    #一次一个区间加点：
+    idx=jnp.nanargmax(error_hist)#单区间多点采样
+    add_number=jnp.ceil((error_hist[idx]/jnp.abs(mag)/epsilon_rel*jnp.sqrt(sample_n))**0.2).astype(int)#至少要插入一个点，不包括相同的第一个
+    add_number=jax.lax.min(add_number,add_max)
     theta_diff = (theta[idx] - theta[idx-1]) / (add_number[0]+1)
-    add_theta=jnp.arange(1,theta.shape[0]+1)[:,None]*theta_diff+theta[idx-1]
-    add_theta=jnp.where((jnp.arange(theta.shape[0])<add_number)[:,None],add_theta,jnp.nan)
-    #add_theta=[jnp.linspace(theta[idx[i]-1],theta[idx[i]],add_number[i],endpoint=False)[1:] for i in range(jnp.shape(idx)[0])]
-    #idx = jnp.repeat(idx, add_number-1) # create an index array with the same length as add_item
-    #add_theta = jnp.concatenate(add_theta) # concatenate the list of arrays into a 1-D array
+    add_theta=jnp.arange(1,add_max+1)[:,None]*theta_diff+theta[idx-1]
+    add_theta=jnp.where((jnp.arange(add_max)<add_number)[:,None],add_theta,jnp.nan)
+    #一次多个区间加点：
+    #idx=np.where(error_hist/np.abs(mag)>epsilon/np.sqrt(sample_n),size=10,fill_value=-1)[0]
+    #add_number=np.where(idx==-1,0,add_number)
+    ####
     add_zeta_l=get_zeta_l(rho,trajectory_l,add_theta)
     add_coff=get_poly_coff(add_zeta_l,s,m2)
     sample_n+=add_number
     theta,ghost_roots_dis,buried_error,sort_flag,roots,parity,Is_create,outloop=add_points(
         idx,add_zeta_l,add_coff,add_theta,roots,parity,theta,ghost_roots_dis,sort_flag,s,m1,m2,sample_n,add_number)
     ####计算误差
+    maglast=mag
     mag=1/2*jnp.nansum(jnp.nansum((roots.imag[0:-1]+roots.imag[1:])*(roots.real[0:-1]-roots.real[1:])*parity[0:-1],axis=0))
     error_hist,magc,parab=error_sum(Is_create,roots,parity,theta,rho,q,s)
     mag=(mag+magc+parab)/(jnp.pi*rho**2)
     error_hist+=buried_error
     carry=(sample_n,theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,
-        Is_create,trajectory_l,rho,s,q,m1,m2,epsilon,epsilon_rel,mag,outloop)
+        Is_create,trajectory_l,rho,s,q,m1,m2,epsilon,epsilon_rel,mag,maglast,outloop)
     return carry
