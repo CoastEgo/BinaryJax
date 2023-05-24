@@ -19,6 +19,7 @@ def fz3(z,m1,m2,s):
     return 6*m1/(z-s)**4+6*m2/z**4
 def J(z,m1,m2,s):
     return 1-fz1(z,m1,m2,s)*jnp.conj(fz1(z,m1,m2,s))
+@jax.jit
 def Quadrupole_test(rho,s,q,zeta,z,zG,tol):
     m1=1/(1+q)
     m2=q/(1+q)
@@ -33,7 +34,7 @@ def Quadrupole_test(rho,s,q,zeta,z,zG,tol):
     miu_G=1/2*jnp.abs(J(zG,m1,m2,s)*J_wave**2/(J_wave*fz2(jnp.conj(zG),m1,m2,s)*fz1(zG,m1,m2,s)-jnp.conj(J_wave)*fz2(zG,m1,m2,s)*fz1(jnp.conj(zG),m1,m2,s)*fz1(zwave,m1,m2,s)))
     cond2=~((cG*(rho+1e-3)>miu_G).any(axis=1))#any更加宽松，因为ghost roots应该是同时消失的，理论上是没问题的
     #####planet test
-    cond3=(q>1e-2)|(jnp.abs(zeta+1/s)**2>cP*(rho**2+9*q/s**2))|(rho*rho*s*s<q)
+    cond3=((q>1e-2)|(jnp.abs(zeta+1/s)**2>cP*(rho**2+9*q/s**2))|(rho*rho*s*s<q))[:,0]
     return cond1&cond2&cond3,jnp.nansum(jnp.abs(1/J(z,m1,m2,s)),axis=1)
 @jax.jit
 def get_poly_coff(zeta_l,s,m2):
@@ -50,11 +51,14 @@ def get_zeta_l(rho,trajectory_centroid_l,theta):#获得等高线采样的zeta
     rel_centroid=rho*jnp.cos(theta)+1j*rho*jnp.sin(theta)
     zeta_l=trajectory_centroid_l+rel_centroid
     return zeta_l
+@jax.jit
 def verify(zeta_l,z_l,s,m1,m2):#verify whether the root is right
     return  jnp.abs(z_l-m1/(jnp.conj(z_l)-s)-m2/jnp.conj(z_l)-zeta_l)
+@jax.jit
 def get_parity(z,s,m1,m2):#get the parity of roots
     de_conjzeta_z1=m1/(jnp.conj(z)-s)**2+m2/jnp.conj(z)**2
     return jnp.sign((1-jnp.abs(de_conjzeta_z1)**2))
+@jax.jit
 def get_parity_error(z,s,m1,m2):
     de_conjzeta_z1=m1/(jnp.conj(z)-s)**2+m2/jnp.conj(z)**2
     return jnp.abs((1-jnp.abs(de_conjzeta_z1)**2))
@@ -93,7 +97,7 @@ def custom_insert(array,idx,add_array,add_number):
     mask = ite < idx
     array=jnp.where(mask[:,None],array,jnp.roll(array,add_number,axis=0))
     mask2=(ite >=idx)&(ite<idx+add_number)
-    #add_array=jnp.resize(add_array,array.shape)
+    add_array=jnp.resize(add_array,array.shape)
     add_array=jnp.roll(add_array,idx,axis=0)
     array=jnp.where(mask2[:,None],add_array,array)
     return array
