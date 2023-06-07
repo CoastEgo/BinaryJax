@@ -124,7 +124,7 @@ def loop_parity_body(carry,i):##循环体
 def find_create_points(roots, sample_n):
     cond=jnp.isnan(roots)
     Is_create=jnp.zeros_like(roots,dtype=int)
-    idx_x,idx_y=jnp.where(jnp.diff(cond,axis=0)&(~cond[0:-1].all(axis=1))[:,None]&(jnp.arange(roots.shape[0]-1)!=sample_n-1)[:,None],size=5*roots.shape[0],fill_value=-2)
+    idx_x,idx_y=jnp.where(jnp.diff(cond,axis=0)&(~cond[0:-1].all(axis=1))[:,None]&(jnp.arange(roots.shape[0]-1)!=sample_n-1)[:,None],size=roots.shape[0],fill_value=-2)
     idx_x+=1
     @jax.jit
     def update_is_create(carry, inputs):
@@ -148,17 +148,29 @@ def find_create_points(roots, sample_n):
 @jax.jit
 def sort_body1(values,k):
     roots, parity = values
-    sort_indices = find_nearest(roots[k - 1, :], parity[k - 1, :], roots[k, :], parity[k, :])
-    roots = roots.at[k, :].set(roots[k, sort_indices])
-    parity = parity.at[k, :].set(parity[k, sort_indices])
+    @jax.jit
+    def False_fun_sort1(carry):
+        roots,parity,i=carry
+        sort_indices = find_nearest(roots[k - 1, :], parity[k - 1, :], roots[k, :], parity[k, :])
+        roots = roots.at[k, :].set(roots[k, sort_indices])
+        parity = parity.at[k, :].set(parity[k, sort_indices])
+        return roots,parity
+    carry=lax.cond(jnp.isnan(roots[k]).all(),lambda x:x[0:-1],False_fun_sort1,(roots,parity,k))
+    roots,parity=carry
     return (roots,parity),k
 @jax.jit
 def sort_body2(carry,i):
+    @jax.jit
+    def False_fun(carry):
+        roots,parity,i=carry
+        sort_indices=find_nearest(roots[i],parity[i],roots[i+1],parity[i+1])
+        cond = jnp.tile(jnp.arange(roots.shape[0])[:, None], (1, roots.shape[1])) < i+1
+        roots=jnp.where(cond,roots,roots[:,sort_indices])
+        parity=jnp.where(cond,parity,parity[:,sort_indices])
+        return roots,parity
     roots,parity=carry
-    sort_indices=find_nearest(roots[i],parity[i],roots[i+1],parity[i+1])
-    cond = jnp.tile(jnp.arange(roots.shape[0])[:, None], (1, roots.shape[1])) < i+1
-    roots=jnp.where(cond,roots,roots[:,sort_indices])
-    parity=jnp.where(cond,parity,parity[:,sort_indices])
+    carry=lax.cond(jnp.isnan(roots[i]).all(),lambda x:x[0:-1],False_fun,(roots,parity,i))
+    roots,parity=carry
     return (roots,parity),i
 @jax.jit
 def parity_delete_cond(carry):
