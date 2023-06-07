@@ -51,7 +51,7 @@ def error_sum(Is_create,z,parity,theta,rho,q,s):
 @jax.jit
 def no_create_true_fun(carry):
     mag,parab,Is_create,error_hist,parity,deXProde2X,z,de_z=carry
-    critial_idx_row=jnp.where((Is_create!=0).any(axis=1),size=error_hist.shape[0],fill_value=-2)[0]
+    critial_idx_row=jnp.where((Is_create!=0).any(axis=1),size=10,fill_value=-2)[0]
     carry,_=jax.lax.scan(error_scan,(mag,parab,Is_create,error_hist,parity,deXProde2X,z,de_z),critial_idx_row)
     return carry
 @jax.jit
