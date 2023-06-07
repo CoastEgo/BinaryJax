@@ -2,10 +2,12 @@ import numpy as np
 import jax.numpy as jnp
 import jax.experimental.host_callback as hcb
 from scipy.optimize import linear_sum_assignment
+from polynomial_solver import halfanalytical
 import jax
 from jax import lax
 from jax import custom_jvp
 from jax import jvp
+from linear_sum_assignment_jax import solve
 jax.config.update("jax_platform_name", "cpu")
 jax.config.update("jax_enable_x64", True)
 idx_all=jnp.linspace(0,4,5,dtype=int)
@@ -62,12 +64,27 @@ def get_parity(z,s,m1,m2):#get the parity of roots
 def get_parity_error(z,s,m1,m2):
     de_conjzeta_z1=m1/(jnp.conj(z)-s)**2+m2/jnp.conj(z)**2
     return jnp.abs((1-jnp.abs(de_conjzeta_z1)**2))
-@jax.jit # 定义函数以进行矢量化
+@jax.jit # 自动矢量化
 def loop_body(k, coff):
-    return jnp.roots(coff[k],strip_zeros=False)
+    #roots=jnp.roots(coff[k],strip_zeros=False)
+    roots=halfanalytical(coff[k])
+    return roots#自动矢量化，但是有浪费'''
+'''@jax.jit # 定义函数以进行矢量化
+def loop_body(carry,k):#采用判断来减少浪费
+    coff,roots=carry
+    @jax.jit
+    def False_fun(carry):
+        coff,roots,k=carry
+        #roots=roots.at[k].set(jnp.roots(coff,strip_zeros=False))
+        roots=roots.at[k].set(halfanalytical(coff))
+        return roots
+    roots=lax.cond((coff[k]==0).all(),lambda x:x[1],False_fun,(coff[k],roots,k))
+    return (coff,roots),k#'''
 def get_roots(sample_n, coff):
     # 使用 vmap 进行矢量化，并指定输入参数的轴数
     roots = jax.vmap(loop_body, in_axes=(0, None))(jnp.arange(sample_n), coff)
+    #carry,_=lax.scan(loop_body,(coff,jnp.zeros((coff.shape[0],5),dtype=jnp.complex128)),jnp.arange(sample_n))#scan循环，但是没有浪费
+    #coff,roots=carry
     return roots
 def dot_product(a,b):
     return np.real(a)*np.real(b)+np.imag(a)*np.imag(b)
@@ -76,7 +93,7 @@ def dot_product(a,b):
 def find_nearest(array1, parity1, array2, parity2):#线性分配问题
     cost=jnp.abs(array2-array1[:,None])+jnp.abs(parity2-parity1[:,None])*5#系数可以指定防止出现错误，系数越大鲁棒性越好，但是速度会变慢些
     cost=jnp.where(jnp.isnan(cost),100,cost)
-    col_idx = hcb.call(lsa,cost,result_shape=jax.ShapeDtypeStruct(cost[:,-1].shape, jnp.int64))
+    row_ind, col_idx=solve(cost)
     return col_idx
 @find_nearest.defjvp
 def find_nearest_jvp(primals, tangents):
@@ -88,10 +105,7 @@ def find_nearest_jvp(primals, tangents):
     #da2_out = jnp.take(da2, idx_bcast)
     #dp2_out = jnp.take(dp2, idx_bcast)
     return primals_out,jnp.zeros_like(primals_out)
-def lsa(cost):
-    row_ind, col_idx=linear_sum_assignment(cost)
-    return col_idx
-@jax.jit
+'''@jax.jit
 def custom_insert(array,idx,add_array,add_number):
     ite=jnp.arange(array.shape[0])
     mask = ite < idx
@@ -100,7 +114,34 @@ def custom_insert(array,idx,add_array,add_number):
     add_array=jnp.resize(add_array,array.shape)
     add_array=jnp.roll(add_array,idx,axis=0)
     array=jnp.where(mask2[:,None],add_array,array)
+    return array'''
+@jax.jit
+def insert_body(carry,k):
+    array,add_array,idx,add_number=carry
+    ite=jnp.arange(array.shape[0])
+    mask = ite < idx[k]
+    array=jnp.where(mask[:,None],array,jnp.roll(array,add_number[k],axis=0))
+    mask2=(ite >=idx[k])&(ite<idx[k]+add_number[k])
+    add_array=jnp.roll(add_array,idx[k],axis=0)
+    array=jnp.where(mask2[:,None],add_array,array)
+    add_array=jnp.roll(add_array,-1*add_number[k]-idx[k],axis=0)
+    idx+=add_number[k]
+    return (array,add_array,idx,add_number),k
+@jax.jit
+def custom_insert(array,idx,add_array,add_number):
+    carry,_=lax.scan(insert_body,(array,add_array,idx,add_number),jnp.arange(idx.shape[0]))
+    array,add_array,idx,add_number=carry
     return array
+@jax.jit
+def theta_encode(carry,k):
+    (theta,idx,add_number,add_theta_encode)=carry
+    add_max=theta.shape[0]
+    theta_diff = (theta[idx[k]] - theta[idx[k]-1]) / (add_number[k]+1)
+    add_theta=jnp.arange(1,add_max+1)[:,None]*theta_diff+theta[idx[k]-1]
+    add_theta=jnp.where((jnp.arange(add_max)<add_number[k])[:,None],add_theta,jnp.nan)
+    carry2,_=insert_body((add_theta_encode,add_theta,jnp.where(jnp.isnan(add_theta_encode),size=1)[0],add_number[k][None]),0)
+    add_theta_encode=carry2[0]
+    return (theta,idx,add_number,add_theta_encode),k
 @jax.jit
 def delete_body(carry, k):
     array, ite2 = carry
