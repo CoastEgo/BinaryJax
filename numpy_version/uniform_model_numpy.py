@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from basic_function import *
+from MulensModel import Model,caustics
 np.seterr(divide='ignore', invalid='ignore')
 class model():#initialize parameter
     def __init__(self,par):
@@ -106,7 +107,7 @@ class model():#initialize parameter
                 sol_num+=[arc_num]
                 parity_map+=[arc_parity]
         return curve,theta_map,sol_num,parity_map
-    def get_magnifaction2(self,tol):
+    def get_magnifaction2(self,tol,retol=0):
         trajectory_l=self.trajectory_l
         trajectory_n=self.trajectory_n
         zeta_l=trajectory_l
@@ -124,16 +125,34 @@ class model():#initialize parameter
         cond,mag=Quadrupole_test(self.rho,self.s,self.q,zeta_l,z,zG,tol)
         idx=np.where(~cond)[0]
         for i in idx:
-            temp_mag,curve=self.contour_integrate(trajectory_l[i],tol,i)
+            temp_mag,curve,theta=self.contour_integrate(trajectory_l[i],tol,i,retol)
             mag[i]=temp_mag
+            '''fig,ax=plt.subplots()#绘制image图的代码
+            zeta=self.get_zeta_l(trajectory_l[i],theta)
+            zeta=self.to_centroid(zeta)
+            ax.plot(zeta.real,zeta.imag,label='source')
+            caustic_1=caustics.Caustics(self.q,self.s)
+            caustic_1.plot(5000,s=2,label='caustic')
+            x,y=caustic_1.get_caustics()
+            x=caustic_1.critical_curve.x
+            y=caustic_1.critical_curve.y
+            ax.scatter(x,y,s=2,label='critical curve')
+            for k in range(len(curve)):
+                cur=self.to_centroid(curve[k])
+                ax.plot(cur.real,cur.imag,label='image '+str(k))
+            plt.axis('equal')
+            plt.legend(loc='upper right')
+            plt.show()'''
         return mag
     def contour_integrate(self,trajectory_l,epsilon,i,epsilon_rel=0):
         sample_n=3;theta_init=np.array([0,np.pi,2*np.pi],dtype=np.float64)
         error_hist=np.ones(1)
-        add_max=np.ceil(-2*np.log(self.rho)-np.log(epsilon)/np.log(5))*10
+        add_max=np.ceil(-2*np.log(self.rho)-np.log(epsilon)/np.log(3))*10
         mag=1
         outloop=False
-        while ((error_hist>epsilon/np.sqrt(sample_n)).any() & (error_hist/np.abs(mag)>epsilon_rel/np.sqrt(sample_n)).any()):#相对误差
+        mag0=0
+        while ((error_hist>epsilon/np.sqrt(sample_n)).any() & (error_hist/np.abs(mag)>epsilon_rel/np.sqrt(sample_n)).any() & (np.abs(mag-mag0)>1/2*epsilon)):#相对误差
+        #while ((np.sum(error_hist)>epsilon)  & (np.abs(mag-mag0)>1/2*epsilon)):#相对误差
             mini_interval=np.min(np.abs(np.diff(theta_init)))
             if mini_interval<1e-14:
                 print(f'Warnning! idx{i} theta sampling may lower than float64 limit')
@@ -141,6 +160,7 @@ class model():#initialize parameter
             if outloop:
                 print(f'idx{i} did not reach the accuracy goal due to the ambigious of roots and parity')
                 break
+            mag0=mag
             mag=0
             if np.shape(error_hist)[0]==1:#第一次采样
                 error_hist=np.zeros_like(theta_init)
@@ -149,6 +169,7 @@ class model():#initialize parameter
                 solution=Solution(self.q,self.s,zeta_l,coff,theta_init)
             else:#自适应采点插入theta
                 idx=np.where(error_hist>epsilon/np.sqrt(sample_n))[0]#不满足要求的点
+                #idx=np.array([np.argmax(error_hist)])
                 add_number=np.ceil((error_hist[idx]/epsilon*np.sqrt(sample_n))**0.2).astype(int)+1#至少要插入一个点，不包括相同的第一个
                 add_number[add_number>add_max]=add_max
                 add_theta=[np.linspace(theta_init[idx[i]-1],theta_init[idx[i]],add_number[i],endpoint=False,dtype=np.float64)[1:] for i in range(np.shape(idx)[0])]
@@ -177,7 +198,8 @@ class model():#initialize parameter
                 mag+=parab
             mag=mag/(np.pi*self.rho**2)
             error_hist+=solution.buried_error
-        return (mag,curve)
+        print(sample_n)
+        return mag,curve,solution.theta
     def get_magnifaction(self,tol):
         epsilon=tol
         rel_epsilon=tol/10
@@ -205,8 +227,9 @@ class model():#initialize parameter
                         add_number=np.array([1])+1
                         add_theta=[np.linspace(theta_init[idx[i]-1],theta_init[idx[i]],add_number[i],endpoint=False)[1:] for i in range(np.shape(idx)[0])]
                     if 1:#多区间多点采样但精度设置不同
-                        idx=np.where(error_hist>epsilon/np.sqrt(sample_n))[0]#不满足要求的点
-                        add_number=np.ceil((error_hist[idx]/epsilon*np.sqrt(sample_n))**0.2).astype(int)+1#至少要插入一个点，不包括相同的第一个
+                        idx=np.argmax(error_hist)
+                        #idx=np.where(error_hist>epsilon/np.sqrt(sample_n))[0]#不满足要求的点
+                        add_number=np.ceil((error_hist[idx]/epsilon*np.sqrt(sample_n))**0.33).astype(int)+1#至少要插入一个点，不包括相同的第一个
                         add_theta=[np.linspace(theta_init[idx[i]-1],theta_init[idx[i]],add_number[i],endpoint=False,dtype=np.float64)[1:] for i in range(np.shape(idx)[0])]
                     idx = np.repeat(idx, add_number-1) # create an index array with the same length as add_item
                     add_theta = np.concatenate(add_theta) # concatenate the list of arrays into a 1-D array

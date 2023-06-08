@@ -1,7 +1,9 @@
-import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from basic_function import *
+import os
+os.environ['NUMPY_EXPERIMENTAL_ARRAY_FUNCTION'] = '0'
+import numpy as np
 np.seterr(divide='ignore', invalid='ignore')
 class model():#initialize parameter
     def __init__(self,par):
@@ -34,7 +36,7 @@ class model():#initialize parameter
         rel_centroid=rho*np.cos(theta)+1j*rho*np.sin(theta)
         zeta_l=trajectory_centroid_l+rel_centroid
         return zeta_l
-    def get_magnifaction2(self,tol):
+    def get_magnifaction2(self,tol,retol=0):
         trajectory_l=self.trajectory_l
         trajectory_n=self.trajectory_n
         zeta_l=trajectory_l
@@ -52,16 +54,18 @@ class model():#initialize parameter
         cond,mag=Quadrupole_test(self.rho,self.s,self.q,zeta_l,z,zG,tol)
         idx=np.where(~cond)[0]
         for i in idx:
-            temp_mag=self.contour_integrate(trajectory_l[i],tol,i)
+            temp_mag=self.contour_integrate(trajectory_l[i],tol,i,retol)
             mag[i]=temp_mag
         return mag
     def contour_integrate(self,trajectory_l,epsilon,i,epsilon_rel=0):
-        sample_n=3;theta_init=np.array([0,np.pi,2*np.pi],dtype=np.float64)
+        #sample_n=3;theta_init=np.array([0,np.pi,2*np.pi],dtype=np.float64)
+        sample_n=jnp.int64(10);theta_init=np.linspace(0,2*np.pi,sample_n)
         error_hist=np.ones(1)
-        add_max=np.ceil(-2*np.log(self.rho)-np.log(epsilon)/np.log(5))*10
         mag=1
         outloop=False
-        while ((error_hist>epsilon/np.sqrt(sample_n)).any() & (error_hist/np.abs(mag)>epsilon_rel/np.sqrt(sample_n)).any()):#相对误差
+        mag0=0
+        while ((error_hist/np.abs(mag)>epsilon_rel/np.sqrt(sample_n)).any()):#相对误差
+        #while ((np.sum(error_hist)/np.abs(mag)>epsilon_rel) & (np.abs(mag-mag0)>1/2*epsilon)):#相对误差
             mini_interval=np.min(np.abs(np.diff(theta_init)))
             if mini_interval<1e-14:
                 print(f'Warnning! idx{i} theta sampling may lower than float64 limit')
@@ -69,15 +73,19 @@ class model():#initialize parameter
             if outloop:
                 print(f'idx{i} did not reach the accuracy goal due to the ambigious of roots and parity')
                 break
-            mag=0
+            mag0=mag
+            mag=1
             if np.shape(error_hist)[0]==1:#第一次采样
                 error_hist=np.zeros_like(theta_init)
                 zeta_l=self.get_zeta_l(trajectory_l,theta_init)
                 coff=get_poly_coff(zeta_l,self.s,self.m2)
                 solution=Solution(self.q,self.s,zeta_l,coff,theta_init)
             else:#自适应采点插入theta
-                idx=np.where(error_hist>epsilon/np.sqrt(sample_n))[0]#不满足要求的点
-                add_number=np.ceil((error_hist[idx]/epsilon*np.sqrt(sample_n))**0.2).astype(int)+1#至少要插入一个点，不包括相同的第一个
+                idx=np.where(error_hist/np.abs(mag0)>epsilon_rel/np.sqrt(sample_n))[0]
+                #idx=np.where(error_hist>np.median(error_hist))[0]
+                #idx=np.array([np.argmax(error_hist)])
+                add_max=5
+                add_number=np.ceil((error_hist[idx]/np.abs(mag0)*np.sqrt(sample_n)/epsilon_rel)**0.2).astype(int)+1#至少要插入一个点，不包括相同的第一个
                 add_number[add_number>add_max]=add_max
                 add_theta=[np.linspace(theta_init[idx[i]-1],theta_init[idx[i]],add_number[i],endpoint=False,dtype=np.float64)[1:] for i in range(np.shape(idx)[0])]
                 idx = np.repeat(idx, add_number-1) # create an index array with the same length as add_item
@@ -97,6 +105,7 @@ class model():#initialize parameter
             mag+=parab
             mag=mag/(np.pi*self.rho**2)
             error_hist+=solution.buried_error
+        #print(sample_n)
         return mag
 class Solution(object):
     def __init__(self,q,s,zeta_l,coff,theta):
@@ -297,8 +306,8 @@ class Error_estimator(object):
             for i in critial_idx_row:
                 if np.abs(self.Is_create[i].sum())/2==1:
                     create=self.Is_create[i].sum()/2
-                    idx1=np.where((self.Is_create[i]!=0)&(self.parity[i]==-1*create))[0]
-                    idx2=np.where((self.Is_create[i]!=0)&(self.parity[i]==1*create))[0]
+                    idx1=np.where((self.Is_create[i]==create)&(self.parity[i]==-1*create))[0]
+                    idx2=np.where((self.Is_create[i]==create)&(self.parity[i]==1*create))[0]
                     e_crit,dacp=self.error_critial(i,idx1,idx2,create)
                     error_hist[int(i-(create-1)/2)]+=e_crit
                     mag+=1/2*(self.zeta_l[i,idx1].imag+self.zeta_l[i,idx2].imag)*(self.zeta_l[i,idx1].real-self.zeta_l[i,idx2].real)
