@@ -50,7 +50,7 @@ class model():#initialize parameter
         cond,mag=Quadrupole_test(self.rho,self.s,self.q,zeta_l,z,zG,tol)
         idx=jnp.where(~cond)[0]
         carry,_=lax.scan(contour_scan,(mag,trajectory_l,tol,retol,self.rho,self.s,self.q,self.m1,self.m2,
-                                       jnp.array([0]),jnp.zeros((150,1)),False),idx)
+                                       jnp.array([0]),jnp.zeros((200,1)),False),idx)
         mag,trajectory_l,tol,retol,rho,s,q,m1,m2,sample_n,error_hist,outloop=carry
         #print(jnp.nansum(error_hist))
         return mag
@@ -62,7 +62,7 @@ def contour_scan(carry,i):
     mag_all=mag_all.at[i].set(mag[0])
     return (mag_all,trajectory_l,tol,retol,rho,s,q,m1,m2,sample_n,error_hist,outloop),i
 @jax.jit
-def contour_integrate(rho,s,q,m1,m2,trajectory_l,epsilon,epsilon_rel=0,inite=5,n_ite=150):
+def contour_integrate(rho,s,q,m1,m2,trajectory_l,epsilon,epsilon_rel=0,inite=40,n_ite=200):
     ###初始化
     sample_n=jnp.array([inite])
     theta=jnp.where(jnp.arange(n_ite)<inite,jnp.resize(jnp.linspace(0,2*jnp.pi,inite),n_ite),jnp.nan)[:,None]#shape(500,1)

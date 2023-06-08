@@ -1,12 +1,10 @@
 import numpy as np
 import jax.numpy as jnp
-import jax.experimental.host_callback as hcb
-from scipy.optimize import linear_sum_assignment
 from polynomial_solver import halfanalytical
 import jax
+from functools import partial
 from jax import lax
 from jax import custom_jvp
-from jax import jvp
 from linear_sum_assignment_jax import solve
 jax.config.update("jax_platform_name", "cpu")
 jax.config.update("jax_enable_x64", True)
@@ -80,6 +78,7 @@ def loop_body(carry,k):#采用判断来减少浪费
         return roots
     roots=lax.cond((coff[k]==0).all(),lambda x:x[1],False_fun,(coff[k],roots,k))
     return (coff,roots),k#'''
+@partial(jax.jit,static_argnums=0)
 def get_roots(sample_n, coff):
     # 使用 vmap 进行矢量化，并指定输入参数的轴数
     roots = jax.vmap(loop_body, in_axes=(0, None))(jnp.arange(sample_n), coff)
