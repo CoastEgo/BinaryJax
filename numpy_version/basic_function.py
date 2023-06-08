@@ -49,23 +49,11 @@ def get_parity(z,s,m1,m2):#get the parity of roots
 def get_parity_error(z,s,m1,m2):
     de_conjzeta_z1=m1/(np.conj(z)-s)**2+m2/np.conj(z)**2
     return np.abs((1-np.abs(de_conjzeta_z1)**2))
-@jax.jit# 定义函数以进行矢量化
-def loop_body(k, coff):
-    return jnp.roots(coff[k],strip_zeros=False)
-def get_roots_jnp(sample_n, coff):
-    # 使用 vmap 进行矢量化，并指定输入参数的轴数
-    roots = jax.vmap(loop_body, in_axes=(0, None))(jnp.arange(sample_n), coff)
-    return np.asarray(roots)
-def get_roots_np(sample_n,coff):
+def get_roots(sample_n,coff):
     roots=np.empty((sample_n,5),dtype=np.complex128)
     for k in range(sample_n):
         roots[k,:]=np.roots(coff[k,:])
     return roots
-def get_roots(sample_n,coff):
-    if sample_n>50:
-        return get_roots_jnp(sample_n,jnp.asarray(coff))
-    else:
-        return get_roots_np(sample_n,coff)
 def dot_product(a,b):
     return np.real(a)*np.real(b)+np.imag(a)*np.imag(b)
 def find_nearest(array1, parity1, array2, parity2):#线性分配问题
