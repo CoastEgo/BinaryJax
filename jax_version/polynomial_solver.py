@@ -9,6 +9,8 @@ from jax import custom_jvp
 from jax import jacfwd
 from jax import lax
 import time
+'''from basic_function_jax import get_poly_coff,get_zeta_l
+from uniform_model_jax import get_trajectory_l'''
 def loop_body(carry):
     coff,der1,der2,xk,n,epsilon=carry
     G = jnp.polyval(der1,xk) / jnp.polyval(coff,xk)
@@ -23,7 +25,7 @@ def cond_fun(carry):
     coff,der1,der2,xk,n,epsilon=carry
     return jnp.abs(jnp.polyval(coff,xk)) > epsilon
 @jax.jit
-def laguerre_method(coff,x0,n, epsilon= 1e-14):
+def laguerre_method(coff,x0,n, epsilon= 1e-15):
     der1=jnp.polyder(coff,1)
     der2=jnp.polyder(coff,2)
     xk = x0
@@ -44,7 +46,8 @@ def zroots(coff):
     '''for i in range(coff.shape[0]-1):
         carry,_=body_fun((coff,roots),i)
         coff,roots=carry'''
-    coff,roots=carry
+    _,roots=carry
+    roots=newton_polish(coff,roots)
     return roots
 # closed-form roots for quadratic, cubic, and quartic polynomials
 # multi_quadratic and multi_quartic adapted from https://github.com/NKrvavica/fqs
@@ -149,44 +152,43 @@ def multi_quartic(a0, b0, c0, d0, e0):
 def halfanalytical(coff):
     roots=jnp.empty(coff.shape[0]-1,dtype=jnp.complex128)
     roots=roots.at[0].set(laguerre_method(coff,0,5))#order of polynomial
-    coff,_=jnp.polydiv(coff,jnp.array([1,-1*roots[0]]))
-    roots=roots.at[1:].set(multi_quartic(coff[0:1],coff[1:2],coff[2:3],coff[3:4],coff[4:]))
+    coff_4,_=jnp.polydiv(coff,jnp.array([1,-1*roots[0]]))
+    roots=roots.at[1:].set(multi_quartic(coff_4[0:1],coff_4[1:2],coff_4[2:3],coff_4[3:4],coff_4[4:]))
+    roots=newton_polish(coff,roots)
     return roots
-'''coff=np.random.rand(6)+1j*np.random.rand(6)
-a=np.poly1d(coff)
-st=time.perf_counter()
-for i in range(1):
-    npr=a.roots
-end=time.perf_counter()
-print('numpy roots time=',end-st)
-zr=zroots(coff)
-st=time.perf_counter()
-for i in range(1):
-    zr=zroots(coff)
-end=time.perf_counter()
-print('laguerre time jitted=',end-st)
-print(jnp.polyval(coff,npr))
-print(jnp.polyval(coff,zr))'''
-'''coff=np.random.rand(6)+1j*np.random.rand(6)*5
-s=time.perf_counter()
-for i in range(10000):
-    npr=np.roots(coff)
-e=time.perf_counter()
-print('numpy time',e-s)
-print('numpy error',np.abs(np.polyval(coff,npr)))
-zr=zroots(coff)
-s=time.perf_counter()
-for i in range(10000):
-    zr=zroots(coff)
-e=time.perf_counter()
-zrtime=e-s
-print('laguerre time',zrtime)
-print('laguerre error',np.abs(np.polyval(coff,zr)))
-halfz=halfanalytical(coff)
-s=time.perf_counter()
-for i in range(10000):
-    halfz=halfanalytical(coff)
-e=time.perf_counter()
-print('half laguerre time',e-s)
-print('half laguerre error',np.abs(np.polyval(coff,halfz)))
-print((e-s)/zrtime)'''
+@jax.jit
+def newton_polish(coff,roots):
+    derp=jnp.polyder(coff)
+    def loop_body(carry,k):
+        roots,coff=carry
+        val=jnp.polyval(coff,roots)
+        roots=roots-val/jnp.polyval(derp,roots)
+        return (roots,coff),k
+    carry,_=lax.scan(loop_body,(roots,coff),jnp.arange(10))
+    roots,_=carry
+    return roots
+'''
+if __name__=='__main__':
+    inite=30;n_ite=400
+    sample_n=120
+    b_map =jnp.linspace(-4.0,3.0,sample_n)
+    b=b_map[51]
+    t_0=2452848.06;t_E=61.5;alphadeg=90
+    q=1e-3;s=1;rho=0.001
+    times=jnp.linspace(t_0-0.*t_E,t_0+1.5*t_E,1)
+    times=(times-t_0)/t_E
+    alpha_rad=alphadeg*2*jnp.pi/360
+    trajectory_l=get_trajectory_l(s,q,alpha_rad,b,times)
+    m1=1/(1+q)
+    m2=q/(1+q)
+    sample_n=jnp.array([inite])
+    theta=jnp.where(jnp.arange(n_ite)<inite,jnp.resize(jnp.linspace(0,2*jnp.pi,inite),n_ite),jnp.nan)[:,None]#shape(500,1)
+    zeta_l=get_zeta_l(rho,trajectory_l,theta)
+    coff=get_poly_coff(zeta_l,s,m2)[0]
+    np_roots=jnp.roots(coff)
+    print(np.poly1d(coff))
+    lague_roots=zroots(coff)
+    print('numpy roots',jnp.sort(np_roots))
+    print('numpy error',jnp.abs(jnp.polyval(coff,jnp.sort(np_roots))))
+    print('laguerre roots',jnp.sort(lague_roots))
+    print('laguerre error',jnp.abs(jnp.polyval(coff,jnp.sort(lague_roots))))#'''

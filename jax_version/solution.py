@@ -142,7 +142,7 @@ def find_create_points(roots, sample_n):
     initial_carry = (cond, Is_create)
     final_carry, _ = lax.scan(update_is_create, initial_carry, (idx_x, idx_y))
     Is_create = final_carry[1]
-    Is_create=Is_create.at[-2:].set(0)
+    Is_create=Is_create.at[-3:].set(0)
     return Is_create
 @jax.jit
 def sort_body1(values,k):
