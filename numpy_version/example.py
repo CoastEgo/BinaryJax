@@ -1,29 +1,36 @@
-import numpy as np
 import matplotlib.pyplot as plt
 from MulensModel import Model,caustics
-from uniform_model_numpy import model
+from uniform_model_noimage import model
 import VBBinaryLensing
 import time
 import cProfile
+import timeit
+import numpy as np
 np.seterr(divide='ignore', invalid='ignore')
 if __name__=="__main__":
-    b_map=np.linspace(-0.5,0.5,1000)
-    b=-0.0010010010010010895
+    sample_n=120
+    b_map =np.linspace(-4.0,3.0,sample_n)
+    b=b_map[51]
     t_0=2452848.06;t_E=61.5;alphadeg=90
-    q=1e-09;s=4;rho=0.001
-    tol=1e-3
-    trajectory_n=1000
+    q=1e-3;s=1;rho=0.001
+    tol=1e-2
+    trajectory_n=1
     alpha=alphadeg*2*np.pi/360
-    times=np.linspace(t_0-0.*t_E,t_0+2.0*t_E,trajectory_n)
+    times=np.linspace(t_0-0.*t_E,t_0+1.5*t_E,trajectory_n)
     ####################
     start=time.perf_counter()
     model_uniform=model({'t_0': t_0, 'u_0': b, 't_E': t_E,
                         'rho': rho, 'q': q, 's': s, 'alpha_deg': alphadeg,'times':times})
-    uniform_mag=model_uniform.get_magnifaction2(tol)
+    uniform_mag=model_uniform.get_magnifaction2(tol,retol=tol)
     end=time.perf_counter()
+    print(uniform_mag)
     time_optimal=end-start
-    #cProfile.run('model_uniform.debug(tol)',sort='cumulative')
+    '''profiler = cProfile.Profile()
+    profiler.run('model_uniform.get_magnifaction2(tol, retol=tol)')
+    # 显示前10个函数调用的统计信息
+    profiler.print_stats(sort='cumtime')'''
     print('low_mag_mycode=',time_optimal)
+    #print(uniform_mag)
     ##################
     '''
     start=time.perf_counter()
@@ -37,7 +44,7 @@ if __name__=="__main__":
     #############
     start=time.perf_counter()
     VBBL = VBBinaryLensing.VBBinaryLensing()
-    VBBL.Tol=tol*1e-3
+    VBBL.RelTol=tol
     VBBL.BinaryLightCurve
     tau=(times-t_0)/t_E
     alpha+=np.pi
@@ -94,7 +101,7 @@ if __name__=="__main__":
     if bool2:
         plt.figure('de-mag')
         plt.plot(tau,np.abs((VBBL_mag-uniform_mag)),label='$\Delta$_optimal')
-        print(np.max(np.abs((VBBL_mag-uniform_mag))))
+        print(np.max(np.abs((VBBL_mag-uniform_mag))/np.abs(VBBL_mag)))
         print(np.argmax(np.abs((VBBL_mag-uniform_mag))))
         plt.yscale('log')
         plt.legend()
