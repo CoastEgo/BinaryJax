@@ -26,27 +26,25 @@ def model(par):
     z_l=get_roots(trajectory_n,coff)
     error=verify(zeta_l,z_l,s,m1,m2)
     cond=error<1e-6
-    ambigious_cond=~((cond.sum(axis=1)!=3) & (cond.sum(axis=1)!=5))
-    '''index=jnp.where((cond.sum(axis=1)!=3) & (cond.sum(axis=1)!=5))[0]
-    if index.size!=0:
+    #index=jnp.where((cond.sum(axis=1)!=3) & (cond.sum(axis=1)!=5))[0]
+    '''if index.size!=0:
         sortidx=jnp.argsort(error[index],axis=1)
         cond=cond.at[index].set(False)
-        cond=cond.at[index,sortidx[0:3]].set(True)'''
+        cond=cond.at[index,sortidx[:,0:3]].set(True)'''
     index=jnp.where((cond.sum(axis=1)!=3) & (cond.sum(axis=1)!=5),size=int(trajectory_n/2)+1,fill_value=-1)[0]
     def ambigious_deal(carry):
         error,index,cond=carry
         sortidx=jnp.argsort(error[index],axis=1)
         cond=cond.at[index].set(False)
-        cond=cond.at[index,sortidx[:,0:3]].set(True)
+        cond=cond.at[index[:,None],sortidx[:,0:3]].set(True)
         return cond
     cond=lax.cond((index!=-1).any(),ambigious_deal,lambda x : x[-1],(error,index,cond))
     z=jnp.where(cond,z_l,jnp.nan)
     zG=jnp.where(cond,jnp.nan,z_l)
     cond,mag=Quadrupole_test(rho,s,q,zeta_l,z,zG,retol)
-    cond=cond&(ambigious_cond)
     ###
     carry,_=lax.scan(contour_scan,(mag,trajectory_l,retol,retol,rho,s,q,m1,m2,
-                                    jnp.array([0]),cond,jnp.zeros((400,1)),False),jnp.arange(trajectory_n))
+                                    jnp.array([0]),cond,jnp.zeros((300,1)),False),jnp.arange(trajectory_n))
     mag,trajectory_l,tol,retol,rho,s,q,m1,m2,sample_n,cond,error_hist,outlop=carry
     return mag
 def to_centroid(s,q,x):#change coordinate system to cetorid
@@ -72,7 +70,7 @@ def contour_scan(carry,i):
     mag_all,sample_n,error_hist,outlop=lax.cond(cond[i].all(),lambda x:(x[0],x[-4],x[-2],x[-1]),false_fun,carry)
     return (mag_all,trajectory_l,retol,retol,rho,s,q,m1,m2,sample_n,cond,error_hist,outlop),i
 @jax.jit
-def contour_integrate(rho,s,q,m1,m2,trajectory_l,epsilon,epsilon_rel=0,inite=30,n_ite=400):
+def contour_integrate(rho,s,q,m1,m2,trajectory_l,epsilon,epsilon_rel=0,inite=30,n_ite=300):
     ###初始化
     sample_n=jnp.array([inite])
     theta=jnp.where(jnp.arange(n_ite)<inite,jnp.resize(jnp.linspace(0,2*jnp.pi,inite),n_ite),jnp.nan)[:,None]#shape(500,1)
