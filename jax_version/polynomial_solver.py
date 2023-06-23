@@ -25,7 +25,7 @@ def cond_fun(carry):
     coff,der1,der2,xk,n,epsilon=carry
     return jnp.abs(jnp.polyval(coff,xk)) > epsilon
 @jax.jit
-def laguerre_method(coff,x0,n, epsilon= 1e-15):
+def laguerre_method(coff,x0,n, epsilon= 1e-7):
     der1=jnp.polyder(coff,1)
     der2=jnp.polyder(coff,2)
     xk = x0
