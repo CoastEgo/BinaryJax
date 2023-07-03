@@ -6,8 +6,8 @@ from jax import jvp, grad
 from jax import numpy as jnp
 from jax import jacfwd
 from jax import lax
-'''from basic_function_jax import get_poly_coff,get_zeta_l
-from uniform_model_jax import get_trajectory_l'''
+from basic_function_jax import get_poly_coff,get_zeta_l
+from uniform_model_jax import get_trajectory_l
 def loop_body(carry):
     coff,der1,der2,xk,n,epsilon=carry
     G = jnp.polyval(der1,xk) / jnp.polyval(coff,xk)
@@ -40,7 +40,7 @@ def zroots(coff):
     roots=jnp.empty(coff.shape[0]-1,dtype=jnp.complex128)
     def body_fun(carry,k):
         coff,roots=carry
-        roots=roots.at[k].set(laguerre_method(coff,jnp.array([0.],dtype=jnp.complex128),5-k)[0])#order of polynomial
+        roots=roots.at[k].set(implict_laguerre(coff,jnp.array([0.],dtype=jnp.complex128),5-k)[0])#order of polynomial
         coff,_=jnp.polydiv(coff,jnp.array([1,-1*roots[k]]))
         coff=jnp.resize(coff,(6,))#number of coffs
         coff=jnp.where(jnp.arange(6)<1,0.,jnp.roll(coff,1))
@@ -52,13 +52,6 @@ def zroots(coff):
     _,roots=carry
     roots=newton_polish(coff,roots)
     return roots
-@jax.jit
-def implict_zroots(coff):
-    x0=jnp.zeros((5,),dtype=jnp.complex128)
-    f=lambda x:jnp.polyval(coff,x)
-    solution=lambda f,x0: zroots(coff)
-    sclar=lambda g, y: jnp.linalg.solve(jax.jacobian(g,holomorphic=True)(y), y)
-    return lax.custom_root(f,x0,solve=solution,tangent_solve=sclar)
 # closed-form roots for quadratic, cubic, and quartic polynomials
 # multi_quadratic and multi_quartic adapted from https://github.com/NKrvavica/fqs
 # fast_cubic rewritten for complex polynomials
@@ -177,7 +170,7 @@ def newton_polish(coff,roots):
     carry,_=lax.scan(loop_body,(roots,coff),jnp.arange(10))
     roots,_=carry
     return roots
-'''
+
 if __name__=='__main__':
     inite=30;n_ite=400
     sample_n=120
@@ -197,10 +190,10 @@ if __name__=='__main__':
     coff=get_poly_coff(zeta_l,s,m2)[0]
     np_roots=jnp.roots(coff)
     print(np.poly1d(coff))
-    lague_roots=implict_zroots(coff)
+    lague_roots=zroots(coff)
     print('numpy roots',np_roots)
     print('numpy der',jax.jacfwd(jnp.roots,holomorphic=True)(coff))
     print('numpy error',jnp.abs(jnp.polyval(coff,jnp.sort(np_roots))))
     print('laguerre roots',lague_roots)
-    print('laguerre der',jax.jacfwd(implict_zroots,holomorphic=True)(coff))
+    print('laguerre der',jax.jacfwd(zroots,holomorphic=True)(coff))
     print('laguerre error',jnp.abs(jnp.polyval(coff,jnp.sort(lague_roots))))#'''

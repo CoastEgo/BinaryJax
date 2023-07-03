@@ -1,6 +1,6 @@
 import numpy as np
 import jax.numpy as jnp
-from polynomial_solver import halfanalytical,zroots
+from polynomial_solver import halfanalytical,zroots,implict_zroots
 import jax
 from functools import partial
 from jax import lax
@@ -75,7 +75,7 @@ def loop_body(carry,k):#采用判断来减少浪费
         coff,roots,k=carry
         #roots=roots.at[k].set(jnp.roots(coff,strip_zeros=False))
         #roots=roots.at[k].set(halfanalytical(coff))
-        roots=roots.at[k].set(zroots(coff))
+        roots=roots.at[k].set(implict_zroots(coff))
         return roots
     roots=lax.cond((coff[k]==0).all(),lambda x:x[1],False_fun,(coff[k],roots,k))
     return (coff,roots),k#'''
