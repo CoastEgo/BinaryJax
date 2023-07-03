@@ -5,31 +5,42 @@ from jax import jacfwd
 import matplotlib.pyplot as plt
 from matplotlib import gridspec
 import time
-#plt.rcParams['text.usetex'] = True
 def uniform(delta_time):
     t_0=2452848.06;t_E=61.5;alphadeg=90
     trajectory_n=100
-    times=jnp.linspace(t_0-0.25*t_E,t_0+0.25*t_E,trajectory_n)
-    q=0.001;s=1;rho=0.01+delta_time
+    times=jnp.linspace(t_0-0.25*t_E,t_0+0.25*t_E,trajectory_n)+delta_time
+    q=0.001;s=1;rho=0.01
     tol=1e-2
     b=0.1
-    model_uniform=model({'t_0': t_0, 'u_0': b, 't_E': t_E,
-                        'rho': rho, 'q': q, 's': s, 'alpha_deg': alphadeg,'times':times})
-    uniform_mag=model_uniform.get_magnifaction2(tol,retol=tol)
+    uniform_mag=model({'t_0': t_0, 'u_0': b, 't_E': t_E,
+                        'rho': rho, 'q': q, 's': s, 'alpha_deg': alphadeg,'times':times,'retol':tol})
     return uniform_mag
 t_0=2452848.06;t_E=61.5;alphadeg=90
 trajectory_n=100
 q=0.001;s=1;rho=0.01
 tol=1e-2
 b=0.1
-start=time.perf_counter()
-x=jnp.linspace(t_0-0.75*t_E,t_0+0.75*t_E,trajectory_n)
-model_uniform=model({'t_0': t_0, 'u_0': b, 't_E': t_E,
-                    'rho': rho, 'q': q, 's': s, 'alpha_deg': alphadeg,'times':x})
-mag=model_uniform.get_magnifaction2(tol,retol=tol)
+x=jnp.linspace(t_0-0.25*t_E,t_0+0.25*t_E,trajectory_n)
+mag=model({'t_0': t_0, 'u_0': b, 't_E': t_E,
+                    'rho': rho, 'q': q, 's': s, 'alpha_deg': alphadeg,'times':x,'retol':tol})
+#print(mag)
+x=jnp.linspace(t_0-0.25*t_E,t_0+0.25*t_E,trajectory_n)
+mag=model({'t_0': t_0, 'u_0': b, 't_E': t_E,
+                    'rho': rho, 'q': q, 's': s, 'alpha_deg': alphadeg,'times':x,'retol':tol})
 #####导数计算
 jacobian_fn = jacfwd(uniform)  # it returns the function in charge of computing jacobian
+start=time.perf_counter()
 mag_grad = jacobian_fn(0.)
+print(mag_grad)
+end=time.perf_counter()
+print(end-start)
+start=time.perf_counter()
+mag_grad = jacobian_fn(0.)
+end=time.perf_counter()
+print(end-start)
+start=time.perf_counter()
+mag=model({'t_0': t_0, 'u_0': b, 't_E': t_E,
+                    'rho': rho, 'q': q, 's': s, 'alpha_deg': alphadeg,'times':x,'retol':tol})
 end=time.perf_counter()
 print(end-start)
 fig=plt.figure()
