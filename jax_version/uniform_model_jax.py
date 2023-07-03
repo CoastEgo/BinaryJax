@@ -7,7 +7,6 @@ from solution import *
 from basic_function_jax import Quadrupole_test
 jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
-@jax.jit
 def model(par):
     t_0=par['t_0']; u_0=par['u_0']; t_E=par['t_E']
     rho=par['rho']
@@ -42,10 +41,12 @@ def model(par):
     z=jnp.where(cond,z_l,jnp.nan)
     zG=jnp.where(cond,jnp.nan,z_l)
     cond,mag=Quadrupole_test(rho,s,q,zeta_l,z,zG,retol)
+    cond=cond.at[:].set(False)
     ###
     carry,_=lax.scan(contour_scan,(mag,trajectory_l,retol,retol,rho,s,q,m1,m2,
-                                    jnp.array([0]),cond,jnp.zeros((300,1)),False),jnp.arange(trajectory_n))
+                                    jnp.array([0]),cond,jnp.zeros((200,1)),False),jnp.arange(trajectory_n))
     mag,trajectory_l,tol,retol,rho,s,q,m1,m2,sample_n,cond,error_hist,outlop=carry
+    #print(sample_n)
     return mag
 def to_centroid(s,q,x):#change coordinate system to cetorid
     delta_x=s/(1+q)
@@ -70,7 +71,7 @@ def contour_scan(carry,i):
     mag_all,sample_n,error_hist,outlop=lax.cond(cond[i].all(),lambda x:(x[0],x[-4],x[-2],x[-1]),false_fun,carry)
     return (mag_all,trajectory_l,retol,retol,rho,s,q,m1,m2,sample_n,cond,error_hist,outlop),i
 @jax.jit
-def contour_integrate(rho,s,q,m1,m2,trajectory_l,epsilon,epsilon_rel=0,inite=30,n_ite=300):
+def contour_integrate(rho,s,q,m1,m2,trajectory_l,epsilon,epsilon_rel=0,inite=30,n_ite=200):
     ###初始化
     sample_n=jnp.array([inite])
     theta=jnp.where(jnp.arange(n_ite)<inite,jnp.resize(jnp.linspace(0,2*jnp.pi,inite),n_ite),jnp.nan)[:,None]#shape(500,1)
@@ -96,12 +97,12 @@ def cond_fun(carry):
     (sample_n,theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,
         Is_create,trajectory_l,rho,s,q,m1,m2,epsilon,epsilon_rel,mag,maglast,outloop)=carry
     mini_interval=jnp.nanmin(jnp.abs(jnp.diff(theta,axis=0)))
-    abs_mag_cond=(jnp.nansum(error_hist)>epsilon)
+    abs_mag_cond=(jnp.nansum(error_hist)>epsilon_rel)
     rel_mag_cond=(error_hist/jnp.abs(mag)>epsilon_rel/jnp.sqrt(sample_n)).any()
     #rel_mag_cond=(jnp.nansum(error_hist)/jnp.abs(mag)>epsilon_rel)[0]
     relmag_diff_cond=(jnp.abs((mag-maglast)/maglast)>1/2*epsilon_rel)[0]
     mag_diff_cond=(jnp.abs(mag-maglast)>1/2*epsilon_rel)[0]
-    loop=(rel_mag_cond& (mini_interval>1e-14) & (~outloop))
+    loop=(rel_mag_cond& (mini_interval>1e-14) & (~outloop)& abs_mag_cond & mag_diff_cond)
     return loop
 @jax.jit
 def while_body_fun(carry):
@@ -117,7 +118,7 @@ def while_body_fun(carry):
     add_theta=jnp.arange(1,add_max+1)[:,None]*theta_diff+theta[idx-1]
     add_theta=jnp.where((jnp.arange(add_max)<add_number)[:,None],add_theta,jnp.nan)'''
     #一次多个区间加点:
-    idx=jnp.where(error_hist/jnp.abs(mag)>epsilon_rel/jnp.sqrt(sample_n),size=100,fill_value=0)[0]
+    idx=jnp.where(error_hist/jnp.abs(mag)>epsilon_rel/jnp.sqrt(sample_n),size=20,fill_value=0)[0]
     add_number=jnp.ceil((error_hist[idx]/jnp.abs(mag)/epsilon_rel*jnp.sqrt(sample_n))**0.2).astype(int)#至少要插入一个点，不包括相同的第一个
     add_number=jnp.where((idx==0)[:,None],0,add_number)
     add_number=jnp.where(add_number>add_max,add_max,add_number)
