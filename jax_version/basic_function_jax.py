@@ -9,14 +9,19 @@ from linear_sum_assignment_jax import solve
 jax.config.update("jax_platform_name", "cpu")
 jax.config.update("jax_enable_x64", True)
 idx_all=jnp.linspace(0,4,5,dtype=int)
+@jax.jit
 def fz0(z,m1,m2,s):
     return -m1/(z-s)-m2/z
+@jax.jit
 def fz1(z,m1,m2,s):
     return m1/(z-s)**2+m2/z**2
+@jax.jit
 def fz2(z,m1,m2,s):
     return -2*m1/(z-s)**3-2*m2/z**3
+@jax.jit
 def fz3(z,m1,m2,s):
     return 6*m1/(z-s)**4+6*m2/z**4
+@jax.jit
 def J(z,m1,m2,s):
     return 1-fz1(z,m1,m2,s)*jnp.conj(fz1(z,m1,m2,s))
 @jax.jit
@@ -47,6 +52,7 @@ def get_poly_coff(zeta_l,s,m2):
     c5=(s-zeta_conj)*zeta_conj
     coff=jnp.concatenate((c5,c4,c3,c2,c1,c0),axis=1)
     return coff
+@jax.jit
 def get_zeta_l(rho,trajectory_centroid_l,theta):#获得等高线采样的zeta
     rel_centroid=rho*jnp.cos(theta)+1j*rho*jnp.sin(theta)
     zeta_l=trajectory_centroid_l+rel_centroid
@@ -86,6 +92,7 @@ def get_roots(sample_n, coff):
     carry,_=lax.scan(loop_body,(coff,jnp.zeros((coff.shape[0],5),dtype=jnp.complex128)),jnp.arange(sample_n))#scan循环，但是没有浪费
     coff,roots=carry
     return roots
+@jax.jit
 def dot_product(a,b):
     return np.real(a)*np.real(b)+np.imag(a)*np.imag(b)
 @custom_jvp

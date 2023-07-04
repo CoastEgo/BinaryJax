@@ -120,6 +120,7 @@ def loop_parity_body(carry,i):##循环体
     temp=real_roots[i]
     real_parity=lax.cond((nan_num[i]==0)&(i<sample_n),parity_true1_fun,parity_false1_fun,(temp,zeta_l,real_parity,i,cond,nan_num,s,m1,m2))
     return (zeta_l,real_roots,real_parity,nan_num,sample_n,cond,s,m1,m2),i
+@jax.jit    
 def find_create_points(roots, sample_n):
     cond=jnp.isnan(roots)
     Is_create=jnp.zeros_like(roots,dtype=int)
