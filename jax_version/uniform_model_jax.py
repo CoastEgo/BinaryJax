@@ -7,6 +7,7 @@ from solution import *
 from basic_function_jax import Quadrupole_test
 jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
+@jax.jit
 def model(par):
     t_0=par['t_0']; u_0=par['u_0']; t_E=par['t_E']
     rho=par['rho']
@@ -30,23 +31,31 @@ def model(par):
         sortidx=jnp.argsort(error[index],axis=1)
         cond=cond.at[index].set(False)
         cond=cond.at[index,sortidx[:,0:3]].set(True)'''
-    index=jnp.where((cond.sum(axis=1)!=3) & (cond.sum(axis=1)!=5),size=int(trajectory_n/2)+1,fill_value=-1)[0]
+    ###########
+    index=jnp.where((cond.sum(axis=1)!=3) & (cond.sum(axis=1)!=5),size=5,fill_value=-1)[0]
     def ambigious_deal(carry):
         error,index,cond=carry
         sortidx=jnp.argsort(error[index],axis=1)
         cond=cond.at[index].set(False)
         cond=cond.at[index[:,None],sortidx[:,0:3]].set(True)
         return cond
-    cond=lax.cond((index!=-1).any(),ambigious_deal,lambda x : x[-1],(error,index,cond))
+    cond=lax.cond((index!=-1).any(),ambigious_deal,lambda x : x[-1],(error,index,cond)) #某些情况下出现的根不是5或者3个#'''
+    #############
     z=jnp.where(cond,z_l,jnp.nan)
     zG=jnp.where(cond,jnp.nan,z_l)
     cond,mag=Quadrupole_test(rho,s,q,zeta_l,z,zG,retol)
-    cond=cond.at[:].set(False)
+    #cond=cond.at[:].set(False)
     ###
     carry,_=lax.scan(contour_scan,(mag,trajectory_l,retol,retol,rho,s,q,m1,m2,
                                     jnp.array([0]),cond,jnp.zeros((200,1)),False),jnp.arange(trajectory_n))
-    mag,trajectory_l,tol,retol,rho,s,q,m1,m2,sample_n,cond,error_hist,outlop=carry
+    mag,trajectory_l,tol,retol,rho,s,q,m1,m2,sample_n,cond,error_hist,outlop=carry#'''
     #print(sample_n)
+    '''for i in range(len(cond)):
+        if cond[i]==False:
+            result=contour_integrate(rho,s,q,m1,m2,trajectory_l[i],retol,epsilon_rel=retol)
+            (sample_n,theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,
+            Is_create,_,rho,s,q,m1,m2,epsilon,epsilon_rel,mag_now,maglast,outloop)=result
+            #mag=mag.at[i].set(mag_now[0])#jax perfetto代码测试#'''
     return mag
 def to_centroid(s,q,x):#change coordinate system to cetorid
     delta_x=s/(1+q)
@@ -54,6 +63,7 @@ def to_centroid(s,q,x):#change coordinate system to cetorid
 def to_lowmass(s,q,x):#change coordinaate system to lowmass
     delta_x=s/(1+q)
     return -jnp.conj(x)+delta_x
+@jax.jit
 def get_trajectory_l(s,q,alpha_rad,u_0,times):
     alpha=alpha_rad
     b=u_0
