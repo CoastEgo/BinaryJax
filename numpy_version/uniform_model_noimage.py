@@ -44,11 +44,11 @@ class model():#initialize parameter
         z_l=get_roots(trajectory_n,coff)
         error=verify(zeta_l[:,np.newaxis],z_l,self.s,self.m1,self.m2)
         cond=error<1e-6
-        index=np.where((cond.sum(axis=1)!=3) & (cond.sum(axis=1)!=5))[0]
+        '''index=np.where((cond.sum(axis=1)!=3) & (cond.sum(axis=1)!=5))[0]
         if index.size!=0:
             sortidx=np.argsort(error[index],axis=1)
             cond[index]=False
-            cond[index,sortidx[0:3]]=True
+            cond[index,sortidx[0:3]]=True'''
         z=np.where(cond,z_l,np.nan)
         zG=np.where(cond,np.nan,z_l)
         cond,mag=Quadrupole_test(self.rho,self.s,self.q,zeta_l,z,zG,tol)
@@ -59,12 +59,12 @@ class model():#initialize parameter
         return mag
     def contour_integrate(self,trajectory_l,epsilon,i,epsilon_rel=0):
         #sample_n=3;theta_init=np.array([0,np.pi,2*np.pi],dtype=np.float64)
-        sample_n=jnp.int64(10);theta_init=np.linspace(0,2*np.pi,sample_n)
+        sample_n=jnp.int64(30);theta_init=np.linspace(0,2*np.pi,sample_n)
         error_hist=np.ones(1)
         mag=1
         outloop=False
         mag0=0
-        while ((error_hist/np.abs(mag)>epsilon_rel/np.sqrt(sample_n)).any()):#相对误差
+        while ((error_hist/np.abs(mag)>epsilon_rel/np.sqrt(sample_n)).any() & (np.abs(mag-mag0)>1/2*epsilon)):#相对误差
         #while ((np.sum(error_hist)/np.abs(mag)>epsilon_rel) & (np.abs(mag-mag0)>1/2*epsilon)):#相对误差
             mini_interval=np.min(np.abs(np.diff(theta_init)))
             if mini_interval<1e-14:
