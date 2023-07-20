@@ -59,7 +59,7 @@ class model():#initialize parameter
         return mag
     def contour_integrate(self,trajectory_l,epsilon,i,epsilon_rel=0):
         #sample_n=3;theta_init=np.array([0,np.pi,2*np.pi],dtype=np.float64)
-        sample_n=jnp.int64(30);theta_init=np.linspace(0,2*np.pi,sample_n)
+        sample_n=np.int64(30);theta_init=np.linspace(0,2*np.pi,sample_n)
         error_hist=np.ones(1)
         mag=1
         outloop=False
