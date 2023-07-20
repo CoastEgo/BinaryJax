@@ -1,7 +1,7 @@
 import numpy as np
 import jax.numpy as jnp
 import jax
-from basic_function_jax import dot_product
+from .basic_function_jax import dot_product
 @jax.jit
 def basic_partial(z,theta,rho,q,s):
     delta_theta=jnp.diff(theta,axis=0)

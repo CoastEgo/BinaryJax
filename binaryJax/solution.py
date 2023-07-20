@@ -2,7 +2,7 @@ import numpy as np
 import jax.numpy as jnp
 import jax
 from jax import lax
-from basic_function_jax import *
+from .basic_function_jax import *
 jax.config.update("jax_platform_name", "cpu")
 jax.config.update("jax_enable_x64", True)
 @jax.jit

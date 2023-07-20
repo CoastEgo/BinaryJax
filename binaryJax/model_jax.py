@@ -2,9 +2,9 @@ import numpy as jnp
 import jax.numpy as jnp
 import jax
 from jax import lax
-from error_estimator import *
-from solution import *
-from basic_function_jax import Quadrupole_test
+from .error_estimator import *
+from .solution import *
+from .basic_function_jax import Quadrupole_test
 jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
 @jax.jit

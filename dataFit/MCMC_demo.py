@@ -1,3 +1,13 @@
+# MCMC_demo.py
+
+import sys
+import os
+
+# Add the parent directory to sys.path
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+sys.path.append(parent_dir)
+
 import numpy as np
 import numpyro
 import numpyro.distributions as dist
@@ -5,7 +15,7 @@ from numpyro.infer import MCMC, NUTS, HMC
 import matplotlib.pyplot as plt
 import jax
 import jax.numpy as jnp
-from ..binaryJax import model
+from binaryJax import model
 import VBBinaryLensing
 numpyro.enable_x64()
 # 生成数据

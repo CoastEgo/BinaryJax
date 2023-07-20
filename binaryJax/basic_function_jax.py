@@ -1,11 +1,11 @@
 import numpy as np
 import jax.numpy as jnp
-from polynomial_solver import halfanalytical,zroots,implict_zroots
+from .polynomial_solver import halfanalytical,zroots,implict_zroots
 import jax
 from functools import partial
 from jax import lax
 from jax import custom_jvp
-from linear_sum_assignment_jax import solve
+from .linear_sum_assignment_jax import solve
 jax.config.update("jax_platform_name", "cpu")
 jax.config.update("jax_enable_x64", True)
 idx_all=jnp.linspace(0,4,5,dtype=int)

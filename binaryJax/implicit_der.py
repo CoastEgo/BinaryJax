@@ -6,8 +6,8 @@ from jax import jvp, grad
 from jax import numpy as jnp
 from jax import jacfwd
 from jax import lax
-from basic_function_jax import get_poly_coff,get_zeta_l
-from uniform_model_jax import get_trajectory_l
+'''from basic_function_jax import get_poly_coff,get_zeta_l
+from uniform_model_jax import get_trajectory_l'''
 def loop_body(carry):
     coff,der1,der2,xk,n,epsilon=carry
     G = jnp.polyval(der1,xk) / jnp.polyval(coff,xk)
