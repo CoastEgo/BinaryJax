@@ -5,7 +5,7 @@ from numpyro.infer import MCMC, NUTS, HMC
 import matplotlib.pyplot as plt
 import jax
 import jax.numpy as jnp
-from uniform_model_jax import model
+from ..binaryJax import model
 import VBBinaryLensing
 # 生成数据
 np.random.seed(0)

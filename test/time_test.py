@@ -1,5 +1,5 @@
 import numpy as np
-from uniform_model_jax import model as model_jax
+from ..binaryJax import model as model_jax
 import jax.numpy as jnp
 import VBBinaryLensing
 import matplotlib.pyplot as plt

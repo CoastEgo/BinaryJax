@@ -1,6 +1,6 @@
 import jax.numpy as jnp
 import numpy as np
-from uniform_model_jax import model
+from ..binaryJax import model
 from jax import jacfwd
 import matplotlib.pyplot as plt
 from matplotlib import gridspec

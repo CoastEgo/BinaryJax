@@ -1,10 +1,6 @@
 import numpy as np
 from scipy.optimize import linear_sum_assignment
-import jax 
-import jax.numpy as jnp
 idx_all=np.linspace(0,4,5,dtype=int)
-jax.config.update("jax_platform_name", "cpu")
-jax.config.update("jax_enable_x64", True)
 def fz0(z,m1,m2,s):
     return -m1/(z-s)-m2/z
 def fz1(z,m1,m2,s):

@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 from MulensModel import Model,caustics
-from uniform_model_noimage import model
+from ..binaryNumpy import model_ni
 import VBBinaryLensing
 import time
 import cProfile

@@ -2,7 +2,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from basic_function import *
-from MulensModel import Model,caustics
 np.seterr(divide='ignore', invalid='ignore')
 class model():#initialize parameter
     def __init__(self,par):

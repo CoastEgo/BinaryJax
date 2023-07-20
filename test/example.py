@@ -1,7 +1,7 @@
 import numpy as np
 import jax.numpy as jnp
 import jax
-from uniform_model_jax import model
+from ..binaryJax import model
 import time
 import VBBinaryLensing
 jax.config.update("jax_enable_x64", True)

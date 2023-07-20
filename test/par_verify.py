@@ -1,5 +1,5 @@
 import numpy as np
-from uniform_model_numpy import model
+from ..binaryNumpy import model
 import VBBinaryLensing
 import matplotlib.pyplot as plt
 from matplotlib import cm
