@@ -7,6 +7,7 @@ from .solution import *
 from .basic_function_jax import Quadrupole_test
 jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
+Max_array_length=200#jax don't support global variable except static global variable
 @jax.jit
 def model(par):
     t_0=par['t_0']; u_0=par['u_0']; t_E=par['t_E']
@@ -47,7 +48,7 @@ def model(par):
     #cond=cond.at[:].set(False)
     ###
     carry,_=lax.scan(contour_scan,(mag,trajectory_l,retol,retol,rho,s,q,m1,m2,
-                                    jnp.array([0]),cond,jnp.zeros((200,1)),False),jnp.arange(trajectory_n))
+                                    jnp.array([0]),cond,jnp.zeros((Max_array_length,1)),False),jnp.arange(trajectory_n))
     mag,trajectory_l,tol,retol,rho,s,q,m1,m2,sample_n,cond,error_hist,outlop=carry#'''
     #print(sample_n)
     '''for i in range(len(cond)):
@@ -76,12 +77,13 @@ def contour_scan(carry,i):
         result=contour_integrate(rho,s,q,m1,m2,trajectory_l[i],retol,epsilon_rel=retol)
         (sample_n,theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,
             Is_create,_,rho,s,q,m1,m2,epsilon,epsilon_rel,mag,maglast,outloop)=result
+        mag=lax.cond((sample_n<Max_array_length-5)[0],lambda x:x[0],lambda x:x[1],(mag,maglast))
         mag_all=mag_all.at[i].set(mag[0])
         return mag_all,sample_n,error_hist,outlop
     mag_all,sample_n,error_hist,outlop=lax.cond(cond[i].all(),lambda x:(x[0],x[-4],x[-2],x[-1]),false_fun,carry)
     return (mag_all,trajectory_l,retol,retol,rho,s,q,m1,m2,sample_n,cond,error_hist,outlop),i
 @jax.jit
-def contour_integrate(rho,s,q,m1,m2,trajectory_l,epsilon,epsilon_rel=0,inite=30,n_ite=200):
+def contour_integrate(rho,s,q,m1,m2,trajectory_l,epsilon,epsilon_rel=0,inite=30,n_ite=Max_array_length):
     ###初始化
     sample_n=jnp.array([inite])
     theta=jnp.where(jnp.arange(n_ite)<inite,jnp.resize(jnp.linspace(0,2*jnp.pi,inite),n_ite),jnp.nan)[:,None]#shape(500,1)
@@ -112,7 +114,7 @@ def cond_fun(carry):
     #rel_mag_cond=(jnp.nansum(error_hist)/jnp.abs(mag)>epsilon_rel)[0]
     relmag_diff_cond=(jnp.abs((mag-maglast)/maglast)>1/2*epsilon_rel)[0]
     mag_diff_cond=(jnp.abs(mag-maglast)>1/2*epsilon_rel)[0]
-    loop=(rel_mag_cond& (mini_interval>1e-14) & (~outloop)& abs_mag_cond & mag_diff_cond)
+    loop=(rel_mag_cond& (mini_interval>1e-14) & (~outloop)& abs_mag_cond & mag_diff_cond & (sample_n<Max_array_length-5)[0])
     return loop
 @jax.jit
 def while_body_fun(carry):
