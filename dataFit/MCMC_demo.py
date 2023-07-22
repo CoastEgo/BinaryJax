@@ -15,6 +15,7 @@ from numpyro.infer import MCMC, NUTS, HMC
 import matplotlib.pyplot as plt
 import jax
 import jax.numpy as jnp
+import corner
 from binaryJax import model
 import VBBinaryLensing
 numpyro.enable_x64()
@@ -56,9 +57,9 @@ def model_MCMC(times, mag):
     mean=model({'t_0': t_0, 'u_0': b, 't_E': t_E,
                         'rho': rho, 'q': q, 's': s, 'alpha_deg': alphadeg,'times':times,'retol':tol})
     numpyro.sample('obs', dist.Normal(mean, tol*mean), obs=mag)
-init_strategy=numpyro.infer.init_to_value(values={'alphadeg_range':0.5,'t_E_range':0.5,'b':1.,'q_range':-1.26,'s':1.281,'rho_range':-2.2})#'q_range':0.,'s':1.0,
+init_strategy=numpyro.infer.init_to_value(values={'alphadeg_range':0.5,'t_E_range':0.5,'b':1.,'q_range':-1.26,'s':1.281,'rho_range':-2.2})
 # 运行 MCMC 推断
-nuts_kernel = NUTS(model_MCMC,step_size=0.001,adapt_step_size=False,init_strategy=init_strategy,forward_mode_differentiation=True)
+nuts_kernel = NUTS(model_MCMC,step_size=0.001,init_strategy=init_strategy,forward_mode_differentiation=True)
 #,target_accept_prob=0.9
 mcmc = MCMC(nuts_kernel, num_samples=1000, num_warmup=500,jit_model_args=True)
 mcmc.run(jax.random.PRNGKey(0), times=times, mag=VBBL_mag)
@@ -72,8 +73,26 @@ s_mean = np.mean(posterior_samples['s'])
 s_std = np.std(posterior_samples['s'])
 rho_mean = np.mean(posterior_samples['rho'])
 rho_std = np.std(posterior_samples['rho'])
-
+t_E_mean = np.mean(posterior_samples['t_E'])
+t_E_std = np.std(posterior_samples['t_E'])
+alphadeg_mean = np.mean(posterior_samples['alphadeg'])
+alphadeg_std = np.std(posterior_samples['alphadeg'])
+b_mean = np.mean(posterior_samples['b'])
+b_std = np.std(posterior_samples['b'])
 # 打印参数的后验分布均值和标准差
 print(f"q: {q_mean} +/- {q_std}")
 print(f"s: {s_mean} +/- {s_std}")
 print(f"rho: {rho_mean} +/- {rho_std}")
+print(f"b: {b_mean} +/- {b_std}")
+print(f"t_E: {t_E_mean} +/- {t_E_std}")
+print(f"alphadeg: {alphadeg_mean} +/- {alphadeg_std}")
+###绘制corner图
+samples = np.column_stack([posterior_samples["q"], posterior_samples["s"],posterior_samples["rho"],posterior_samples["t_E"],posterior_samples["b"],posterior_samples["alphadeg"]])
+figure = corner.corner(samples, labels=["q", "s","rho",'t_E',"b","alphadeg"], quantiles=[0.025, 0.5, 0.975], show_titles=True)
+figure.savefig('corner')
+###绘制拟合与数据图
+fitdata=model({'t_0': t_0, 'u_0': b_mean, 't_E': t_E_mean,
+                        'rho': rho_mean, 'q': q_mean, 's': s_mean, 'alpha_deg': alphadeg_mean,'times':times,'retol':0.01})
+plt.plot(times,fitdata,c='r')
+plt.scatter(times,VBBL_mag,s=15,color='grey')
+plt.savefig('MCMCfit&mock_data')
