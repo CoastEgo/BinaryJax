@@ -1,6 +1,15 @@
+# MCMC_demo.py
+
+import sys
+import os
+
+# Add the parent directory to sys.path
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+sys.path.append(parent_dir)
 import matplotlib.pyplot as plt
 from MulensModel import Model,caustics
-from ..binaryNumpy import model_ni as model
+from binaryNumpy import model_ni as model
 import VBBinaryLensing
 import time
 import cProfile
@@ -10,13 +19,13 @@ np.seterr(divide='ignore', invalid='ignore')
 if __name__=="__main__":
     sample_n=120
     b_map =np.linspace(-4.0,3.0,sample_n)
-    b=b_map[51]
+    b=0.01
     t_0=2452848.06;t_E=61.5;alphadeg=90
     q=1e-3;s=1;rho=0.001
-    tol=1e-2
-    trajectory_n=1
+    tol=1e-3
+    trajectory_n=200
     alpha=alphadeg*2*np.pi/360
-    times=np.linspace(t_0-0.*t_E,t_0+1.5*t_E,trajectory_n)
+    times=np.linspace(t_0-0.*t_E,t_0+1.*t_E,trajectory_n)
     ####################
     start=time.perf_counter()
     model_uniform=model({'t_0': t_0, 'u_0': b, 't_E': t_E,
