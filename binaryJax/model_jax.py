@@ -7,7 +7,25 @@ from .solution import *
 from .basic_function_jax import Quadrupole_test
 jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
-Max_array_length=200#jax don't support global variable except static global variable
+Max_array_length=250#jax don't support global variable except static global variable
+'''def model(times,par,retol=0.001):#'t0','u0','te','logrho','alpha','logs','logq' 
+    t_0=par['t0']; u_0=par['u0']; t_E=par['te']
+    rho=par['logrho']
+    q=par['logq']
+    s=par['logs']
+    alpha_rad=(par['alpha'])*2*jnp.pi/360
+    #u_0-=(s-1/s)*q/(1+q)*jnp.sin(2*np.pi-alpha_rad)
+    times=(times-t_0)/t_E
+    trajectory_n=len(times)
+    m1=1/(1+q)
+    m2=q/(1+q)
+    trajectory_l=get_trajectory_l(s,q,alpha_rad,u_0,times)
+    ###四极测试
+    zeta_l=trajectory_l[:,None]
+    coff=get_poly_coff(zeta_l,s,m2)
+    z_l=get_roots(trajectory_n,coff)
+    error=verify(zeta_l,z_l,s,m1,m2)
+    cond=error<1e-6'''
 @jax.jit
 def model(par):
     t_0=par['t_0']; u_0=par['u_0']; t_E=par['t_E']
