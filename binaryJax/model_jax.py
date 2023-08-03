@@ -132,7 +132,7 @@ def cond_fun(carry):
     #rel_mag_cond=(jnp.nansum(error_hist)/jnp.abs(mag)>epsilon_rel)[0]
     relmag_diff_cond=(jnp.abs((mag-maglast)/maglast)>1/2*epsilon_rel)[0]
     mag_diff_cond=(jnp.abs(mag-maglast)>1/2*epsilon_rel)[0]
-    loop=(rel_mag_cond& (mini_interval>1e-14) & (~outloop)& abs_mag_cond & mag_diff_cond & (sample_n<Max_array_length-5)[0])
+    loop=(rel_mag_cond& (mini_interval>1e-14) & (~outloop)& abs_mag_cond & (mag_diff_cond|(sample_n<Max_array_length/2)[0]) & (sample_n<Max_array_length-5)[0])
     return loop
 @jax.jit
 def while_body_fun(carry):
