@@ -1,27 +1,24 @@
-# MCMC_demo.py
-
 import sys
 import os
-
-# Add the parent directory to sys.path
+os.environ["XLA_FLAGS"] = '--xla_force_host_platform_device_count=30'
 current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(current_dir)
 sys.path.append(parent_dir)
-
+import jax
+jax.config.update("jax_platform_name", "cpu")
+jax.config.update("jax_enable_x64", True)
+import jax.numpy as jnp
 import numpy as np
 import numpyro
 import numpyro.distributions as dist
 from numpyro.infer import MCMC, NUTS, HMC
 import matplotlib.pyplot as plt
-import jax
-import jax.numpy as jnp
 import corner
 from binaryJax import model
 import VBBinaryLensing
-numpyro.enable_x64()
 # 生成数据
-np.random.seed(0)
-b=0.2;t_0=2452848.06;t_E=61.5;alphadeg=90;q=0.04;s=1.3;rho=0.009
+np.random.seed(0)##-1.3979，#-2.04
+b=0.2;t_0=2452848.06;t_E=61.5;alphadeg=90;q=0.04;s=1.28;rho=0.009
 tol=1e-2
 trajectory_n=500
 VBBL = VBBinaryLensing.VBBinaryLensing()
@@ -41,27 +38,27 @@ alpha=alphadeg*2*jnp.pi/360
 times=jnp.linspace(t_0-2.*t_E,t_0+2.*t_E,trajectory_n)
 def model_MCMC(times, mag):
     t_0=2452848.06
-    tol=0.01
+    tol=0.001
     ###参数采样
     alphadeg_range=numpyro.sample('alphadeg_range', dist.Uniform(0., 1))
     t_E_range=numpyro.sample('t_E_range', dist.Uniform(0., 1))
-    q_range = numpyro.sample('q_range', dist.Uniform(-1.4, -1.25))
-    rho_range= numpyro.sample('rho_range',dist.Uniform(-2.3, -2.0))
+    q_range = numpyro.sample('q_range', dist.Uniform(-1.45, -1.15))
+    rho_range= numpyro.sample('rho_range',dist.Uniform(-2.1, -1.95))
     #参数计算
     alphadeg=numpyro.deterministic('alphadeg',alphadeg_range*360)
     b=numpyro.sample('b', dist.Uniform(0,2))
     q= numpyro.deterministic('q',10**q_range)
-    s = numpyro.sample('s', dist.Uniform(1.28,1.31))
+    s = numpyro.sample('s', dist.Uniform(1.27,1.29))
     t_E=numpyro.deterministic('t_E',100*t_E_range)
     rho= numpyro.deterministic('rho',10**rho_range)
     mean=model({'t_0': t_0, 'u_0': b, 't_E': t_E,
                         'rho': rho, 'q': q, 's': s, 'alpha_deg': alphadeg,'times':times,'retol':tol})
     numpyro.sample('obs', dist.Normal(mean, tol*mean), obs=mag)
-init_strategy=numpyro.infer.init_to_value(values={'alphadeg_range':0.5,'t_E_range':0.5,'b':1.,'q_range':-1.26,'s':1.281,'rho_range':-2.2})
+#init_strategy=numpyro.infer.init_to_value(values={'alphadeg_range':0.5,'t_E_range':0.5,'b':1.,'q_range':-1.26,'s':1.2,'rho_range':-2.2})
 # 运行 MCMC 推断
-nuts_kernel = NUTS(model_MCMC,step_size=0.001,init_strategy=init_strategy,forward_mode_differentiation=True)
+nuts_kernel = NUTS(model_MCMC,step_size=0.001,max_tree_depth=7,forward_mode_differentiation=True)
 #,target_accept_prob=0.9
-mcmc = MCMC(nuts_kernel, num_samples=1000, num_warmup=500,jit_model_args=True)
+mcmc = MCMC(nuts_kernel, num_samples=400, num_warmup=500,jit_model_args=True,num_chains=30)
 mcmc.run(jax.random.PRNGKey(0), times=times, mag=VBBL_mag)
 posterior_samples = mcmc.get_samples()
 
@@ -92,7 +89,8 @@ figure = corner.corner(samples, labels=["q", "s","rho",'t_E',"b","alphadeg"], qu
 figure.savefig('corner')
 ###绘制拟合与数据图
 fitdata=model({'t_0': t_0, 'u_0': b_mean, 't_E': t_E_mean,
-                        'rho': rho_mean, 'q': q_mean, 's': s_mean, 'alpha_deg': alphadeg_mean,'times':times,'retol':0.01})
+                        'rho': rho_mean, 'q': q_mean, 's': s_mean, 'alpha_deg': alphadeg_mean,'times':times,'retol':0.001})
+plt.figure()
 plt.plot(times,fitdata,c='r')
 plt.scatter(times,VBBL_mag,s=15,color='grey')
 plt.savefig('MCMCfit&mock_data')
