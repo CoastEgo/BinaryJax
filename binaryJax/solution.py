@@ -19,11 +19,11 @@ def add_points(idx,add_zeta,add_coff,add_theta,roots,parity,theta,ghost_roots_di
 def get_buried_error(ghost_roots_dis):
     n_ite=ghost_roots_dis.shape[0]
     error_buried=jnp.zeros((n_ite,1))
-    idx1=jnp.where(ghost_roots_dis[0:-2]>2*ghost_roots_dis[1:-1],size=5,fill_value=-3)[0]+1#i-(i+1)>(i+1)对应的i+1
+    idx1=jnp.where(ghost_roots_dis[0:-2]>2*ghost_roots_dis[1:-1],size=20,fill_value=-3)[0]+1#i-(i+1)>(i+1)对应的i+1
     idx1=jnp.where(~jnp.isnan(ghost_roots_dis[idx1+1]),idx1,-2)#i+2对应的不是nan，说明存在buried image
     error_buried=error_buried.at[idx1+1].add((ghost_roots_dis[idx1]-ghost_roots_dis[idx1-1])**2)#在i+2处加入误差项，因为应该在i+1，i+2处加点
     error_buried=error_buried.at[idx1].add((ghost_roots_dis[idx1]-ghost_roots_dis[idx1-1])**2)#在i+1处加入误差项，防止buried误差不收敛
-    idx1=jnp.where(2*ghost_roots_dis[1:-1]<ghost_roots_dis[2:],size=5,fill_value=-3)[0]+1#i<i+1-i对应的i
+    idx1=jnp.where(2*ghost_roots_dis[1:-1]<ghost_roots_dis[2:],size=20,fill_value=-3)[0]+1#i<i+1-i对应的i
     idx1=jnp.where(~jnp.isnan(ghost_roots_dis[idx1-1]),idx1,-2)#i-1处不是nan
     error_buried=error_buried.at[idx1].add((ghost_roots_dis[idx1+1]-ghost_roots_dis[idx1])**2)#在i处加入误差，也就是在i,i+1处加点
     error_buried=error_buried.at[idx1+1].add((ghost_roots_dis[idx1+1]-ghost_roots_dis[idx1])**2)#在i+1处加入误差项，防止buried误差不收敛
@@ -124,7 +124,7 @@ def loop_parity_body(carry,i):##循环体
 def find_create_points(roots, sample_n):
     cond=jnp.isnan(roots)
     Is_create=jnp.zeros_like(roots,dtype=int)
-    idx_x,idx_y=jnp.where(jnp.diff(cond,axis=0)&(~cond[0:-1].all(axis=1))[:,None]&(jnp.arange(roots.shape[0]-1)!=sample_n-1)[:,None],size=10,fill_value=-2)
+    idx_x,idx_y=jnp.where(jnp.diff(cond,axis=0)&(~cond[0:-1].all(axis=1))[:,None]&(jnp.arange(roots.shape[0]-1)!=sample_n-1)[:,None],size=20,fill_value=-2)
     idx_x+=1
     @jax.jit
     def update_is_create(carry, inputs):
