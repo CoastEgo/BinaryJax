@@ -74,7 +74,13 @@ def model(par):
             result=contour_integrate(rho,s,q,m1,m2,trajectory_l[i],retol,epsilon_rel=retol)
             (sample_n,theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,
             Is_create,_,rho,s,q,m1,m2,epsilon,epsilon_rel,mag_now,maglast,outloop)=result
-            #mag=mag.at[i].set(mag_now[0])#jax perfetto代码测试#'''
+            print(sample_n)
+            print(mag_now)
+            print(maglast)
+            print(jnp.sum(error_hist))
+            print(error_hist)
+            print((error_hist/jnp.abs(mag_now)>retol/2/jnp.sqrt(sample_n)).any())
+            mag=mag.at[i].set(mag_now[0])#jax perfetto代码测试#'''
     return mag
 def to_centroid(s,q,x):#change coordinate system to cetorid
     delta_x=s/(1+q)
@@ -128,7 +134,7 @@ def cond_fun(carry):
         Is_create,trajectory_l,rho,s,q,m1,m2,epsilon,epsilon_rel,mag,maglast,outloop)=carry
     mini_interval=jnp.nanmin(jnp.abs(jnp.diff(theta,axis=0)))
     abs_mag_cond=(jnp.nansum(error_hist)>epsilon_rel)
-    rel_mag_cond=(error_hist/jnp.abs(mag)>epsilon_rel/jnp.sqrt(sample_n)).any()
+    rel_mag_cond=(error_hist/jnp.abs(mag)>epsilon_rel/2/jnp.sqrt(sample_n)).any()
     #rel_mag_cond=(jnp.nansum(error_hist)/jnp.abs(mag)>epsilon_rel)[0]
     relmag_diff_cond=(jnp.abs((mag-maglast)/maglast)>1/2*epsilon_rel)[0]
     mag_diff_cond=(jnp.abs(mag-maglast)>1/2*epsilon_rel)[0]
@@ -148,7 +154,7 @@ def while_body_fun(carry):
     add_theta=jnp.arange(1,add_max+1)[:,None]*theta_diff+theta[idx-1]
     add_theta=jnp.where((jnp.arange(add_max)<add_number)[:,None],add_theta,jnp.nan)'''
     #一次多个区间加点:
-    idx=jnp.where(error_hist/jnp.abs(mag)>epsilon_rel/jnp.sqrt(sample_n),size=20,fill_value=0)[0]
+    idx=jnp.where(error_hist/jnp.abs(mag)>epsilon_rel/2/jnp.sqrt(sample_n),size=int(Max_array_length/5),fill_value=0)[0]
     add_number=jnp.ceil((error_hist[idx]/jnp.abs(mag)/epsilon_rel*jnp.sqrt(sample_n))**0.2).astype(int)#至少要插入一个点，不包括相同的第一个
     add_number=jnp.where((idx==0)[:,None],0,add_number)
     add_number=jnp.where(add_number>add_max,add_max,add_number)

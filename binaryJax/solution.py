@@ -71,7 +71,7 @@ def get_real_roots(coff,zeta_l,theta,s,m1,m2):
     sample_n,theta,real_parity,real_roots,outloop,parity_sum=carry
     ###计算得到最终的
     cond=(jnp.isnan(real_roots))&(jnp.arange(n_ite)<sample_n)[:,None]
-    ghost_roots=jnp.where(cond,real_roots,jnp.inf)
+    ghost_roots=jnp.where(cond,roots,jnp.inf)
     ghost_roots=jnp.sort(ghost_roots,axis=1)[:,0:2]
     ghost_roots=jnp.where(jnp.isinf(ghost_roots),jnp.nan,ghost_roots)
     ghost_roots_dis=jnp.abs(jnp.diff(ghost_roots,axis=1))
