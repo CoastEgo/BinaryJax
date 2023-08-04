@@ -197,7 +197,7 @@ class model():#initialize parameter
                 mag+=parab
             mag=mag/(np.pi*self.rho**2)
             error_hist+=solution.buried_error
-        print(sample_n)
+        #print(sample_n)
         return mag,curve,solution.theta
     def get_magnifaction(self,tol):
         epsilon=tol

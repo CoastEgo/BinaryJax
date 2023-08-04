@@ -33,7 +33,7 @@ def mag_gen_numpy(i):
 def mag_gen_jax(rho,q,s,i):#t_0,b_map,t_E,rho,q,s,alphadeg,times_jax,tol,
     t_0=2452848.06;t_E=61.5
     b_map=jnp.linspace(-4.0,3.0,sample_n)
-    tol=1e-2
+    tol=1e-3
     trajectory_n=1000;alphadeg=90
     times_jax=jnp.linspace(t_0-0.*t_E,t_0+2.0*t_E,trajectory_n)
     uniform_mag=model_jax({'t_0': t_0, 'u_0': b_map[i], 't_E': t_E,
@@ -51,7 +51,7 @@ def mag_gen_vbbl(i):
 if __name__=="__main__":
     trajectory_n=1000
     sample_n=1200
-    tol=1e-2
+    tol=1e-3
     t_0=2452848.06;t_E=61.5
     times=np.linspace(t_0-0.*t_E,t_0+2.0*t_E,trajectory_n);alphadeg=90
     times_jax=jnp.linspace(t_0-0.*t_E,t_0+2.0*t_E,trajectory_n)
@@ -70,8 +70,8 @@ if __name__=="__main__":
     temp=jax.pmap(mag_gen_jax)(jnp.full((process_number,),rho),jnp.full((process_number,),q),jnp.full((process_number,),s),jnp.arange(process_number))
     #compiletime)
     print(f'compile time took: {time.monotonic() - start:.1f}')
-    for i in range(1):
-        print(i)
+    for i in range(1000):
+        #print(i)
         q = 10**(np.random.uniform(-6.,0.))
         s = np.random.uniform(0.1,4.)
         rho = 10**(np.random.uniform(-3.,-1.))
@@ -83,7 +83,7 @@ if __name__=="__main__":
                 numpy_map[i,:]=uniform
             pool.close()
             pool.join()
-        print(f'numpy time took: {time.monotonic() - start:.1f}')
+        #print(f'numpy time took: {time.monotonic() - start:.1f}')
         ###vbbl time
         start = time.monotonic()
         with Pool(processes=process_number) as pool:
@@ -94,7 +94,7 @@ if __name__=="__main__":
         '''for i in range(sample_n):
             uniform,i=mag_gen_vbbl(i)
             VBBL_mag_map[i,:]=uniform'''
-        print(f'vbbl time took: {time.monotonic() - start:.1f}')
+        #print(f'vbbl time took: {time.monotonic() - start:.1f}')
         ###jax time
         '''start = time.monotonic()
         for i in range(sample_n):
@@ -108,11 +108,11 @@ if __name__=="__main__":
         #slic=all_nodes[process_number*(i+1):]
         #outputs.append(jax.pmap(mag_gen_jax)(slic))
         jax_map=jnp.concatenate(outputs,axis=0)
-        print(f'jax time took: {time.monotonic() - start:.1f}')
-        #delta1=np.abs(VBBL_mag_map-numpy_map)/VBBL_mag_map
+        #print(f'jax time took: {time.monotonic() - start:.1f}')
+        delta1=np.abs(VBBL_mag_map-numpy_map)/VBBL_mag_map
         delta2=np.abs(VBBL_mag_map-jax_map)/VBBL_mag_map
-        if jnp.max(delta2)>2*tol:
-            #print('error_max numpy',jnp.max(delta1))
+        if jnp.max(delta2)>3*tol:
+            print('error_max numpy',jnp.max(delta1))
             print('error_max jax',jnp.max(delta2))
             b_i=jnp.where(delta2==jnp.max(delta2))[0][0]
             print(b_map[b_i])
