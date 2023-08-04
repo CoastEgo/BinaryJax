@@ -10,21 +10,23 @@ def add_points(idx,add_zeta,add_coff,add_theta,roots,parity,theta,ghost_roots_di
     add_roots,add_parity,add_ghost_roots,outloop,add_coff,add_zeta,add_theta=get_real_roots(add_coff,add_zeta,add_theta,s,m1,m2)#可能删掉不合适的根
     theta=custom_insert(theta,idx,add_theta,add_number)
     ghost_roots_dis=custom_insert(ghost_roots_dis,idx,add_ghost_roots,add_number)
-    buried_error=get_buried_error(ghost_roots_dis)
+    buried_error=get_buried_error(ghost_roots_dis,sample_n)
     sort_flag=custom_insert(sort_flag,idx,jnp.array([False])[:,None],add_number)
     roots,parity,sort_flag=get_sorted_roots(custom_insert(roots,idx,add_roots,add_number),custom_insert(parity,idx,add_parity,add_number),sort_flag)
     Is_create=find_create_points(roots,sample_n)
     return theta,ghost_roots_dis,buried_error,sort_flag,roots,parity,Is_create,outloop
 @jax.jit
-def get_buried_error(ghost_roots_dis):
+def get_buried_error(ghost_roots_dis,sample_n):
     n_ite=ghost_roots_dis.shape[0]
     error_buried=jnp.zeros((n_ite,1))
     idx1=jnp.where(ghost_roots_dis[0:-2]>2*ghost_roots_dis[1:-1],size=20,fill_value=-3)[0]+1#i-(i+1)>(i+1)对应的i+1
+    idx1=np.where(idx1<sample_n-1,idx1,-2)
     idx1=jnp.where(~jnp.isnan(ghost_roots_dis[idx1+1]),idx1,-2)#i+2对应的不是nan，说明存在buried image
     error_buried=error_buried.at[idx1+1].add((ghost_roots_dis[idx1]-ghost_roots_dis[idx1-1])**2)#在i+2处加入误差项，因为应该在i+1，i+2处加点
     error_buried=error_buried.at[idx1].add((ghost_roots_dis[idx1]-ghost_roots_dis[idx1-1])**2)#在i+1处加入误差项，防止buried误差不收敛
     idx1=jnp.where(2*ghost_roots_dis[1:-1]<ghost_roots_dis[2:],size=20,fill_value=-3)[0]+1#i<i+1-i对应的i
     idx1=jnp.where(~jnp.isnan(ghost_roots_dis[idx1-1]),idx1,-2)#i-1处不是nan
+    idx1=np.where(idx1<sample_n-1,idx1,-2)
     error_buried=error_buried.at[idx1].add((ghost_roots_dis[idx1+1]-ghost_roots_dis[idx1])**2)#在i处加入误差，也就是在i,i+1处加点
     error_buried=error_buried.at[idx1+1].add((ghost_roots_dis[idx1+1]-ghost_roots_dis[idx1])**2)#在i+1处加入误差项，防止buried误差不收敛
     error_buried.at[-2:].set(0.)
@@ -143,7 +145,7 @@ def find_create_points(roots, sample_n):
     initial_carry = (cond, Is_create)
     final_carry, _ = lax.scan(update_is_create, initial_carry, (idx_x, idx_y))
     Is_create = final_carry[1]
-    Is_create=Is_create.at[-3:].set(0)
+    Is_create=jnp.where((jnp.arange(roots.shape[0])<(sample_n-1))[:,None],Is_create,0)
     return Is_create
 @jax.jit
 def sort_body1(values,k):

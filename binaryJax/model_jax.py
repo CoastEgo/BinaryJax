@@ -115,7 +115,7 @@ def contour_integrate(rho,s,q,m1,m2,trajectory_l,epsilon,epsilon_rel=0,inite=30,
     zeta_l=get_zeta_l(rho,trajectory_l,theta)
     coff=get_poly_coff(zeta_l,s,m2)
     roots,parity,ghost_roots_dis,outloop,coff,zeta_l,theta=get_real_roots(coff,zeta_l,theta,s,m1,m2)
-    buried_error=get_buried_error(ghost_roots_dis)
+    buried_error=get_buried_error(ghost_roots_dis,sample_n)
     sort_flag=jnp.where(jnp.arange(n_ite)<inite,False,True)[:,None]#是否需要排序
     roots,parity,sort_flag=get_sorted_roots(roots,parity,sort_flag)
     Is_create=find_create_points(roots,sample_n)
@@ -128,6 +128,13 @@ def contour_integrate(rho,s,q,m1,m2,trajectory_l,epsilon,epsilon_rel=0,inite=30,
     carry=(sample_n,theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,
             Is_create,trajectory_l,rho,s,q,m1,m2,epsilon,epsilon_rel,mag,maglast,outloop)
     result=lax.while_loop(cond_fun,while_body_fun,carry)
+    '''while (error_hist/jnp.abs(mag)>epsilon_rel/2/jnp.sqrt(sample_n)).any():
+        carry=(sample_n,theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,
+            Is_create,trajectory_l,rho,s,q,m1,m2,epsilon,epsilon_rel,mag,maglast,outloop)
+        carry=while_body_fun(carry)
+        (sample_n,theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,
+            Is_create,trajectory_l,rho,s,q,m1,m2,epsilon,epsilon_rel,mag,maglast,outloop)=carry
+    return carry#'''
     return result
 def cond_fun(carry):
     (sample_n,theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,
@@ -158,6 +165,9 @@ def while_body_fun(carry):
     add_number=jnp.ceil((error_hist[idx]/jnp.abs(mag)/epsilon_rel*jnp.sqrt(sample_n))**0.2).astype(int)#至少要插入一个点，不包括相同的第一个
     add_number=jnp.where((idx==0)[:,None],0,add_number)
     add_number=jnp.where(add_number>add_max,add_max,add_number)
+    '''carry=(theta,idx,add_number,jnp.full(theta.shape,jnp.nan))
+    for i in range(idx.shape[0]):
+        carry,k=theta_encode(carry,i)'''
     carry,_=lax.scan(theta_encode,(theta,idx,add_number,
                                jnp.full(theta.shape,jnp.nan)),jnp.arange(idx.shape[0]))
     add_theta=carry[-1]
