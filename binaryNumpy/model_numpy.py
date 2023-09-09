@@ -123,8 +123,10 @@ class model():#initialize parameter
         zG=np.where(cond,np.nan,z_l)
         cond,mag=Quadrupole_test(self.rho,self.s,self.q,zeta_l,z,zG,tol)
         idx=np.where(~cond)[0]
-        for i in idx:
+        image_contour_all=[]
+        for i in range(trajectory_n):
             temp_mag,curve,theta=self.contour_integrate(trajectory_l[i],tol,i,retol)
+            image_contour_all+=[curve]
             mag[i]=temp_mag
             '''fig,ax=plt.subplots()#绘制image图的代码
             zeta=self.get_zeta_l(trajectory_l[i],theta)
@@ -142,6 +144,7 @@ class model():#initialize parameter
             plt.axis('equal')
             plt.legend(loc='upper right')
             plt.show()'''
+        self.image_contour_all=image_contour_all
         return mag
     def contour_integrate(self,trajectory_l,epsilon,i,epsilon_rel=0):
         sample_n=3;theta_init=np.array([0,np.pi,2*np.pi],dtype=np.float64)
