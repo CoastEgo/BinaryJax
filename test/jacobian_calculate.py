@@ -1,30 +1,32 @@
+import os
+import sys
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+sys.path.append(parent_dir)
 import jax.numpy as jnp
 import numpy as np
-from ..binaryJax import model
+from binaryJax import model
 from jax import jacfwd
 import matplotlib.pyplot as plt
 from matplotlib import gridspec
 import time
 def uniform(delta_time):
     t_0=2452848.06;t_E=61.5;alphadeg=90
-    trajectory_n=100
-    times=jnp.linspace(t_0-0.25*t_E,t_0+0.25*t_E,trajectory_n)+delta_time
-    q=0.001;s=1;rho=0.01
+    trajectory_n=500
+    times=jnp.linspace(t_0-2.*t_E,t_0+2.*t_E,trajectory_n)+delta_time
+    b=0.05;t_0=2452848.06;t_E=61.5;alphadeg=90;q=0.04;s=1.28;rho=0.009
     tol=1e-2
-    b=0.1
     uniform_mag=model({'t_0': t_0, 'u_0': b, 't_E': t_E,
                         'rho': rho, 'q': q, 's': s, 'alpha_deg': alphadeg,'times':times,'retol':tol})
     return uniform_mag
-t_0=2452848.06;t_E=61.5;alphadeg=90
-trajectory_n=100
-q=0.001;s=1;rho=0.01
+b=0.05;t_0=2452848.06;t_E=61.5;alphadeg=60;q=0.04;s=1.28;rho=0.009
+trajectory_n=500
 tol=1e-2
-b=0.1
-x=jnp.linspace(t_0-0.25*t_E,t_0+0.25*t_E,trajectory_n)
+x=jnp.linspace(t_0-2.*t_E,t_0+2.*t_E,trajectory_n)
 mag=model({'t_0': t_0, 'u_0': b, 't_E': t_E,
                     'rho': rho, 'q': q, 's': s, 'alpha_deg': alphadeg,'times':x,'retol':tol})
 #print(mag)
-x=jnp.linspace(t_0-0.25*t_E,t_0+0.25*t_E,trajectory_n)
+x=jnp.linspace(t_0-2.*t_E,t_0+2.*t_E,trajectory_n)
 mag=model({'t_0': t_0, 'u_0': b, 't_E': t_E,
                     'rho': rho, 'q': q, 's': s, 'alpha_deg': alphadeg,'times':x,'retol':tol})
 #####导数计算
