@@ -5,7 +5,7 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(current_dir)
 sys.path.append(parent_dir)
 import numpy as np
-from binaryNumpy import model as model_numpy
+from binaryNumpy import model_ni as model_numpy
 import VBBinaryLensing
 import matplotlib.pyplot as plt
 from matplotlib import cm
@@ -70,31 +70,37 @@ if __name__=="__main__":
     temp=jax.pmap(mag_gen_jax)(jnp.full((process_number,),rho),jnp.full((process_number,),q),jnp.full((process_number,),s),jnp.arange(process_number))
     #compiletime)
     print(f'compile time took: {time.monotonic() - start:.1f}')
+    vbbl_time=0.;numpy_time=0.;jax_time=0.
+    error_num=0
     for i in range(1000):
+        np.random.seed(i)
         #print(i)
         q = 10**(np.random.uniform(-6.,0.))
         s = np.random.uniform(0.1,4.)
         rho = 10**(np.random.uniform(-3.,-1.))
-        print(f'parameter:q = {q}; s = {s}; rho = {rho}')#'''
         ###numpy time
         start = time.monotonic()
         with Pool(processes=process_number) as pool:
             for uniform,i in pool.imap(mag_gen_numpy,range(sample_n)):
                 numpy_map[i,:]=uniform
+            #result=pool.map(mag_gen_numpy,range(sample_n))
             pool.close()
             pool.join()
-        #print(f'numpy time took: {time.monotonic() - start:.1f}')
+        numpy_time+=time.monotonic()-start
         ###vbbl time
         start = time.monotonic()
         with Pool(processes=process_number) as pool:
             for uniform,i in pool.imap(mag_gen_vbbl,range(sample_n)):
                 VBBL_mag_map[i,:]=uniform
+            #result=pool.map(mag_gen_vbbl,range(sample_n))
             pool.close()
             pool.join()
+        vbbl_time+=time.monotonic()-start
+        #print(f'vbbl time took parallel: {time.monotonic() - start:.1f}')
         '''for i in range(sample_n):
             uniform,i=mag_gen_vbbl(i)
-            VBBL_mag_map[i,:]=uniform'''
-        #print(f'vbbl time took: {time.monotonic() - start:.1f}')
+            VBBL_mag_map[i,:]=uniform
+        print(f'vbbl time took for i range: {time.monotonic() - start:.1f}')'''
         ###jax time
         '''start = time.monotonic()
         for i in range(sample_n):
@@ -108,14 +114,23 @@ if __name__=="__main__":
         #slic=all_nodes[process_number*(i+1):]
         #outputs.append(jax.pmap(mag_gen_jax)(slic))
         jax_map=jnp.concatenate(outputs,axis=0)
+        jax.block_until_ready(jax_map)
+        jax_time+=time.monotonic()-start
         #print(f'jax time took: {time.monotonic() - start:.1f}')
         delta1=np.abs(VBBL_mag_map-numpy_map)/VBBL_mag_map
         delta2=np.abs(VBBL_mag_map-jax_map)/VBBL_mag_map
-        if jnp.max(delta2)>3*tol:
+        if jnp.max(delta2)>5*tol:
+            print(f'parameter:q = {q}; s = {s}; rho = {rho}')#'''
             print('error_max numpy',jnp.max(delta1))
             print('error_max jax',jnp.max(delta2))
             b_i=jnp.where(delta2==jnp.max(delta2))[0][0]
-            print(b_map[b_i])
+            print(f'b={b_map[b_i]}')
+            if jnp.max(delta2)>jnp.max(delta1)*5:
+                error_num+=1
         #draw_colormap(delta,'delta',colors.LogNorm())
         #draw_colormap(np.abs(VBBL_mag_map),'VBBL2.0',colors.LogNorm())
         #draw_colormap(np.abs(mycode_map),'mycode',colors.LogNorm())'''
+    print(f'vbbl time took: {vbbl_time}')
+    print(f'numpy time took: {numpy_time}')
+    print(f'jax time took: {jax_time}')
+    print(f'error number = {error_num}')
