@@ -97,3 +97,48 @@ if 0:
         plt.plot(cur.real,cur.imag,linewidth=linewidth)
         plt.axis('equal')
         plt.savefig('picture/204_'+str(k)+'.pdf',format='pdf')'''
+if 0:##test around the caustic, apadpted from https://github.com/fbartolic/caustics/blob/main/tests/test_extended_source.py
+    ### you may need to change Max_array_length in binaryJax/model_jax.py to avoid the failure caused by fixed array length
+    from MulensModel import caustics
+    import MulensModel as mm
+    from binaryJax import contour_integrate,to_centroid,to_lowmass
+    from jax import lax,random
+    import binaryJax
+    def test_extend_sorce(rho,q,s,retol=1e-3,Max_array_length=500):
+        caustic_1=caustics.Caustics(q,s)
+        x,y=caustic_1.get_caustics()
+        z_centeral=jnp.array(jnp.array(x)+1j*jnp.array(y))
+        ## random change the position of the source
+        key = random.PRNGKey(42)
+        key, subkey1, subkey2 = random.split(key, num=3)
+        phi = jax.random.uniform(subkey1, z_centeral.shape, minval=-np.pi, maxval=np.pi)
+        r = random.uniform(subkey2, z_centeral.shape, minval=0., maxval=2*rho)
+        z_centeral = z_centeral + r*np.exp(1j*phi)
+        ### change the coordinate system
+        z_lowmass=to_lowmass(s,q,z_centeral)
+        trajectory_n=z_centeral.shape[0]
+        ### change the coordinate system
+        m1=1/(1+q)
+        m2=q/(1+q)
+
+        VBBL=VBBinaryLensing.VBBinaryLensing()
+        VBBL.RelTol=retol
+        VBBL_mag=[]
+        for i in range(trajectory_n):
+            VBBL_mag.append(VBBL.BinaryMag2(s,q,z_centeral.real[i],z_centeral.imag[i],rho))
+        VBBL_mag=np.array(VBBL_mag)
+        binaryJax.Max_array_length=Max_array_length
+        Jax_mag=[]
+        for i in range(trajectory_n):
+            Jax_mag.append(contour_integrate(rho,s,q,m1,m2,z_lowmass[i],retol,epsilon_rel=retol)[-3][0])
+        Jaxmag=np.array(Jax_mag)
+        print(f'rho={rho},max error={np.max(np.abs(Jaxmag-VBBL_mag)/VBBL_mag)}')
+        plt.figure()
+        plt.plot(np.abs(Jaxmag-VBBL_mag)/VBBL_mag)
+        ## set log scale
+        plt.yscale('log')
+        plt.ylabel('relative error')
+        plt.savefig(f'picture/extendtest_{rho}.png')
+    rho=[1,1e-1,1e-2,1e-3]
+    for i in range(len(rho)):
+        test_extend_sorce(rho[i],1e-5,1)
