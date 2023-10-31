@@ -17,39 +17,60 @@ import matplotlib.pyplot as plt
 import VBBinaryLensing
 jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
+## write a warp function to calculate time of a function
+def timeit(f):
+    def timed(*args,**kw):
+        ts=time.perf_counter()
+        result=f(*args,**kw)
+        te=time.perf_counter()
+        print(f'{f.__name__} time={te-ts}')
+        return result
+    return timed
+@timeit
+def model_test(parms):
+    mag=model(parms)
+    jax.block_until_ready(mag)
+    return mag
+@timeit
+def jacobian_test(grad_fun,times,tol):
+    jac=grad_fun(8280.094505,0.121803,39.824343,0.002589090,10**(-0.076558),10**(0.006738),56.484044,times,tol)
+    jax.block_until_ready(jac)
+    return jac
 if 1:
     sample_n=120
     b_map =jnp.linspace(-4.0,3.0,sample_n)
     #b=b_map[51]
-    b=-2.3419516263552964
-    t_0=2452848.06;t_E=61.5;alphadeg=90
-    q = 1.63882791938733e-05; s = 2.3275772945101147; rho = 0.01682812889449287
+    b=0.121803
+    t_0=8280.094505;t_E=39.824343;alphadeg=56.484044
+    q = 10**(0.006738); s = 10**(-0.076558); rho = 10**(-2.589090)
     tol=1e-3
     trajectory_n=1000
     alpha=alphadeg*2*jnp.pi/360
-    times=jnp.linspace(t_0-0.*t_E,t_0+2.*t_E,trajectory_n)[3:4]
+    times=jnp.linspace(t_0-2.*t_E,t_0+2.*t_E,trajectory_n)
     ####################编译时间
-    start=time.perf_counter()
-    uniform_mag=model({'t_0': t_0, 'u_0': b, 't_E': t_E,
-                        'rho': rho, 'q': q, 's': s, 'alpha_deg': alphadeg,'times':times,'retol':tol})
-    jax.block_until_ready(uniform_mag)
-    end=time.perf_counter()
+    parm={'t_0': t_0, 'u_0': b, 't_E': t_E,
+                        'rho': rho, 'q': q, 's': s, 'alpha_deg': alphadeg,'times':times,'retol':tol}
+    print('compile time',end=' ')
+    uniform_mag=model_test(parm)
+    print('run time',end=' ')
+    model_test(parm)
     '''with jax.profiler.trace("/tmp/jax-trace", create_perfetto_link=True):
         # Run the operations to be profiled
         uniform_mag=model({'t_0': t_0, 'u_0': b, 't_E': t_E,
                             'rho': rho, 'q': q, 's': s, 'alpha_deg': alphadeg,'times':times,'retol':tol})
         jax.block_until_ready(uniform_mag)'''
-    time_optimal=end-start
-    print('low_mag_mycode=',time_optimal)
-    start=time.perf_counter()
-    uniform_mag=model({'t_0': t_0, 'u_0': b, 't_E': t_E,
-                        'rho': rho, 'q': q, 's': s, 'alpha_deg': alphadeg,'times':times,'retol':tol})
-    jax.block_until_ready(uniform_mag)
-    end=time.perf_counter()
-    jax_time=end-start
-    #print(uniform_mag)
-    print('low_mag_mycode jit=',end-start)
-    start=time.perf_counter()
+    ## compile time
+    def sum_fun(t_0,u_0,t_E,rho,q,s,alpha_deg,times,retol):
+        dic={'t_0': t_0, 'u_0': u_0, 't_E': t_E,
+            'rho': rho, 'q': q, 's': s, 'alpha_deg': alpha_deg,'times':times,'retol':retol}
+        return jnp.sum(model(dic))
+    #### calculate the jacbian matrix and print time
+    grad_fun=jax.jacfwd(sum_fun,argnums=(0,1,2,3,4,5,6))
+    print('jacbian compile time',end=' ')
+    jacobian_test(grad_fun,times,tol)
+    print('jacbian time',end=' ')
+    jac=jacobian_test(grad_fun,times,tol)
+    print(jac)
     VBBL = VBBinaryLensing.VBBinaryLensing()
     alpha_VBBL=np.pi+alphadeg/180*np.pi
     VBBL.RelTol=tol
@@ -63,8 +84,6 @@ if 1:
     model_uniform=model_numpy({'t_0': t_0, 'u_0': b, 't_E': t_E,
                     'rho': rho, 'q': q, 's': s, 'alpha_deg': alphadeg,'times':times})
     numpy_mag=model_uniform.get_magnifaction2(tol,retol=tol)
-    print('VBBL time=',(time.perf_counter()-start))
-    print('VBBL time=',jax_time/(time.perf_counter()-start))
     plt.plot(times,VBBL_mag,label='VBBL')
     plt.plot(times,uniform_mag,label='binaryJax')
     plt.plot(times,numpy_mag,label='numpy')
