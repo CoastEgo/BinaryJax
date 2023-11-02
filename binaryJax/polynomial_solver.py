@@ -9,7 +9,7 @@ from jax import lax
 '''from basic_function_jax import get_poly_coff,get_zeta_l
 from uniform_model_jax import get_trajectory_l'''
 def loop_body(carry):
-    coff,der1,der2,xk,n,epsilon=carry
+    coff,der1,der2,xk,n,epsilon,a=carry
     G = jnp.polyval(der1,xk) / jnp.polyval(coff,xk)
     H = G ** 2 - jnp.polyval(der2,xk) / jnp.polyval(coff,xk)
     root = jnp.sqrt((n - 1) * (n * H - G ** 2))
@@ -17,17 +17,17 @@ def loop_body(carry):
     d = temp[jnp.argmax(jnp.abs(temp))]
     a = n / d
     xk -= a
-    return (coff,der1,der2,xk,n,epsilon)
+    return (coff,der1,der2,xk,n,epsilon,a)
 def cond_fun(carry):
-    coff,der1,der2,xk,n,epsilon=carry
-    return (jnp.abs(jnp.polyval(coff,xk)) > epsilon).all()
+    coff,der1,der2,xk,n,epsilon,a=carry
+    return ((jnp.abs(jnp.polyval(coff,xk)) > epsilon).all()&(jnp.abs(a) > epsilon).all())
 @jax.jit
 def laguerre_method(coff,x0,n, epsilon= 1e-7):
     der1=jnp.polyder(coff,1)
     der2=jnp.polyder(coff,2)
     xk = x0
-    carry=lax.while_loop(cond_fun,loop_body,(coff,der1,der2,xk,n,epsilon))
-    coff,der1,der2,xk,n,epsilon=carry
+    carry=lax.while_loop(cond_fun,loop_body,(coff,der1,der2,xk,n,epsilon,jnp.ones_like(x0)))
+    coff,der1,der2,xk,n,epsilon,a=carry
     return xk
 @jax.jit
 def implict_laguerre(coff,x0,n):
