@@ -24,7 +24,7 @@ def fz3(z,m1,m2,s):
 def J(z,m1,m2,s):
     return 1-fz1(z,m1,m2,s)*jnp.conj(fz1(z,m1,m2,s))
 @jax.jit
-def Quadrupole_test(rho,s,q,zeta,z,zG,tol):
+def Quadrupole_test(rho,s,q,zeta,z,zG,tol=1e-2):
     m1=1/(1+q)
     m2=q/(1+q)
     cQ=6;cG=2;cP=2
@@ -32,7 +32,6 @@ def Quadrupole_test(rho,s,q,zeta,z,zG,tol):
     miu_Q=jnp.abs(-2*jnp.real(3*jnp.conj(fz1(z,m1,m2,s))**3*fz2(z,m1,m2,s)**2-(3-3*J(z,m1,m2,s)+J(z,m1,m2,s)**2/2)*jnp.abs(fz2(z,m1,m2,s))**2+J(z,m1,m2,s)*jnp.conj(fz1(z,m1,m2,s))**2*fz3(z,m1,m2,s))/(J(z,m1,m2,s)**5))
     miu_C=jnp.abs(6*jnp.imag(3*jnp.conj(fz1(z,m1,m2,s))**3*fz2(z,m1,m2,s)**2)/(J(z,m1,m2,s)**5))
     mag=jnp.nansum(jnp.abs(1/J(z,m1,m2,s)),axis=1)
-    tol*=mag
     cond1=jnp.nansum(miu_Q+miu_C,axis=1)*cQ*(rho**2+1e-4*tol)<tol
     ####ghost image test
     zwave=jnp.conj(zeta)-fz0(zG,m1,m2,s)
