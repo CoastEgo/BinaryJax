@@ -7,7 +7,7 @@ from .solution import *
 from .basic_function_jax import Quadrupole_test
 jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
-Max_array_length=250#jax don't support global variable except static global variable
+#jax don't support global variable except static global variable
 '''def model(times,par,retol=0.001):#'t0','u0','te','logrho','alpha','logs','logq' 
     t_0=par['t0']; u_0=par['u0']; t_E=par['te']
     rho=par['logrho']
@@ -28,6 +28,7 @@ Max_array_length=250#jax don't support global variable except static global vari
     cond=error<1e-6'''
 @jax.jit
 def model(par):
+    ### initialize parameters
     t_0=par['t_0']; u_0=par['u_0']; t_E=par['t_E']
     rho=par['rho']
     q=par['q']
@@ -62,12 +63,15 @@ def model(par):
     #############
     z=jnp.where(cond,z_l,jnp.nan)
     zG=jnp.where(cond,jnp.nan,z_l)
-    cond,mag=Quadrupole_test(rho,s,q,zeta_l,z,zG,retol)
+    cond,mag=Quadrupole_test(rho,s,q,zeta_l,z,zG)
     #cond=cond.at[:].set(False)
     ###
-    carry,_=lax.scan(contour_scan,(mag,trajectory_l,retol,retol,rho,s,q,m1,m2,
+    '''carry,_=lax.scan(contour_scan,(mag,trajectory_l,retol,retol,rho,s,q,m1,m2,
                                     jnp.array([0]),cond,jnp.zeros((Max_array_length,1)),False),jnp.arange(trajectory_n))
     mag,trajectory_l,tol,retol,rho,s,q,m1,m2,sample_n,cond,error_hist,outlop=carry#'''
+    carry,_=lax.scan(contour_scan,(mag,trajectory_l,retol,retol,rho,s,q,m1,m2,
+                                    jnp.array([0]),cond,False),jnp.arange(trajectory_n))
+    mag,trajectory_l,tol,retol,rho,s,q,m1,m2,sample_n,cond,outlop=carry#'''
     #print(sample_n)
     '''for i in range(len(cond)):
         if cond[i]==False:
@@ -94,20 +98,70 @@ def get_trajectory_l(s,q,alpha_rad,u_0,times):
     b=u_0
     trajectory_l=to_lowmass(s,q,times*jnp.cos(alpha)-b*jnp.sin(alpha)+1j*(b*jnp.cos(alpha)+times*jnp.sin(alpha)))
     return trajectory_l
+@jax.jit
 def contour_scan(carry,i):
-    mag_all,trajectory_l,retol,retol,rho,s,q,m1,m2,sample_n,cond,error_hist,outlop=carry
-    def false_fun(carry):
-        mag_all,trajectory_l,retol,retol,rho,s,q,m1,m2,sample_n,cond,error_hist,outlop=carry
-        result=contour_integrate(rho,s,q,m1,m2,trajectory_l[i],retol,epsilon_rel=retol)
+    mag_all,trajectory_l,retol,retol,rho,s,q,m1,m2,sample_n,cond,outlop=carry
+    @jax.jit
+    def clear_trash(carry):
         (sample_n,theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,
-            Is_create,_,rho,s,q,m1,m2,epsilon,epsilon_rel,mag,maglast,outloop)=result
+        Is_create,trajectory_l,rho,s,q,m1,m2,epsilon,epsilon_rel,mag,maglast,outloop)=carry
+        ## clear trash value in the last five elements
+        theta=theta.at[-3:].set(jnp.nan)
+        error_hist=error_hist.at[-3:].set(0.)
+        roots=roots.at[-3:].set(jnp.nan)
+        parity=parity.at[-3:].set(jnp.nan)
+        ghost_roots_dis=ghost_roots_dis.at[-3:].set(jnp.nan)
+        buried_error=buried_error.at[-3:].set(0.)
+        sort_flag=sort_flag.at[-3:].set(True)
+        Is_create=Is_create.at[-3:].set(0)
+        carry=(sample_n,theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,
+        Is_create,trajectory_l,rho,s,q,m1,m2,epsilon,epsilon_rel,mag,maglast,outloop)
+        return carry
+    @jax.jit
+    def reshape_fun(carry,arraylength=60):
+        (sample_n,theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,
+        Is_create,trajectory_l,rho,s,q,m1,m2,epsilon,epsilon_rel,mag,maglast,outloop)=carry
+        ## reshape the array and fill the new array with nan
+        theta=jnp.pad(theta,((0,arraylength),(0,0)),'constant',constant_values=jnp.nan)
+        error_hist=jnp.pad(error_hist,((0,arraylength),(0,0)),'constant',constant_values=0.)
+        roots=jnp.pad(roots,((0,arraylength),(0,0)),'constant',constant_values=jnp.nan)
+        parity=jnp.pad(parity,((0,arraylength),(0,0)),'constant',constant_values=jnp.nan)
+        ghost_roots_dis=jnp.pad(ghost_roots_dis,((0,arraylength),(0,0)),'constant',constant_values=jnp.nan)
+        buried_error=jnp.pad(buried_error,((0,arraylength),(0,0)),'constant',constant_values=0.)
+        sort_flag=jnp.pad(sort_flag,((0,arraylength),(0,0)),'constant',constant_values=True)
+        Is_create=jnp.pad(Is_create,((0,arraylength),(0,0)),'constant',constant_values=0)
+        carry=(sample_n,theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,
+        Is_create,trajectory_l,rho,s,q,m1,m2,epsilon,epsilon_rel,mag,maglast,outloop)
+        return carry
+    @jax.jit
+    def secondary_contour(carry):
+        result,resultlast,Max_array_length=carry
+        resultnew,resultlast=lax.while_loop(cond_fun,while_body_fun,(resultlast,resultlast))
+        Max_array_length+=60
+        return resultnew,Max_array_length
+    @jax.jit
+    def false_fun(carry):
+        mag_all,trajectory_l,retol,retol,rho,s,q,m1,m2,sample_n,cond,outlop=carry
+        result=contour_integrate(rho,s,q,m1,m2,trajectory_l[i],retol,epsilon_rel=retol)
+        result,resultlast=result
+        Max_array_length=60### the array length in different layers need to be determined
+        sample_n=result[0]
+        ## if max array length is reached, try to add array length
+        ### reshape the array and fill the new array with nan
+        lengthspare=(sample_n<Max_array_length-5)[0]
+        resultlast=clear_trash(resultlast)
+        resultlast=reshape_fun(resultlast)
+        result=reshape_fun(result)
+        result,Max_array_length=lax.cond(lengthspare,lambda x:(x[0],x[-1]),secondary_contour,(result,resultlast,Max_array_length))
+        (sample_n,theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,
+        Is_create,_,rho,s,q,m1,m2,epsilon,epsilon_rel,mag,maglast,outloop)=result
         mag=lax.cond((sample_n<Max_array_length-5)[0],lambda x:x[0],lambda x:x[1],(mag,maglast))
         mag_all=mag_all.at[i].set(mag[0])
-        return mag_all,sample_n,error_hist,outlop
-    mag_all,sample_n,error_hist,outlop=lax.cond(cond[i].all(),lambda x:(x[0],x[-4],x[-2],x[-1]),false_fun,carry)
-    return (mag_all,trajectory_l,retol,retol,rho,s,q,m1,m2,sample_n,cond,error_hist,outlop),i
-@jax.jit
-def contour_integrate(rho,s,q,m1,m2,trajectory_l,epsilon,epsilon_rel=0,inite=30,n_ite=Max_array_length):
+        return (mag_all,sample_n,outlop)
+    mag_all,sample_n,outlop=lax.cond(cond[i].all(),lambda x:(x[0],x[-3],x[-1]),false_fun,carry)
+    return (mag_all,trajectory_l,retol,retol,rho,s,q,m1,m2,sample_n,cond,outlop),i
+@partial(jax.jit,static_argnums=(-1,))
+def contour_integrate(rho,s,q,m1,m2,trajectory_l,epsilon,epsilon_rel=0,inite=30,n_ite=60):
     ###初始化
     sample_n=jnp.array([inite])
     theta=jnp.where(jnp.arange(n_ite)<inite,jnp.resize(jnp.linspace(0,2*jnp.pi,inite),n_ite),jnp.nan)[:,None]#shape(500,1)
@@ -127,7 +181,8 @@ def contour_integrate(rho,s,q,m1,m2,trajectory_l,epsilon,epsilon_rel=0,inite=30,
     error_hist+=buried_error
     carry=(sample_n,theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,
             Is_create,trajectory_l,rho,s,q,m1,m2,epsilon,epsilon_rel,mag,maglast,outloop)
-    result=lax.while_loop(cond_fun,while_body_fun,carry)
+    carrylast=carry
+    result=lax.while_loop(cond_fun,while_body_fun,(carry,carrylast))
     '''while (error_hist/jnp.abs(mag)>epsilon_rel/2/jnp.sqrt(sample_n)).any():
         carry=(sample_n,theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,
             Is_create,trajectory_l,rho,s,q,m1,m2,epsilon,epsilon_rel,mag,maglast,outloop)
@@ -137,8 +192,11 @@ def contour_integrate(rho,s,q,m1,m2,trajectory_l,epsilon,epsilon_rel=0,inite=30,
     return carry#'''
     return result
 def cond_fun(carry):
+    carry,carrylast=carry
+    ## function to judge whether to continue the loop use relative error
     (sample_n,theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,
         Is_create,trajectory_l,rho,s,q,m1,m2,epsilon,epsilon_rel,mag,maglast,outloop)=carry
+    Max_array_length=jnp.shape(theta)[0]
     mini_interval=jnp.nanmin(jnp.abs(jnp.diff(theta,axis=0)))
     abs_mag_cond=(jnp.nansum(error_hist)>epsilon_rel)
     rel_mag_cond=(error_hist/jnp.abs(mag)>epsilon_rel/jnp.sqrt(sample_n)).any()
@@ -149,9 +207,13 @@ def cond_fun(carry):
     return loop
 @jax.jit
 def while_body_fun(carry):
+    carry,carrylast=carry
+    carrylast=carry
+    ## function to add points, calculate the error and mag
     (sample_n,theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,
         Is_create,trajectory_l,rho,s,q,m1,m2,epsilon,epsilon_rel,mag,maglast,outloop)=carry
     add_max=4
+    Max_array_length=jnp.shape(theta)[0]
     ######迭代加点
     #一次一个区间加点：
     '''idx=jnp.nanargmax(error_hist)#单区间多点采样
@@ -185,4 +247,4 @@ def while_body_fun(carry):
     error_hist+=buried_error
     carry=(sample_n,theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,
         Is_create,trajectory_l,rho,s,q,m1,m2,epsilon,epsilon_rel,mag,maglast,outloop)
-    return carry
+    return (carry,carrylast)
