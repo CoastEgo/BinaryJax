@@ -8,7 +8,6 @@ from jax import custom_jvp
 from .linear_sum_assignment_jax import solve
 jax.config.update("jax_platform_name", "cpu")
 jax.config.update("jax_enable_x64", True)
-idx_all=jnp.linspace(0,4,5,dtype=int)
 @jax.jit
 def fz0(z,m1,m2,s):
     return -m1/(z-s)-m2/z
@@ -32,6 +31,8 @@ def Quadrupole_test(rho,s,q,zeta,z,zG,tol):
     ####Quadrupole test
     miu_Q=jnp.abs(-2*jnp.real(3*jnp.conj(fz1(z,m1,m2,s))**3*fz2(z,m1,m2,s)**2-(3-3*J(z,m1,m2,s)+J(z,m1,m2,s)**2/2)*jnp.abs(fz2(z,m1,m2,s))**2+J(z,m1,m2,s)*jnp.conj(fz1(z,m1,m2,s))**2*fz3(z,m1,m2,s))/(J(z,m1,m2,s)**5))
     miu_C=jnp.abs(6*jnp.imag(3*jnp.conj(fz1(z,m1,m2,s))**3*fz2(z,m1,m2,s)**2)/(J(z,m1,m2,s)**5))
+    mag=jnp.nansum(jnp.abs(1/J(z,m1,m2,s)),axis=1)
+    tol*=mag
     cond1=jnp.nansum(miu_Q+miu_C,axis=1)*cQ*(rho**2+1e-4*tol)<tol
     ####ghost image test
     zwave=jnp.conj(zeta)-fz0(zG,m1,m2,s)
@@ -40,7 +41,7 @@ def Quadrupole_test(rho,s,q,zeta,z,zG,tol):
     cond2=~((cG*(rho+1e-3)>miu_G).any(axis=1))#any更加宽松，因为ghost roots应该是同时消失的，理论上是没问题的
     #####planet test
     cond3=((q>1e-2)|(jnp.abs(zeta+1/s)**2>cP*(rho**2+9*q/s**2))|(rho*rho*s*s<q))[:,0]
-    return cond1&cond2&cond3,jnp.nansum(jnp.abs(1/J(z,m1,m2,s)),axis=1)
+    return cond1&cond2&cond3,mag
 @jax.jit
 def get_poly_coff(zeta_l,s,m2):
     zeta_conj=jnp.conj(zeta_l)
