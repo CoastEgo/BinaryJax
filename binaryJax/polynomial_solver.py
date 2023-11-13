@@ -7,7 +7,8 @@ from jax import numpy as jnp
 from jax import jacfwd
 from jax import lax
 '''from basic_function_jax import get_poly_coff,get_zeta_l
-from uniform_model_jax import get_trajectory_l'''
+from model_jax import get_trajectory_l'''
+from functools import partial
 def loop_body(carry):
     coff,der1,der2,xk,n,epsilon,a=carry
     G = jnp.polyval(der1,xk) / jnp.polyval(coff,xk)
@@ -37,24 +38,27 @@ def implict_laguerre(coff,x0,n):
     return lax.custom_root(f,x0,solve=solution,tangent_solve=sclar)
 @jax.jit
 def zroots(coff):
+    ##roots is the initial guess
     roots=jnp.empty(coff.shape[0]-1,dtype=jnp.complex128)
-    def body_fun(carry,k):
-        coff,roots=carry
-        roots=roots.at[k].set(laguerre_method(coff,jnp.array([0.],dtype=jnp.complex128),5-k)[0])#order of polynomial
-        coff,_=jnp.polydiv(coff,jnp.array([1,-1*roots[k]]))
-        coff=jnp.resize(coff,(6,))#number of coffs
-        coff=jnp.where(jnp.arange(6)<1,0.,jnp.roll(coff,1))
-        return(coff,roots),k
+    #polydiv_array = jnp.array([1, -1*roots[0]])  # 创建一个 jnp.array
+    def body_fun(carry, k):
+        coff, roots = carry
+        root_k = laguerre_method(coff, roots[k], 5 - k)  # order of polynomial
+        roots = roots.at[k].set(root_k)
+        polydiv_array = jnp.array([1, -1 * root_k])  # 创建一个 jnp.array
+        coff, _ = jnp.polydiv(coff, polydiv_array)
+        coff = jnp.concatenate([jnp.zeros(1),coff])  # number of coffs
+        return (coff, roots), None
     carry,_=lax.scan(body_fun,(coff,roots),jnp.arange(coff.shape[0]-1))
     '''for i in range(coff.shape[0]-1):
         carry,_=body_fun((coff,roots),i)
         coff,roots=carry'''
     _,roots=carry
-    roots=newton_polish(coff,roots)
+    roots=newton_polish(coff,roots,5)
     return roots
 @jax.jit
 def implict_zroots(coff):
-    x0=jnp.zeros((5,),dtype=jnp.complex128)
+    x0=jnp.empty(coff.shape[0]-1,dtype=jnp.complex128)
     f=lambda x:jnp.polyval(coff,x)
     solution=lambda f,x0: zroots(coff)
     sclar=lambda g, y: jnp.linalg.solve(jax.jacobian(g,holomorphic=True)(y), y)
@@ -161,20 +165,20 @@ def multi_quartic(a0, b0, c0, d0, e0):
 @jax.jit
 def halfanalytical(coff):
     roots=jnp.empty(coff.shape[0]-1,dtype=jnp.complex128)
-    roots=roots.at[0].set(laguerre_method(coff,0,5))#order of polynomial
+    roots=roots.at[0].set(laguerre_method(coff,0.,5))#order of polynomial
     coff_4,_=jnp.polydiv(coff,jnp.array([1,-1*roots[0]]))
     roots=roots.at[1:].set(multi_quartic(coff_4[0:1],coff_4[1:2],coff_4[2:3],coff_4[3:4],coff_4[4:]))
-    roots=newton_polish(coff,roots)
+    roots=newton_polish(coff,roots,10)
     return roots
-@jax.jit
-def newton_polish(coff,roots):
+@partial(jax.jit,static_argnums=2)
+def newton_polish(coff,roots,n=10):
     derp=jnp.polyder(coff)
     def loop_body(carry,k):
         roots,coff=carry
         val=jnp.polyval(coff,roots)
         roots=roots-val/jnp.polyval(derp,roots)
         return (roots,coff),k
-    carry,_=lax.scan(loop_body,(roots,coff),jnp.arange(10))
+    carry,_=lax.scan(loop_body,(roots,coff),jnp.arange(n))
     roots,_=carry
     return roots
 '''
@@ -199,8 +203,14 @@ if __name__=='__main__':
     print(np.poly1d(coff))
     lague_roots=implict_zroots(coff)
     print('numpy roots',np_roots)
+    print('numpy error',jnp.abs(jnp.polyval(coff,np_roots)))
+    print('laguerre roots',lague_roots)
+    print('laguerre error',jnp.abs(jnp.polyval(coff,lague_roots)))
     print('numpy der',jax.jacfwd(jnp.roots,holomorphic=True)(coff))
     print('numpy error',jnp.abs(jnp.polyval(coff,jnp.sort(np_roots))))
+    half=halfanalytical(coff)
+    print('half roots',half)
+    print('half error',jnp.abs(jnp.polyval(coff,half)))
     print('laguerre roots',lague_roots)
     print('laguerre der',jax.jacfwd(implict_zroots,holomorphic=True)(coff))
     print('laguerre error',jnp.abs(jnp.polyval(coff,jnp.sort(lague_roots))))#'''
