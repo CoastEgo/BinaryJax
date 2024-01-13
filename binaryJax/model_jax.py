@@ -7,36 +7,15 @@ from .solution import *
 from .basic_function_jax import Quadrupole_test
 jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
-#jax don't support global variable except static global variable
-'''def model(times,par,retol=0.001):#'t0','u0','te','logrho','alpha','logs','logq' 
-    t_0=par['t0']; u_0=par['u0']; t_E=par['te']
-    rho=par['logrho']
-    q=par['logq']
-    s=par['logs']
-    alpha_rad=(par['alpha'])*2*jnp.pi/360
-    #u_0-=(s-1/s)*q/(1+q)*jnp.sin(2*np.pi-alpha_rad)
-    times=(times-t_0)/t_E
-    trajectory_n=len(times)
-    m1=1/(1+q)
-    m2=q/(1+q)
-    trajectory_l=get_trajectory_l(s,q,alpha_rad,u_0,times)
-    ###四极测试
-    zeta_l=trajectory_l[:,None]
-    coff=get_poly_coff(zeta_l,s,m2)
-    z_l=get_roots(trajectory_n,coff)
-    error=verify(zeta_l,z_l,s,m1,m2)
-    cond=error<1e-6'''
+
 @jax.jit
-def model(par):
+def model(t_0,u_0,t_E,rho,q,s,alpha_deg,times,retol=0.001):
+    # Here the parameterization is consistent with Mulensmodel and VBBinaryLensing
+    # But the alpha is 180 degree different from VBBinaryLensing
     ### initialize parameters
-    t_0=par['t_0']; u_0=par['u_0']; t_E=par['t_E']
-    rho=par['rho']
-    q=par['q']
-    s=par['s']
-    alpha_rad=par['alpha_deg']*2*jnp.pi/360
-    times=(par['times']-t_0)/t_E
-    retol=par['retol']
-    trajectory_n=len(times)
+    alpha_rad=alpha_deg*2*jnp.pi/360
+    times=(times-t_0)/t_E
+    trajectory_n=times.shape[0]
     m1=1/(1+q)
     m2=q/(1+q)
     trajectory_l=get_trajectory_l(s,q,alpha_rad,u_0,times)
@@ -65,10 +44,6 @@ def model(par):
     zG=jnp.where(cond,jnp.nan,z_l)
     cond,mag=Quadrupole_test(rho,s,q,zeta_l,z,zG)
     #cond=cond.at[:].set(False)
-    ###
-    '''carry,_=lax.scan(contour_scan,(mag,trajectory_l,retol,retol,rho,s,q,m1,m2,
-                                    jnp.array([0]),cond,jnp.zeros((Max_array_length,1)),False),jnp.arange(trajectory_n))
-    mag,trajectory_l,tol,retol,rho,s,q,m1,m2,sample_n,cond,error_hist,outlop=carry#'''
     carry,_=lax.scan(contour_scan,(mag,trajectory_l,retol,retol,rho,s,q,m1,m2,
                                     jnp.array([0]),cond,False),jnp.arange(trajectory_n))
     mag,trajectory_l,tol,retol,rho,s,q,m1,m2,sample_n,cond,outlop=carry#'''
