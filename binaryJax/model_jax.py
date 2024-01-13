@@ -112,6 +112,8 @@ def contour_scan(carry,i):
     def secondary_contour(carry):
         result,resultlast,Max_array_length=carry
         resultnew,resultlast=lax.while_loop(cond_fun,while_body_fun,(resultlast,resultlast))
+        '''resultnew,_=lax.scan(scan_body,(resultlast,resultlast),jnp.arange(10))
+        resultnew=resultnew[0]'''
         Max_array_length+=60
         return resultnew,Max_array_length
     @jax.jit
@@ -158,14 +160,14 @@ def contour_integrate(rho,s,q,m1,m2,trajectory_l,epsilon,epsilon_rel=0,inite=30,
             Is_create,trajectory_l,rho,s,q,m1,m2,epsilon,epsilon_rel,mag,maglast,outloop)
     carrylast=carry
     result=lax.while_loop(cond_fun,while_body_fun,(carry,carrylast))
-    '''while (error_hist/jnp.abs(mag)>epsilon_rel/2/jnp.sqrt(sample_n)).any():
-        carry=(sample_n,theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,
-            Is_create,trajectory_l,rho,s,q,m1,m2,epsilon,epsilon_rel,mag,maglast,outloop)
-        carry=while_body_fun(carry)
-        (sample_n,theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,
-            Is_create,trajectory_l,rho,s,q,m1,m2,epsilon,epsilon_rel,mag,maglast,outloop)=carry
-    return carry#'''
+    #result,_=lax.scan(scan_body,(carry,carrylast),jnp.arange(10))
     return result
+
+def scan_body(carry,i):
+    # function to adaptively add points using scan with a fixed number of loops
+    # prepare for the reverse mode differentiation or shard_map(it is not compatible with while_loop)
+    carry=jax.lax.cond(cond_fun(carry),while_body_fun,lambda x:x,carry)
+    return carry,i
 def cond_fun(carry):
     carry,carrylast=carry
     ## function to judge whether to continue the loop use relative error
