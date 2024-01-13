@@ -52,10 +52,43 @@ def get_roots(sample_n,coff):
     return roots
 def dot_product(a,b):
     return np.real(a)*np.real(b)+np.imag(a)*np.imag(b)
+## sort the image using a navie method, and don't promise the minimum distance,
+## but may be sufficient for binary lens. To use Jax's shard_map api, we can't use while loop now.
+# check here for more details: https://jax.readthedocs.io/en/latest/jep/14273-shard-map.html
+def find_nearest_sort(array1, parity1, array2, parity2):
+    cost=np.abs(array2-array1[:,None])+np.abs(parity2-parity1[:,None])*5
+    cost=np.where(np.isnan(cost),100,cost)
+    if np.isnan(array1).sum()==2:
+        idx=np.argmin(cost,axis=1)
+        idx=np.where(~np.isnan(array1),idx,-1)
+        diff_idx=np.setdiff1d(np.arange(array1.shape[0]),idx)
+        used=0
+        for i in range(array1.shape[0]):
+            if np.isnan(array1[i]):
+                idx[i]=diff_idx[used]
+                used+=1
+        return idx                
+    elif (np.isnan(array1).sum()==0) & (np.isnan(array2).sum()==0):
+        idx=np.argmin(cost,axis=1)
+        return idx
+    else:
+        idx=np.argmin(cost,axis=0)
+        idx=np.where(~np.isnan(array1),idx,-1)
+        diff_idx=np.setdiff1d(np.arange(array1.shape[0]),idx)
+        used=0
+        for i in range(array1.shape[0]):
+            if np.isnan(array2[i]):
+                idx[i]=diff_idx[used]
+                used+=1
+        ## rearrange the idx
+        row_resort=np.argsort(idx)
+        col_idx=np.arange(array1.shape[0])
+        return col_idx[row_resort]
 def find_nearest(array1, parity1, array2, parity2):#线性分配问题
     cost=np.abs(array2-array1[:,None])+np.abs(parity2-parity1[:,None])*5#系数可以指定防止出现错误，系数越大鲁棒性越好，但是速度会变慢些
     cost=np.where(np.isnan(cost),100,cost)
     row_ind, col_idx = linear_sum_assignment(cost)
+    #col_idx2=find_nearest_sort(array1, parity1, array2, parity2)
     return col_idx
 def search(m_map,n_map,roots,parity,fir_val,Is_create):#图像匹配算法
     m=m_map[-1]
