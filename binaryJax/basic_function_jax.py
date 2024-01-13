@@ -94,13 +94,62 @@ def get_roots(sample_n, coff):
     return roots
 @jax.jit
 def dot_product(a,b):
-    return np.real(a)*np.real(b)+np.imag(a)*np.imag(b)
+    return jnp.real(a)*jnp.real(b)+jnp.imag(a)*jnp.imag(b)
+@jax.jit
+def find_nearest_sort(array1, parity1, array2, parity2):
+    # sort the image using a navie method, and don't promise the minimum distance,
+    # but may be sufficient for binary lens. VBBL use the similar method.
+    # To use Jax's shard_map api to get get combination of
+    # jax.jit and parallel, we can't use while loop now.
+    # check here for more details: https://jax.readthedocs.io/en/latest/jep/14273-shard-map.html
+    cost=jnp.abs(array2-array1[:,None])+jnp.abs(parity2-parity1[:,None])*5
+    cost=jnp.where(jnp.isnan(cost),100,cost)
+    idx=jnp.argmin(cost,axis=1)
+    @jax.jit
+    def nan_in_array1(carry):
+        array1,array2,cost,idx=carry
+        idx=jnp.where(~jnp.isnan(array1),idx,-1)
+        diff_idx=jnp.setdiff1d(jnp.arange(array1.shape[0]),idx,size=2)
+        used=0
+        for i in range(array1.shape[0]):
+            cond=jnp.isnan(array1[i])
+            idx_i=jnp.where(cond,diff_idx[used],idx[i])
+            idx=idx.at[i].set(idx_i)
+            used=jnp.where(cond,used+1,used)
+        return (array1,array2,cost,idx)
+    def nan_not_in_array1(carry):
+        @jax.jit
+        def nan_in_array2(carry):
+            array1,array2,cost,idx=carry
+            idx=jnp.argmin(cost,axis=0)
+            idx=jnp.where(~jnp.isnan(array1),idx,-1)
+            diff_idx=jnp.setdiff1d(jnp.arange(array2.shape[0]),idx,size=2)
+            used=0
+            for i in range(array1.shape[0]):
+                cond=jnp.isnan(array2[i])
+                idx_i=jnp.where(cond,diff_idx[used],idx[i])
+                idx=idx.at[i].set(idx_i)
+                used=jnp.where(cond,used+1,used)
+            ## rearrange the idx
+            row_resort=jnp.argsort(idx)
+            col_idx=jnp.arange(array1.shape[0])
+            return (array1,array2,cost,col_idx[row_resort])
+        carry=lax.cond(jnp.isnan(array2).sum()==2,nan_in_array2,lambda x:x,(array1,array2,cost,idx))
+        return carry
+    carry=lax.cond(jnp.isnan(array1).sum()==2,nan_in_array1,nan_not_in_array1,(array1,array2,cost,idx))
+    array1,array2,cost,idx=carry
+    return idx
 @custom_jvp
 @jax.jit
-def find_nearest(array1, parity1, array2, parity2):#线性分配问题
+def find_nearest(array1, parity1, array2, parity2):
+    # linear sum assignment, the theoritical complexity is O(n^3) but our relization turns out to be much fast
+    # for small cost matrix. adopted from https://github.com/google/jax/issues/10403 and I make it jit-able
     cost=jnp.abs(array2-array1[:,None])+jnp.abs(parity2-parity1[:,None])*5#系数可以指定防止出现错误，系数越大鲁棒性越好，但是速度会变慢些
     cost=jnp.where(jnp.isnan(cost),100,cost)
     row_ind, col_idx=solve(cost)
+
+    #col_idx=find_nearest_sort(array1, parity1, array2, parity2)
+    
     return col_idx
 @find_nearest.defjvp
 def find_nearest_jvp(primals, tangents):
