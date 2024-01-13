@@ -195,7 +195,29 @@ class model():#initialize parameter
                 mag_k=1/2*np.sum((cur.imag[0:-1]+cur.imag[1:])*(cur.real[0:-1]-cur.real[1:]))
                 mag+=mag_k*parity_k[0]
                 Error=Error_estimator(self.q,self.s,self.rho,cur,theta_map_k,theta_init,sol_num[k],parity_k)
-                error_k,parab=Error.error_sum()
+                error_k,parab,error_contour=Error.error_sum()
+                '''if i==87 and k==3:
+                    ## to plot the contour image with error in each point
+                    import matplotlib
+                    norm=matplotlib.colors.LogNorm()
+                    fig,ax=plt.subplots(figsize=(8,6))#绘制image图的代码
+                    cur=self.to_centroid(cur)
+                    x_lim=[np.min(cur.real)-0.1,np.max(cur.real)+0.1]
+                    y_lim=[np.min(cur.imag)-0.1,np.max(cur.imag)+0.1]
+                    plt.scatter(cur.real[1:],cur.imag[1:],c=error_contour,s=30,cmap='viridis',norm=norm,label='image '+str(k))
+                    cbar=plt.colorbar()
+                    cbar.set_label('error', rotation=90,fontsize=15)
+                    ### set colorbar log scale
+                    plt.axis('equal')
+                    from MulensModel import caustics
+                    caustic_1=caustics.Caustics(self.q,self.s)
+                    x=caustic_1.critical_curve.x
+                    y=caustic_1.critical_curve.y
+                    plt.scatter(x,y,s=2,label='critical curve',c='orange')
+                    plt.xlim(x_lim)
+                    plt.ylim(y_lim)
+                    plt.legend(loc='upper right')
+                    plt.savefig('../test/picture/test_error.png')'''
                 error_hist+=error_k
                 mag+=parab
             mag=mag/(np.pi*self.rho**2)
@@ -486,7 +508,7 @@ class Error_estimator(object):
         error_map=np.zeros_like(theta_init)#error 按照theta 排序
         indices = np.searchsorted(theta_init, interval_theta%(2*np.pi))
         np.add.at(error_map,indices,e_ord)
-        return error_map,parab
+        return error_map,parab,e_ord
 
 
 
