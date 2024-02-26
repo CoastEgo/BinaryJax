@@ -1,6 +1,6 @@
 import numpy as np
 import jax.numpy as jnp
-from .polynomial_solver import halfanalytical,zroots,implict_zroots
+from .polynomial_solver import halfanalytical,zroots,implict_zroots,Aberth_Ehrlich,AE_roots0
 import jax
 from functools import partial
 from jax import lax

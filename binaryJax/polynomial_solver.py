@@ -9,37 +9,31 @@ from jax import lax
 '''from basic_function_jax import get_poly_coff,get_zeta_l
 from model_jax import get_trajectory_l'''
 from functools import partial
-def loop_body(carry):
-    coff,der1,der2,xk,n,epsilon,a=carry
-    G = jnp.polyval(der1,xk) / jnp.polyval(coff,xk)
-    H = G ** 2 - jnp.polyval(der2,xk) / jnp.polyval(coff,xk)
-    root = jnp.sqrt((n - 1) * (n * H - G ** 2))
-    temp=jnp.stack([G + root, G - root])
-    d = temp[jnp.argmax(jnp.abs(temp))]
-    a = n / d
-    xk -= a
-    return (coff,der1,der2,xk,n,epsilon,a)
-def cond_fun(carry):
-    coff,der1,der2,xk,n,epsilon,a=carry
-    return ((jnp.abs(jnp.polyval(coff,xk)) > epsilon).all()&(jnp.abs(a) > epsilon).all())
 @jax.jit
-def laguerre_method(coff,x0,n, epsilon= 1e-7):
+def laguerre_method(coff,x0,n, epsilon= 1e-10):
     der1=jnp.polyder(coff,1)
     der2=jnp.polyder(coff,2)
     xk = x0
-    carry=lax.while_loop(cond_fun,loop_body,(coff,der1,der2,xk,n,epsilon,jnp.ones_like(x0)))
-    coff,der1,der2,xk,n,epsilon,a=carry
-    return xk
+    @jax.jit
+    def loop_body(carry):
+        xk,n,epsilon,a=carry
+        G = jnp.polyval(der1,xk) / jnp.polyval(coff,xk)
+        H = G ** 2 - jnp.polyval(der2,xk) / jnp.polyval(coff,xk)
+        root = jnp.sqrt((n - 1) * (n * H - G ** 2))
+        temp=jnp.stack([G + root, G - root])
+        d = temp[jnp.argmax(jnp.abs(temp))]
+        a = n / d
+        xk -= a
+        return (xk,n,epsilon,a)
+    def cond_fun(carry):
+        xk,n,epsilon,a=carry
+        return ((jnp.abs(jnp.polyval(coff,xk)) > epsilon).all()&(jnp.abs(a) > epsilon).all())
+    carry=lax.while_loop(cond_fun,loop_body,(xk,n,epsilon,jnp.ones_like(x0)))
+    return carry[0]
 @jax.jit
-def implict_laguerre(coff,x0,n):
-    f=lambda x:jnp.polyval(coff,x)
-    solution=lambda f,x0: laguerre_method(coff,x0,n)
-    sclar=lambda g, y: y / g(jnp.array([1.],dtype=jnp.complex128))
-    return lax.custom_root(f,x0,solve=solution,tangent_solve=sclar)
-@jax.jit
-def zroots(coff):
+def zroots(coff,roots):
     ##roots is the initial guess
-    roots=jnp.empty(coff.shape[0]-1,dtype=jnp.complex128)
+    #roots=AE_roots0(coff)
     #polydiv_array = jnp.array([1, -1*roots[0]])  # 创建一个 jnp.array
     def body_fun(carry, k):
         coff, roots = carry
@@ -54,13 +48,14 @@ def zroots(coff):
         carry,_=body_fun((coff,roots),i)
         coff,roots=carry'''
     _,roots=carry
-    roots=newton_polish(coff,roots,5)
+    roots=newton_polish(coff,roots,10)
     return roots
 @jax.jit
-def implict_zroots(coff):
-    x0=jnp.empty(coff.shape[0]-1,dtype=jnp.complex128)
+def implict_zroots(coff,x0):
+    #x0=jnp.empty(coff.shape[0]-1,dtype=jnp.complex128)
     f=lambda x:jnp.polyval(coff,x)
-    solution=lambda f,x0: zroots(coff)
+    solution=lambda f,x0: zroots(coff,x0)
+    #solution=lambda f,x0: Aberth_Ehrlich(coff)
     sclar=lambda g, y: jnp.linalg.solve(jax.jacobian(g,holomorphic=True)(y), y)
     return lax.custom_root(f,x0,solve=solution,tangent_solve=sclar)
 # closed-form roots for quadratic, cubic, and quartic polynomials
