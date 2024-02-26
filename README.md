@@ -1,9 +1,11 @@
-# VBozza's BinaryLensing with auto-diff support
+# BinaryJax
 This code is a auto-diff version of the <a href='https://github.com/valboz/VBBinaryLensing'> VBozza's BinaryLensing</a>.It is built on the <a href='https://github.com/google/jax'> JAX</a> library which provides a NumPy-like interface with GPU support and automatic differentiation for high-performance machine learning research.
 
 ## Installation
-As this code is under development, it is not available on PyPI. You can install it from source by cloning the repository and running after installing Jax.For how to install Jax, please refer to <a href='https://github.com/google/jax#installation'> Jax installation guide. </a> 
-```git clone https://github.com/CoastEgo/microlensing.git```
+You can install it from source by cloning the repository and running after installing Jax.For how to install Jax, please refer to <a href='https://github.com/google/jax#installation'> Jax installation guide. </a>   
+```git clone https://github.com/CoastEgo/microlensing.git```  
+```cd microlensing```  
+```pip install -e .```  
 
 ## Usage
 There are examples in the ```examples``` folder. You can run them directly can change the input parameters by yourself.
