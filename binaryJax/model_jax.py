@@ -176,11 +176,18 @@ def cond_fun(carry):
     Max_array_length=jnp.shape(theta)[0]
     mini_interval=jnp.nanmin(jnp.abs(jnp.diff(theta,axis=0)))
     abs_mag_cond=(jnp.nansum(error_hist)>epsilon_rel)
+    abs_mag_cond2=(error_hist>epsilon_rel/jnp.sqrt(sample_n)).any()
     rel_mag_cond=(error_hist/jnp.abs(mag)>epsilon_rel/jnp.sqrt(sample_n)).any()
     #rel_mag_cond=(jnp.nansum(error_hist)/jnp.abs(mag)>epsilon_rel)[0]
     relmag_diff_cond=(jnp.abs((mag-maglast)/maglast)>1/2*epsilon_rel)[0]
     mag_diff_cond=(jnp.abs(mag-maglast)>1/2*epsilon_rel)[0]
-    loop=(rel_mag_cond& (mini_interval>1e-14) & (~outloop)& abs_mag_cond & (mag_diff_cond|(sample_n<Max_array_length/2)[0]) & (sample_n<Max_array_length-5)[0])
+
+    ## switch the different stopping condition: absolute error or relative error
+    ## to modify the stopping condition, you will also need to modify the add points method in the while_body_fun
+
+    loop= (rel_mag_cond& (mini_interval>1e-14)& (~outloop)& abs_mag_cond & (mag_diff_cond|(sample_n<Max_array_length/2)[0]) & (sample_n<Max_array_length-5)[0])
+    
+    #loop= (abs_mag_cond2&(mini_interval>1e-14)& (~outloop)& abs_mag_cond & (mag_diff_cond|(sample_n<Max_array_length/2)[0]) & (sample_n<Max_array_length-5)[0])
     return loop
 @jax.jit
 def while_body_fun(carry):
@@ -200,8 +207,17 @@ def while_body_fun(carry):
     add_theta=jnp.arange(1,add_max+1)[:,None]*theta_diff+theta[idx-1]
     add_theta=jnp.where((jnp.arange(add_max)<add_number)[:,None],add_theta,jnp.nan)'''
     #一次多个区间加点:
+    
+    ### absolute error adding mode
+
+    #idx=jnp.where(error_hist>epsilon_rel/jnp.sqrt(sample_n),size=int(Max_array_length/5),fill_value=0)[0]
+    #add_number=jnp.ceil((error_hist[idx]/epsilon_rel*jnp.sqrt(sample_n))**0.2).astype(int)#至少要插入一个点，不包括相同的第一个
+    
+    ## relative error adding mode
+    
     idx=jnp.where(error_hist/jnp.abs(mag)>epsilon_rel/jnp.sqrt(sample_n),size=int(Max_array_length/5),fill_value=0)[0]
     add_number=jnp.ceil((error_hist[idx]/jnp.abs(mag)/epsilon_rel*jnp.sqrt(sample_n))**0.2).astype(int)#至少要插入一个点，不包括相同的第一个
+    
     add_number=jnp.where((idx==0)[:,None],0,add_number)
     add_number=jnp.where(add_number>add_max,add_max,add_number)
     '''carry=(theta,idx,add_number,jnp.full(theta.shape,jnp.nan))
