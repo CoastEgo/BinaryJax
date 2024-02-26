@@ -92,8 +92,8 @@ def contour_scan(carry,i):
         carry=(sample_n,theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,
         Is_create,trajectory_l,rho,s,q,m1,m2,epsilon,epsilon_rel,mag,maglast,outloop)
         return carry
-    @jax.jit
-    def reshape_fun(carry,arraylength=60):
+    @partial(jax.jit,static_argnums=(-1,))
+    def reshape_fun(carry,arraylength):
         (sample_n,theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,
         Is_create,trajectory_l,rho,s,q,m1,m2,epsilon,epsilon_rel,mag,maglast,outloop)=carry
         ## reshape the array and fill the new array with nan
@@ -126,24 +126,43 @@ def contour_scan(carry,i):
     @jax.jit
     def false_fun(carry):
         mag_all,trajectory_l,retol,retol,rho,s,q,m1,m2,sample_n,cond,outlop=carry
+        ## JIT compile operation needs shape of the array to be determined.
+        ## But for optimial sampling, It is hard to know the array length before the code runs so we need to assign large enough array length
+        ## which will cause the waste of memory and time. 
+        ## To solve this problem, here we use heriachical array length adding method to add array length gradually,
+        ## the problem is we should fine tuen the array length added in different layers to get the optimal performance which depends on the tolerance and parameter.
+        ## current is 60 + 80 + 150 = 290
+
+        ## first add
         result=contour_integrate(rho,s,q,m1,m2,trajectory_l[i],retol,epsilon_rel=retol)
         result,resultlast=result
         Max_array_length=60### the array length in different layers need to be determined
-        sample_n=result[0]
         ## if max array length is reached, try to add array length
         ### reshape the array and fill the new array with nan
-        lengthspare=(sample_n<Max_array_length-5)[0]
-        resultlast=clear_trash(resultlast)
-        resultlast=reshape_fun(resultlast)
-        result=reshape_fun(result)
-        result,Max_array_length=lax.cond(lengthspare,lambda x:(x[0],x[-1]),secondary_contour,(result,resultlast,Max_array_length))
+
+        ## second add
+        sample_n=result[0]
+        add_length=80##80
+        resultlast=reshape_fun(resultlast,add_length)
+        result=reshape_fun(result,add_length)
+
+        result,Max_array_length=lax.cond((sample_n<Max_array_length-5)[0],lambda x:(x[0],x[-1]),secondary_contour,(result,resultlast,add_length,Max_array_length))
+        
+        ## third add
+        sample_n=result[0]
+        add_length=150
+        resultlast=reshape_fun(resultlast,add_length)
+        result=reshape_fun(result,add_length)
+
+        result,Max_array_length=lax.cond((sample_n<Max_array_length-5)[0],lambda x:(x[0],x[-1]),secondary_contour,(result,resultlast,add_length,Max_array_length))
+
         (sample_n,theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,
         Is_create,_,rho,s,q,m1,m2,epsilon,epsilon_rel,mag,maglast,outloop)=result
         mag=lax.cond((sample_n<Max_array_length-5)[0],lambda x:x[0],lambda x:x[1],(mag,maglast))
         mag_all=mag_all.at[i].set(mag[0])
         return (mag_all,sample_n,outlop)
     mag_all,sample_n,outlop=lax.cond(cond[i].all(),lambda x:(x[0],x[-3],x[-1]),false_fun,carry)
-    return (mag_all,trajectory_l,retol,retol,rho,s,q,m1,m2,sample_n,cond,outlop),i
+    return (mag_all,trajectory_l,retol,retol,rho,s,q,m1,m2,sample_n,cond,outlop),sample_n
 @partial(jax.jit,static_argnums=(-1,))
 def contour_integrate(rho,s,q,m1,m2,trajectory_l,epsilon,epsilon_rel=0,inite=30,n_ite=60):
     ###初始化
@@ -155,6 +174,8 @@ def contour_integrate(rho,s,q,m1,m2,trajectory_l,epsilon,epsilon_rel=0,inite=30,
     roots,parity,ghost_roots_dis,outloop,coff,zeta_l,theta=get_real_roots(coff,zeta_l,theta,s,m1,m2)
     buried_error=get_buried_error(ghost_roots_dis,sample_n)
     sort_flag=jnp.where(jnp.arange(n_ite)<inite,False,True)[:,None]#是否需要排序
+    ### no need to sort first idx
+    sort_flag=sort_flag.at[0].set(True)
     roots,parity,sort_flag=get_sorted_roots(roots,parity,sort_flag)
     Is_create=find_create_points(roots,sample_n)
     #####计算第一次的误差，放大率
@@ -226,7 +247,7 @@ def while_body_fun(carry):
     #add_number=jnp.ceil((error_hist[idx]/epsilon_rel*jnp.sqrt(sample_n))**0.2).astype(int)#至少要插入一个点，不包括相同的第一个
     
     ## relative error adding mode
-    
+
     idx=jnp.where(error_hist/jnp.abs(mag)>epsilon_rel/jnp.sqrt(sample_n),size=int(Max_array_length/5),fill_value=0)[0]
     add_number=jnp.ceil((error_hist[idx]/jnp.abs(mag)/epsilon_rel*jnp.sqrt(sample_n))**0.2).astype(int)#至少要插入一个点，不包括相同的第一个
     
