@@ -1,19 +1,8 @@
-# MCMC_demo.py
 
-import sys
-import os
-global numofchains
-numofchains = 10
-os.environ["XLA_FLAGS"] = '--xla_force_host_platform_device_count=%d'%numofchains
-# Add the parent directory to sys.path
-current_dir = os.path.dirname(os.path.abspath(__file__))
-parent_dir = os.path.dirname(current_dir)
-sys.path.append(parent_dir)
 import numpy as np
 import jax.numpy as jnp
 import jax
-from binaryJax import model
-from binaryNumpy import model_ni as model_numpy
+from BinaryJax import model,model_numpy
 import time
 import matplotlib.pyplot as plt
 import VBBinaryLensing
@@ -31,16 +20,14 @@ def timeit(f):
         for i in range(100):
             ts=time.perf_counter()
             result=f(*args,**kw)
+            jax.block_until_ready(result)
             te=time.perf_counter()
             alltime.append(te-ts)
         alltime=np.array(alltime)
         print(f'{f.__name__} time={np.mean(alltime)}+/-{np.std(alltime)}')
         return result
     return timed
-def model_test(parms):
-    mag=model(parms)
-    jax.block_until_ready(mag)
-    return mag
+
 def model_pmap(parms,i):
     parms['times']=parms['times'][:,i]
     return model(parms)
@@ -53,7 +40,7 @@ def jacobian_test(grad_fun,times,tol):
 def VBBL_test_cloop(parms):
     VBBL = VBBinaryLensing.VBBinaryLensing()
     alpha_VBBL=np.pi+parms['alpha_deg']/180*np.pi
-    VBBL.RelTol=parms['retol']
+    VBBL.Tol=parms['retol']
     VBBL.BinaryLightCurve
     times=np.array(parms['times'])
     tau=(times-parms['t_0'])/parms['t_E']
@@ -92,29 +79,19 @@ def time_test():
     ####################编译时间
     parm={'t_0': t_0, 'u_0': b, 't_E': t_E,
                         'rho': rho, 'q': q, 's': s, 'alpha_deg': alphadeg,'times':times,'retol':tol}
-    parm2=parm.copy()
+
     #parm2['times']=jnp.reshape(parm2['times'],(-1,numofchains),order='C')
-    uniform_mag=timeit(model_test)(parm)
+    uniform_mag=timeit(model)(**parm)
     '''with jax.profiler.trace("/tmp/jax-trace", create_perfetto_link=True):
         # Run the operations to be profiled
         ## disable jit
         with jax.disable_jit():  
             model_test(parm)'''
-    ## compile time
-    def sum_fun(t_0,u_0,t_E,rho,q,s,alpha_deg,times,retol):
-        #times=jnp.reshape(times,(-1,numofchains),order='C')
-        dic={'t_0': t_0, 'u_0': u_0, 't_E': t_E,
-            'rho': rho, 'q': q, 's': s, 'alpha_deg': alpha_deg,'times':times,'retol':retol}
-        mag=model_test(dic)
-        #mag=jax.pmap(model_pmap,in_axes=(None,0))(dic,jnp.arange(jax.device_count()))
-        #mag=jnp.reshape(mag,(trajectory_n,),order='F')
-        return jnp.sum(mag)
     #### calculate the jacbian matrix and print time
     #grad_fun=jax.jacfwd(sum_fun,argnums=(0,1,2,3,4,5,6))
     #jac=timeit(jacobian_test)(grad_fun,times,tol)
     #print(jac)
     VBBL_mag=VBBL_test_cloop(parm)
-    VBBL_mag2=VBBL_test_pythonloop(parm)
     model_uniform=model_numpy({'t_0': t_0, 'u_0': b, 't_E': t_E,
                     'rho': rho, 'q': q, 's': s, 'alpha_deg': alphadeg,'times':times})
     numpy_mag=model_uniform.get_magnifaction2(tol,retol=tol)
@@ -123,7 +100,7 @@ def time_test():
     plt.plot(times,uniform_mag,label='binaryJax')
     plt.plot(times,numpy_mag,label='numpy')
     plt.legend()
-    plt.savefig('picture/diff.png')
+    #plt.savefig('picture/diff.png')
     delta=np.abs(np.array(uniform_mag)-VBBL_mag)/VBBL_mag
     print(np.max(delta))
     print(np.argmax(delta))
@@ -250,4 +227,4 @@ if __name__=='__main__':
     ####################编译时间
     parm={'t_0': t_0, 'u_0': b, 't_E': t_E,
                         'rho': rho, 'q': q, 's': s, 'alpha_deg': alphadeg,'times':times,'retol':tol}
-    jacobian_test(**parm)
+    time_test()
