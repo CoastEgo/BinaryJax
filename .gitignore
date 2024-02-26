@@ -7,3 +7,6 @@
 dataFit/nocaustic
 dataFit/caustic
 dataFit/*.log
+*.pdf
+*.egg-info
+*.ipynb
