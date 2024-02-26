@@ -142,28 +142,18 @@ def find_nearest_sort(array1, parity1, array2, parity2):
     carry=lax.cond(jnp.isnan(array1).sum()==2,nan_in_array1,nan_not_in_array1,(array1,array2,cost,idx))
     array1,array2,cost,idx=carry
     return idx
-@custom_jvp
+
 @jax.jit
 def find_nearest(array1, parity1, array2, parity2):
     # linear sum assignment, the theoritical complexity is O(n^3) but our relization turns out to be much fast
     # for small cost matrix. adopted from https://github.com/google/jax/issues/10403 and I make it jit-able
-    cost=jnp.abs(array2-array1[:,None])+jnp.abs(parity2-parity1[:,None])*5#系数可以指定防止出现错误，系数越大鲁棒性越好，但是速度会变慢些
+    '''cost=jnp.abs(array2-array1[:,None])+jnp.abs(parity2-parity1[:,None])*5#系数可以指定防止出现错误，系数越大鲁棒性越好，但是速度会变慢些
     cost=jnp.where(jnp.isnan(cost),100,cost)
-    row_ind, col_idx=solve(cost)
+    row_ind, col_idx=solve(cost)'''
 
-    #col_idx=find_nearest_sort(array1, parity1, array2, parity2)
+    col_idx=find_nearest_sort(array1, parity1, array2, parity2)
     
     return col_idx
-@find_nearest.defjvp
-def find_nearest_jvp(primals, tangents):
-    a1,p1,a2,p2=primals
-    #da1,dp1,da2,dp2=tangents
-    primals_out=find_nearest(a1,p1,a2,p2)
-    #idx=primals_out[2]
-    #idx_bcast = jnp.broadcast_to(idx, da2.shape)
-    #da2_out = jnp.take(da2, idx_bcast)
-    #dp2_out = jnp.take(dp2, idx_bcast)
-    return primals_out,jnp.zeros_like(primals_out)
 '''@jax.jit
 def custom_insert(array,idx,add_array,add_number):
     ite=jnp.arange(array.shape[0])
