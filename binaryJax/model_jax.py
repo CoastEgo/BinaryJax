@@ -110,11 +110,18 @@ def contour_scan(carry,i):
         return carry
     @jax.jit
     def secondary_contour(carry):
-        result,resultlast,Max_array_length=carry
+        result,resultlast,add_length,Max_array_length=carry
+
+        ## switch the different method to add points while loop or scan
+        ## while loop don't support the reverse mode differentiation and shard_map in current jax version
+
+        ## while loop 
         resultnew,resultlast=lax.while_loop(cond_fun,while_body_fun,(resultlast,resultlast))
-        '''resultnew,_=lax.scan(scan_body,(resultlast,resultlast),jnp.arange(10))
+        ## scan
+        '''resultnew,_=lax.scan(scan_body,(resultlast,resultlast),jnp.arange(5))
         resultnew=resultnew[0]'''
-        Max_array_length+=60
+        
+        Max_array_length+=add_length
         return resultnew,Max_array_length
     @jax.jit
     def false_fun(carry):
@@ -159,8 +166,13 @@ def contour_integrate(rho,s,q,m1,m2,trajectory_l,epsilon,epsilon_rel=0,inite=30,
     carry=(sample_n,theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,
             Is_create,trajectory_l,rho,s,q,m1,m2,epsilon,epsilon_rel,mag,maglast,outloop)
     carrylast=carry
+
+    ## switch the different method to add points while loop or scan
+
     result=lax.while_loop(cond_fun,while_body_fun,(carry,carrylast))
+
     #result,_=lax.scan(scan_body,(carry,carrylast),jnp.arange(10))
+
     return result
 
 def scan_body(carry,i):
