@@ -181,6 +181,50 @@ def newton_polish(coff,roots,n=10):
     carry,_=lax.scan(loop_body,(roots,coff),jnp.arange(n))
     roots,_=carry
     return roots
+
+## Aberth-Ehrlich method in jax, adopted from https://github.com/AstroFatheddin/FS-Roots
+## https://arxiv.org/abs/2206.00482
+## author: Hossein Fatheddin
+@jax.jit
+def AE_roots0(coff):
+    def UV(coff):
+        U = 1 + 1 / jnp.abs(coff[0]) * jnp.max(jnp.abs(coff[:-1]))
+        V = jnp.abs(coff[-1]) / (jnp.abs(coff[-1]) + jnp.max(jnp.abs(coff[:-1])))
+        return U, V
+    def Roots0(coff):
+        U , V = UV(coff)
+        r = jax.random.uniform(jax.random.PRNGKey(0),shape=(coff.shape[0]-1,),minval=V,maxval=U)
+        phi = jax.random.uniform(jax.random.PRNGKey(0),shape=(coff.shape[0]-1,),minval=0,maxval=2*jnp.pi)
+        return r * jnp.exp(1j * phi)
+    roots = Roots0(coff)
+    return roots
+@jax.jit
+def Aberth_Ehrlich(coff,roots):
+    derp = jnp.polyder(coff)
+    mask = 1- jnp.eye(roots.shape[0])
+    @jax.jit
+    def loop_body(carry):
+        roots,coff,cond,ratio_old=carry
+        
+        roots_temp = jnp.where(cond,roots,0)
+        ratio = jnp.polyval(coff,roots_temp) / jnp.polyval(derp,roots_temp)
+        ratio = jnp.where(cond,ratio,ratio_old)
+
+        sum_term = jnp.nansum(mask *  1/(roots - roots[:, None]), axis=0)
+        w = ratio / (1 - (ratio * sum_term))
+        cond = jnp.abs(w) > 2e-10
+        maskw = jnp.where(cond, w, 0)
+        roots -= maskw
+        return (roots,coff,cond,ratio)
+    def cond_fun(carry):
+        roots,coff,cond,ratio=carry
+        return cond.any()
+
+    f=lambda x:jnp.polyval(coff,x)
+    solution=lambda f,x0: lax.while_loop(cond_fun,loop_body,(x0,coff,jnp.ones_like(x0,dtype=bool),x0))[0]
+    sclar=lambda g, y: jnp.linalg.solve(jax.jacobian(g,holomorphic=True)(y), y)
+
+    return lax.custom_root(f,roots,solve=solution,tangent_solve=sclar)
 '''
 if __name__=='__main__':
     inite=30;n_ite=400

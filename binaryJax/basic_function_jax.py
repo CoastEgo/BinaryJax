@@ -79,9 +79,10 @@ def loop_body(carry,k):#采用判断来减少浪费
     @jax.jit
     def False_fun(carry):
         coff,roots,k=carry
-        roots=roots.at[k].set(jnp.roots(coff,strip_zeros=False))
+        #roots=roots.at[k].set(jnp.roots(coff,strip_zeros=False))
         #roots=roots.at[k].set(halfanalytical(coff))
-        #roots=roots.at[k].set(implict_zroots(coff))
+        #roots=roots.at[k].set(implict_zroots(coff,roots[k-1]))
+        roots = roots.at[k].set(Aberth_Ehrlich(coff,roots[k-1]))
         return roots
     roots=lax.cond((coff[k]==0).all(),lambda x:x[1],False_fun,(coff[k],roots,k))
     return (coff,roots),k#'''
@@ -89,7 +90,9 @@ def loop_body(carry,k):#采用判断来减少浪费
 def get_roots(sample_n, coff):
     # 使用 vmap 进行矢量化，并指定输入参数的轴数
     #roots = jax.vmap(loop_body, in_axes=(0, None))(jnp.arange(sample_n), coff)
-    carry,_=lax.scan(loop_body,(coff,jnp.zeros((coff.shape[0],5),dtype=jnp.complex128)),jnp.arange(sample_n))#scan循环，但是没有浪费
+    roots = jnp.zeros((sample_n,5),dtype=jnp.complex128)
+    roots = roots.at[0].set(Aberth_Ehrlich(coff[0],AE_roots0(coff[0])))
+    carry,_=lax.scan(loop_body,(coff,roots),jnp.arange(1,sample_n))#scan循环，但是没有浪费
     coff,roots=carry
     return roots
 @jax.jit
