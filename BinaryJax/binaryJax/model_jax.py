@@ -95,18 +95,15 @@ def contour_scan(carry,i):
     @partial(jax.jit,static_argnums=(-1,))
     def reshape_fun(carry,arraylength):
         (sample_n,theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,
-        Is_create,trajectory_l,rho,s,q,m1,m2,epsilon,epsilon_rel,mag,maglast,outloop)=carry
+        Is_create,trajectory_l,rho,s,q,epsilon,epsilon_rel,mag,maglast,outloop)=carry
         ## reshape the array and fill the new array with nan
-        theta=jnp.pad(theta,((0,arraylength),(0,0)),'constant',constant_values=jnp.nan)
-        error_hist=jnp.pad(error_hist,((0,arraylength),(0,0)),'constant',constant_values=0.)
-        roots=jnp.pad(roots,((0,arraylength),(0,0)),'constant',constant_values=jnp.nan)
-        parity=jnp.pad(parity,((0,arraylength),(0,0)),'constant',constant_values=jnp.nan)
-        ghost_roots_dis=jnp.pad(ghost_roots_dis,((0,arraylength),(0,0)),'constant',constant_values=jnp.nan)
-        buried_error=jnp.pad(buried_error,((0,arraylength),(0,0)),'constant',constant_values=0.)
-        sort_flag=jnp.pad(sort_flag,((0,arraylength),(0,0)),'constant',constant_values=True)
-        Is_create=jnp.pad(Is_create,((0,arraylength),(0,0)),'constant',constant_values=0)
+        pad_list = [theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,Is_create]
+        pad_value = [jnp.nan,0.,jnp.nan,jnp.nan,jnp.nan,0.,True,0]
+        padded_list =jax.tree_map(lambda x,y: jnp.pad(x,((0,arraylength),(0,0)),'constant',constant_values=y),pad_list,pad_value)
+
+        theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,Is_create=padded_list
         carry=(sample_n,theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,
-        Is_create,trajectory_l,rho,s,q,m1,m2,epsilon,epsilon_rel,mag,maglast,outloop)
+        Is_create,trajectory_l,rho,s,q,epsilon,epsilon_rel,mag,maglast,outloop)
         return carry
     @jax.jit
     def secondary_contour(carry):
