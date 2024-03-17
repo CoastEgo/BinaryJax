@@ -9,20 +9,10 @@ jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
 
 @jax.jit
-def model(t_0,u_0,t_E,rho,q,s,alpha_deg,times,retol=0.001):
-    # Here the parameterization is consistent with Mulensmodel and VBBinaryLensing
-    # But the alpha is 180 degree different from VBBinaryLensing
-    ### initialize parameters
-    alpha_rad=alpha_deg*2*jnp.pi/360
-    times=(times-t_0)/t_E
-    trajectory_n=times.shape[0]
-    m1=1/(1+q)
-    m2=q/(1+q)
-    trajectory_l=get_trajectory_l(s,q,alpha_rad,u_0,times)
-    ###四极测试
-    zeta_l=trajectory_l[:,None]
+def point_light_curve(trajectory_l,s,q,m1,m2,rho):
+    zeta_l = trajectory_l[:,None]
     coff=get_poly_coff(zeta_l,s,m2)
-    z_l=get_roots(trajectory_n,coff)
+    z_l=get_roots(trajectory_l.shape[0],coff)
     error=verify(zeta_l,z_l,s,m1,m2)
     cond=error<1e-6
     index=jnp.where((cond.sum(axis=1)!=3) & (cond.sum(axis=1)!=5),size=5,fill_value=-1)[0]
@@ -33,28 +23,33 @@ def model(t_0,u_0,t_E,rho,q,s,alpha_deg,times,retol=0.001):
         cond=cond.at[index[:,None],sortidx[:,0:3]].set(True)
         return cond
     cond=lax.cond((index!=-1).any(),ambigious_deal,lambda x : x[-1],(error,index,cond)) #某些情况下出现的根不是5或者3个#'''
-    #############
+
     z=jnp.where(cond,z_l,jnp.nan)
     zG=jnp.where(cond,jnp.nan,z_l)
     cond,mag=Quadrupole_test(rho,s,q,zeta_l,z,zG)
-    #cond=cond.at[:].set(False)
-    carry,_=lax.scan(contour_scan,(mag,trajectory_l,retol,retol,rho,s,q,m1,m2,
-                                    jnp.array([0]),cond,False),jnp.arange(trajectory_n))
-    mag,trajectory_l,tol,retol,rho,s,q,m1,m2,sample_n,cond,outlop=carry#'''
-    #print(sample_n)
-    '''for i in range(len(cond)):
-        if cond[i]==False:
-            result=contour_integrate(rho,s,q,m1,m2,trajectory_l[i],retol,epsilon_rel=retol)
-            (sample_n,theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,
-            Is_create,_,rho,s,q,m1,m2,epsilon,epsilon_rel,mag_now,maglast,outloop)=result
-            print(sample_n)
-            print(mag_now)
-            print(maglast)
-            print(jnp.sum(error_hist))
-            print(error_hist)
-            print((error_hist/jnp.abs(mag_now)>retol/2/jnp.sqrt(sample_n)).any())
-            mag=mag.at[i].set(mag_now[0])#jax perfetto代码测试#'''
-    return mag
+    return mag,cond
+    
+@jax.jit
+def model(t_0,u_0,t_E,rho,q,s,alpha_deg,times,tol=1e-2,retol=0.001):
+    # Here the parameterization is consistent with Mulensmodel and VBBinaryLensing
+    # But the alpha is 180 degree different from VBBinaryLensing
+    ### initialize parameters
+    alpha_rad=alpha_deg*2*jnp.pi/360
+    times=(times-t_0)/t_E
+    trajectory_n=times.shape[0]
+    m1=1/(1+q);m2=q/(1+q)
+    ## switch the coordinate system to the lowmass
+    trajectory_l=get_trajectory_l(s,q,alpha_rad,u_0,times)
+
+
+    mag,cond=point_light_curve(trajectory_l,s,q,m1,m2,rho)
+
+    mag_contour = lambda trajectory_l: heriachical_contour(trajectory_l,tol,retol,rho,s,q,m1,m2,trajectory_n,False)[0]
+    
+    #mag_contour = lambda trajectory_l: contour_integrate(rho,s,q,m1,m2,trajectory_l,tol,epsilon_rel=retol)[0][-3][0]
+    mag_final = lax.map(lambda x: lax.cond(x[0],lambda _: x[1], jax.jit(mag_contour),x[2]), [cond,mag,trajectory_l])
+    return mag_final
+
 def to_centroid(s,q,x):#change coordinate system to cetorid
     delta_x=s/(1+q)
     return -(jnp.conj(x)-delta_x)
@@ -62,30 +57,17 @@ def to_lowmass(s,q,x):#change coordinaate system to lowmass
     delta_x=s/(1+q)
     return -jnp.conj(x)+delta_x
 @jax.jit
-def get_trajectory_l(s,q,alpha_rad,u_0,times):
-    alpha=alpha_rad
-    b=u_0
+def get_trajectory_l(s,q,alpha,b,times):
     trajectory_l=to_lowmass(s,q,times*jnp.cos(alpha)-b*jnp.sin(alpha)+1j*(b*jnp.cos(alpha)+times*jnp.sin(alpha)))
     return trajectory_l
 @jax.jit
-def contour_scan(carry,i):
-    mag_all,trajectory_l,retol,retol,rho,s,q,m1,m2,sample_n,cond,outlop=carry
-    @jax.jit
-    def clear_trash(carry):
-        (sample_n,theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,
-        Is_create,trajectory_l,rho,s,q,m1,m2,epsilon,epsilon_rel,mag,maglast,outloop)=carry
-        ## clear trash value in the last five elements
-        theta=theta.at[-3:].set(jnp.nan)
-        error_hist=error_hist.at[-3:].set(0.)
-        roots=roots.at[-3:].set(jnp.nan)
-        parity=parity.at[-3:].set(jnp.nan)
-        ghost_roots_dis=ghost_roots_dis.at[-3:].set(jnp.nan)
-        buried_error=buried_error.at[-3:].set(0.)
-        sort_flag=sort_flag.at[-3:].set(True)
-        Is_create=Is_create.at[-3:].set(0)
-        carry=(sample_n,theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,
-        Is_create,trajectory_l,rho,s,q,m1,m2,epsilon,epsilon_rel,mag,maglast,outloop)
-        return carry
+def heriachical_contour(trajectory_l,tol,retol,rho,s,q,m1,m2,sample_n,outlop,default_strategy=[60,80,150]):
+    # JIT compile operation needs shape of the array to be determined.
+    # But for optimial sampling, It is hard to know the array length before the code runs so we need to assign large enough array length
+    # which will cause the waste of memory and time. 
+    # To solve this problem, here we use heriachical array length adding method to add array length gradually,
+    # the problem is we should fine tuen the array length added in different layers to get the optimal performance which depends on the tolerance and parameter.
+    # current is 60 + 80 + 150 = 290
     @partial(jax.jit,static_argnums=(-1,))
     def reshape_fun(carry,arraylength):
         (sample_n,theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,
@@ -114,46 +96,24 @@ def contour_scan(carry,i):
         
         Max_array_length+=add_length
         return resultnew,Max_array_length
-    @jax.jit
-    def false_fun(carry):
-        mag_all,trajectory_l,retol,retol,rho,s,q,m1,m2,sample_n,cond,outlop=carry
-        ## JIT compile operation needs shape of the array to be determined.
-        ## But for optimial sampling, It is hard to know the array length before the code runs so we need to assign large enough array length
-        ## which will cause the waste of memory and time. 
-        ## To solve this problem, here we use heriachical array length adding method to add array length gradually,
-        ## the problem is we should fine tuen the array length added in different layers to get the optimal performance which depends on the tolerance and parameter.
-        ## current is 60 + 80 + 150 = 290
+    # first add
+    result=contour_integrate(rho,s,q,m1,m2,trajectory_l,tol,epsilon_rel=retol)
+    result,resultlast=result
+    Max_array_length=default_strategy[0]
+    for i in range(len(default_strategy)-1):
+        sample_n = result[0]
+        add_length = default_strategy[i+1]
+        resultlast = reshape_fun(resultlast,add_length)
+        result = reshape_fun(result,add_length)
+        resultlast,Max_array_length=lax.cond((result[0]<Max_array_length-5)[0],lambda x:(x[0],x[-1]),secondary_contour,(result,resultlast,add_length,Max_array_length))
 
-        ## first add
-        result=contour_integrate(rho,s,q,m1,m2,trajectory_l[i],retol,epsilon_rel=retol)
-        result,resultlast=result
-        Max_array_length=60### the array length in different layers need to be determined
-        ## if max array length is reached, try to add array length
-        ### reshape the array and fill the new array with nan
+    (sample_n,theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,
+    Is_create,_,rho,s,q,epsilon,epsilon_rel,mag,maglast,outloop)=result
+    
+    mag=lax.cond((sample_n<Max_array_length-5)[0],lambda x:x[0],lambda x:x[1],(mag,maglast))
 
-        ## second add
-        sample_n=result[0]
-        add_length=80##80
-        resultlast=reshape_fun(resultlast,add_length)
-        result=reshape_fun(result,add_length)
+    return (mag[0],sample_n,outlop)
 
-        result,Max_array_length=lax.cond((sample_n<Max_array_length-5)[0],lambda x:(x[0],x[-1]),secondary_contour,(result,resultlast,add_length,Max_array_length))
-        
-        ## third add
-        sample_n=result[0]
-        add_length=150
-        resultlast=reshape_fun(resultlast,add_length)
-        result=reshape_fun(result,add_length)
-
-        result,Max_array_length=lax.cond((sample_n<Max_array_length-5)[0],lambda x:(x[0],x[-1]),secondary_contour,(result,resultlast,add_length,Max_array_length))
-
-        (sample_n,theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,
-        Is_create,_,rho,s,q,m1,m2,epsilon,epsilon_rel,mag,maglast,outloop)=result
-        mag=lax.cond((sample_n<Max_array_length-5)[0],lambda x:x[0],lambda x:x[1],(mag,maglast))
-        mag_all=mag_all.at[i].set(mag[0])
-        return (mag_all,sample_n,outlop)
-    mag_all,sample_n,outlop=lax.cond(cond[i].all(),lambda x:(x[0],x[-3],x[-1]),false_fun,carry)
-    return (mag_all,trajectory_l,retol,retol,rho,s,q,m1,m2,sample_n,cond,outlop),sample_n
 @partial(jax.jit,static_argnums=(-1,))
 def contour_integrate(rho,s,q,m1,m2,trajectory_l,epsilon,epsilon_rel=0,inite=30,n_ite=60):
     ###初始化
