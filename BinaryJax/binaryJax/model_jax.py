@@ -25,12 +25,6 @@ def model(t_0,u_0,t_E,rho,q,s,alpha_deg,times,retol=0.001):
     z_l=get_roots(trajectory_n,coff)
     error=verify(zeta_l,z_l,s,m1,m2)
     cond=error<1e-6
-    #index=jnp.where((cond.sum(axis=1)!=3) & (cond.sum(axis=1)!=5))[0]
-    '''if index.size!=0:
-        sortidx=jnp.argsort(error[index],axis=1)
-        cond=cond.at[index].set(False)
-        cond=cond.at[index,sortidx[:,0:3]].set(True)'''
-    ###########
     index=jnp.where((cond.sum(axis=1)!=3) & (cond.sum(axis=1)!=5),size=5,fill_value=-1)[0]
     def ambigious_deal(carry):
         error,index,cond=carry
@@ -167,7 +161,7 @@ def contour_integrate(rho,s,q,m1,m2,trajectory_l,epsilon,epsilon_rel=0,inite=30,
     theta=jnp.where(jnp.arange(n_ite)<inite,jnp.resize(jnp.linspace(0,2*jnp.pi,inite),n_ite),jnp.nan)[:,None]#shape(500,1)
     error_hist=jnp.ones(n_ite)
     zeta_l=get_zeta_l(rho,trajectory_l,theta)
-    coff=get_poly_coff(zeta_l,s,m2)
+    coff=get_poly_coff(zeta_l,s,q/(1+q))
     roots,parity,ghost_roots_dis,outloop,coff,zeta_l,theta=get_real_roots(coff,zeta_l,theta,s,m1,m2)
     buried_error=get_buried_error(ghost_roots_dis,sample_n)
     sort_flag=jnp.where(jnp.arange(n_ite)<inite,False,True)[:,None]#是否需要排序
@@ -182,7 +176,7 @@ def contour_integrate(rho,s,q,m1,m2,trajectory_l,epsilon,epsilon_rel=0,inite=30,
     mag=(mag+magc+parab)/(jnp.pi*rho**2)
     error_hist+=buried_error
     carry=(sample_n,theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,
-            Is_create,trajectory_l,rho,s,q,m1,m2,epsilon,epsilon_rel,mag,maglast,outloop)
+            Is_create,trajectory_l,rho,s,q,epsilon,epsilon_rel,mag,maglast,outloop)
     carrylast=carry
 
     ## switch the different method to add points while loop or scan
@@ -225,17 +219,10 @@ def while_body_fun(carry):
     carrylast=carry
     ## function to add points, calculate the error and mag
     (sample_n,theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,
-        Is_create,trajectory_l,rho,s,q,m1,m2,epsilon,epsilon_rel,mag,maglast,outloop)=carry
+        Is_create,trajectory_l,rho,s,q,epsilon,epsilon_rel,mag,maglast,outloop)=carry
     add_max=4
     Max_array_length=jnp.shape(theta)[0]
-    ######迭代加点
-    #一次一个区间加点：
-    '''idx=jnp.nanargmax(error_hist)#单区间多点采样
-    add_number=jnp.ceil((error_hist[idx]/jnp.abs(mag)/epsilon_rel*jnp.sqrt(sample_n))**0.2).astype(int)#至少要插入一个点，不包括相同的第一个
-    add_number=jax.lax.min(add_number,add_max)
-    theta_diff = (theta[idx] - theta[idx-1]) / (add_number[0]+1)
-    add_theta=jnp.arange(1,add_max+1)[:,None]*theta_diff+theta[idx-1]
-    add_theta=jnp.where((jnp.arange(add_max)<add_number)[:,None],add_theta,jnp.nan)'''
+
     #一次多个区间加点:
     
     ### absolute error adding mode
@@ -250,18 +237,16 @@ def while_body_fun(carry):
     
     add_number=jnp.where((idx==0)[:,None],0,add_number)
     add_number=jnp.where(add_number>add_max,add_max,add_number)
-    '''carry=(theta,idx,add_number,jnp.full(theta.shape,jnp.nan))
-    for i in range(idx.shape[0]):
-        carry,k=theta_encode(carry,i)'''
+    
     carry,_=lax.scan(theta_encode,(theta,idx,add_number,
                                jnp.full(theta.shape,jnp.nan)),jnp.arange(idx.shape[0]))
     add_theta=carry[-1]
     ####
     add_zeta_l=get_zeta_l(rho,trajectory_l,add_theta)
-    add_coff=get_poly_coff(add_zeta_l,s,m2)
+    add_coff=get_poly_coff(add_zeta_l,s,q/(1+q))
     sample_n+=jnp.sum(add_number)
     theta,ghost_roots_dis,buried_error,sort_flag,roots,parity,Is_create,outloop=add_points(
-        idx,add_zeta_l,add_coff,add_theta,roots,parity,theta,ghost_roots_dis,sort_flag,s,m1,m2,sample_n,add_number)
+        idx,add_zeta_l,add_coff,add_theta,roots,parity,theta,ghost_roots_dis,sort_flag,s,1/(1+q),q/(1+q),sample_n,add_number)
     ####计算误差
     maglast=mag
     mag=1/2*jnp.nansum(jnp.nansum((roots.imag[0:-1]+roots.imag[1:])*(roots.real[0:-1]-roots.real[1:])*parity[0:-1],axis=0))
@@ -269,5 +254,5 @@ def while_body_fun(carry):
     mag=(mag+magc+parab)/(jnp.pi*rho**2)
     error_hist+=buried_error
     carry=(sample_n,theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,
-        Is_create,trajectory_l,rho,s,q,m1,m2,epsilon,epsilon_rel,mag,maglast,outloop)
+        Is_create,trajectory_l,rho,s,q,epsilon,epsilon_rel,mag,maglast,outloop)
     return (carry,carrylast)
