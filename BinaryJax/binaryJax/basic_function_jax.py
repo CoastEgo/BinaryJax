@@ -1,6 +1,6 @@
 import numpy as np
 import jax.numpy as jnp
-from .polynomial_solver import halfanalytical,zroots,implict_zroots,Aberth_Ehrlich,AE_roots0
+from .polynomial_solver import Aberth_Ehrlich,AE_roots0
 import jax
 from functools import partial
 from jax import lax
@@ -58,32 +58,28 @@ def get_parity(z,s,m1,m2):#get the parity of roots
 def get_parity_error(z,s,m1,m2):
     de_conjzeta_z1=m1/(jnp.conj(z)-s)**2+m2/jnp.conj(z)**2
     return jnp.abs((1-jnp.abs(de_conjzeta_z1)**2))
-'''@jax.jit # 自动矢量化
-def loop_body(k, coff):
-    #roots=jnp.roots(coff[k],strip_zeros=False)
-    roots=halfanalytical(coff[k])
-    return roots#自动矢量化，但是有浪费'''
-@jax.jit # 定义函数以进行矢量化
-def loop_body(carry,k):#采用判断来减少浪费
-    coff,roots=carry
-    @jax.jit
-    def False_fun(carry):
-        coff,roots,k=carry
-        #roots=roots.at[k].set(jnp.roots(coff,strip_zeros=False))
-        #roots=roots.at[k].set(halfanalytical(coff))
-        #roots=roots.at[k].set(implict_zroots(coff,roots[k-1]))
-        roots = roots.at[k].set(Aberth_Ehrlich(coff,roots[k-1]))
-        return roots
-    roots=lax.cond((coff[k]==0).all(),lambda x:x[1],False_fun,(coff[k],roots,k))
-    return (coff,roots),k#'''
+# @jax.jit # 定义函数以进行矢量化
+# def loop_body(carry,k):#采用判断来减少浪费
+#     coff,roots=carry
+
+#     def False_fun(carry):
+#         coff,roots,k=carry
+#         #roots=roots.at[k].set(jnp.roots(coff,strip_zeros=False))
+#         #roots=roots.at[k].set(halfanalytical(coff))
+#         #roots=roots.at[k].set(implict_zroots(coff,roots[k-1]))
+#         roots = roots.at[k].set(Aberth_Ehrlich(coff,roots[k-1]))
+#         return roots
+#     roots=lax.cond((coff[k]==0).all(),lambda x:x[1],False_fun,(coff[k],roots,k))
+#     return (coff,roots),k#'''
 @partial(jax.jit,static_argnums=0)
 def get_roots(sample_n, coff):
     # 使用 vmap 进行矢量化，并指定输入参数的轴数
-    #roots = jax.vmap(loop_body, in_axes=(0, None))(jnp.arange(sample_n), coff)
-    roots = jnp.zeros((sample_n,5),dtype=jnp.complex128)
-    roots = roots.at[0].set(Aberth_Ehrlich(coff[0],AE_roots0(coff[0])))
-    carry,_=lax.scan(loop_body,(coff,roots),jnp.arange(1,sample_n))#scan循环，但是没有浪费
-    coff,roots=carry
+    roots_solver= lambda x: Aberth_Ehrlich(x,AE_roots0(x))
+    roots = jax.vmap(jax.jit(roots_solver), in_axes=(0))(coff)
+    # roots = jnp.zeros((sample_n,5),dtype=jnp.complex128)
+    # roots = roots.at[0].set(Aberth_Ehrlich(coff[0],AE_roots0(coff[0])))
+    # carry,_=lax.scan(loop_body,(coff,roots),jnp.arange(1,sample_n))#scan循环，但是没有浪费
+    # coff,roots=carry
     return roots
 @jax.jit
 def dot_product(a,b):
@@ -137,11 +133,11 @@ def find_nearest_sort(array1, parity1, array2, parity2):
 def find_nearest(array1, parity1, array2, parity2):
     # linear sum assignment, the theoritical complexity is O(n^3) but our relization turns out to be much fast
     # for small cost matrix. adopted from https://github.com/google/jax/issues/10403 and I make it jit-able
-    '''cost=jnp.abs(array2-array1[:,None])+jnp.abs(parity2-parity1[:,None])*5#系数可以指定防止出现错误，系数越大鲁棒性越好，但是速度会变慢些
+    cost=jnp.abs(array2-array1[:,None])+jnp.abs(parity2-parity1[:,None])*5#系数可以指定防止出现错误，系数越大鲁棒性越好，但是速度会变慢些
     cost=jnp.where(jnp.isnan(cost),100,cost)
-    row_ind, col_idx=solve(cost)'''
+    row_ind, col_idx=solve(cost)
 
-    col_idx=find_nearest_sort(array1, parity1, array2, parity2)
+    #col_idx=find_nearest_sort(array1, parity1, array2, parity2)
     
     return col_idx
 '''@jax.jit
