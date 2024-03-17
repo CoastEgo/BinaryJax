@@ -9,21 +9,6 @@ from .linear_sum_assignment_jax import solve
 jax.config.update("jax_platform_name", "cpu")
 jax.config.update("jax_enable_x64", True)
 @jax.jit
-def fz0(z,m1,m2,s):
-    return -m1/(z-s)-m2/z
-@jax.jit
-def fz1(z,m1,m2,s):
-    return m1/(z-s)**2+m2/z**2
-@jax.jit
-def fz2(z,m1,m2,s):
-    return -2*m1/(z-s)**3-2*m2/z**3
-@jax.jit
-def fz3(z,m1,m2,s):
-    return 6*m1/(z-s)**4+6*m2/z**4
-@jax.jit
-def J(z,m1,m2,s):
-    return 1-fz1(z,m1,m2,s)*jnp.conj(fz1(z,m1,m2,s))
-@jax.jit
 def Quadrupole_test(rho,s,q,zeta,z,zG,tol=1e-2):
     m1=1/(1+q)
     m2=q/(1+q)
