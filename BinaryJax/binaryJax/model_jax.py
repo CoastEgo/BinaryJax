@@ -190,8 +190,20 @@ def while_body_fun(carry):
     #idx=jnp.where(error_hist>epsilon_rel/jnp.sqrt(sample_n),size=int(Max_array_length/5),fill_value=0)[0]
     #add_number=jnp.ceil((error_hist[idx]/epsilon_rel*jnp.sqrt(sample_n))**0.2).astype(int)#至少要插入一个点，不包括相同的第一个
     
-    ## relative error adding mode
+    # relative error adding mode
+    # error_hist_sorted = jnp.sort(error_hist,axis=0)[::-1]
+    # sort_idx = jnp.argsort(error_hist,axis=0)[::-1]
 
+    # idx=jnp.where(error_hist_sorted/jnp.abs(mag)>epsilon_rel/jnp.sqrt(sample_n),size=int(Max_array_length),fill_value=-1)[0]
+    # #print('idx', idx_2)
+
+    # idx = sort_idx[idx].reshape(-1)
+    # idx = jnp.sort(idx)
+    # zerot_counts = jnp.sum(idx==0)
+    # idx = jnp.roll(idx,-zerot_counts)
+
+    idx = jnp.where(error_hist/jnp.abs(mag)>epsilon_rel/jnp.sqrt(sample_n),size=int(Max_array_length/5),fill_value=0)[0]
+    
     idx=jnp.where(error_hist/jnp.abs(mag)>epsilon_rel/jnp.sqrt(sample_n),size=int(Max_array_length/5),fill_value=0)[0]
     add_number=jnp.ceil((error_hist[idx]/jnp.abs(mag)/epsilon_rel*jnp.sqrt(sample_n))**0.2).astype(int)#至少要插入一个点，不包括相同的第一个
     
