@@ -28,15 +28,20 @@ def Quadrupole_test(rho,s,q,zeta,z,zG,tol=1e-2):
     m1=1/(1+q)
     m2=q/(1+q)
     cQ=6;cG=2;cP=2
+    fz0 = lambda z: -m1/(z-s)-m2/z
+    fz1 = lambda z: m1/(z-s)**2+m2/z**2
+    fz2 = lambda z: -2*m1/(z-s)**3-2*m2/z**3
+    fz3 = lambda z: 6*m1/(z-s)**4+6*m2/z**4
+    J = lambda z: 1-fz1(z)*jnp.conj(fz1(z))
     ####Quadrupole test
-    miu_Q=jnp.abs(-2*jnp.real(3*jnp.conj(fz1(z,m1,m2,s))**3*fz2(z,m1,m2,s)**2-(3-3*J(z,m1,m2,s)+J(z,m1,m2,s)**2/2)*jnp.abs(fz2(z,m1,m2,s))**2+J(z,m1,m2,s)*jnp.conj(fz1(z,m1,m2,s))**2*fz3(z,m1,m2,s))/(J(z,m1,m2,s)**5))
-    miu_C=jnp.abs(6*jnp.imag(3*jnp.conj(fz1(z,m1,m2,s))**3*fz2(z,m1,m2,s)**2)/(J(z,m1,m2,s)**5))
-    mag=jnp.nansum(jnp.abs(1/J(z,m1,m2,s)),axis=1)
+    miu_Q=jnp.abs(-2*jnp.real(3*jnp.conj(fz1(z))**3*fz2(z)**2-(3-3*J(z)+J(z)**2/2)*jnp.abs(fz2(z))**2+J(z)*jnp.conj(fz1(z))**2*fz3(z))/(J(z)**5))
+    miu_C=jnp.abs(6*jnp.imag(3*jnp.conj(fz1(z))**3*fz2(z)**2)/(J(z)**5))
+    mag=jnp.nansum(jnp.abs(1/J(z)),axis=1)
     cond1=jnp.nansum(miu_Q+miu_C,axis=1)*cQ*(rho**2+1e-4*tol)<tol
     ####ghost image test
-    zwave=jnp.conj(zeta)-fz0(zG,m1,m2,s)
-    J_wave=1-fz1(zG,m1,m2,s)*fz1(zwave,m1,m2,s)
-    miu_G=1/2*jnp.abs(J(zG,m1,m2,s)*J_wave**2/(J_wave*fz2(jnp.conj(zG),m1,m2,s)*fz1(zG,m1,m2,s)-jnp.conj(J_wave)*fz2(zG,m1,m2,s)*fz1(jnp.conj(zG),m1,m2,s)*fz1(zwave,m1,m2,s)))
+    zwave=jnp.conj(zeta)-fz0(zG)
+    J_wave=1-fz1(zG)*fz1(zwave)
+    miu_G=1/2*jnp.abs(J(zG)*J_wave**2/(J_wave*fz2(jnp.conj(zG))*fz1(zG)-jnp.conj(J_wave)*fz2(zG)*fz1(jnp.conj(zG))*fz1(zwave)))
     cond2=~((cG*(rho+1e-3)>miu_G).any(axis=1))#any更加宽松，因为ghost roots应该是同时消失的，理论上是没问题的
     #####planet test
     cond3=((q>1e-2)|(jnp.abs(zeta+1/s)**2>cP*(rho**2+9*q/s**2))|(rho*rho*s*s<q))[:,0]
