@@ -12,7 +12,7 @@ jax.config.update("jax_platform_name", "cpu")
 def point_light_curve(trajectory_l,s,q,m1,m2,rho):
     zeta_l = trajectory_l[:,None]
     coff=get_poly_coff(zeta_l,s,m2)
-    z_l=get_roots(trajectory_l.shape[0],coff)
+    z_l=get_roots_vmap(trajectory_l.shape[0],coff)
     error=verify(zeta_l,z_l,s,m1,m2)
     cond=error<1e-6
     index=jnp.where((cond.sum(axis=1)!=3) & (cond.sum(axis=1)!=5),size=5,fill_value=-1)[0]
