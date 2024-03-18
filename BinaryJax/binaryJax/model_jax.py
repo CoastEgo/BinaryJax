@@ -95,7 +95,7 @@ def heriachical_contour(trajectory_l,tol,retol,rho,s,q,m1,m2,sample_n,outlop,def
         resultnew=resultnew[0]'''
         
         Max_array_length+=add_length
-        return resultnew,Max_array_length
+        return resultnew,resultnew,Max_array_length
     # first add
     result=contour_integrate(rho,s,q,m1,m2,trajectory_l,tol,epsilon_rel=retol)
     result,resultlast=result
@@ -103,9 +103,11 @@ def heriachical_contour(trajectory_l,tol,retol,rho,s,q,m1,m2,sample_n,outlop,def
     for i in range(len(default_strategy)-1):
         sample_n = result[0]
         add_length = default_strategy[i+1]
+
         resultlast = reshape_fun(resultlast,add_length)
         result = reshape_fun(result,add_length)
-        resultlast,Max_array_length=lax.cond((result[0]<Max_array_length-5)[0],lambda x:(x[0],x[-1]),secondary_contour,(result,resultlast,add_length,Max_array_length))
+
+        result,resultlast,Max_array_length=lax.cond((result[0]<Max_array_length-5)[0],lambda x:(x[0],x[1],x[-1]),secondary_contour,(result,resultlast,add_length,Max_array_length))
 
     (sample_n,theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,
     Is_create,_,rho,s,q,epsilon,epsilon_rel,mag,maglast,outloop)=result
@@ -172,8 +174,8 @@ def cond_fun(carry):
     ## switch the different stopping condition: absolute error or relative error
     ## to modify the stopping condition, you will also need to modify the add points method in the while_body_fun
 
-    #loop= (rel_mag_cond& (mini_interval>1e-14)& (~outloop)& abs_mag_cond & (mag_diff_cond|(sample_n<Max_array_length/2)[0]) & (sample_n<Max_array_length-5)[0])
-    loop= ((rel_mag_cond ) & (mini_interval>1e-14)& (~outloop)& abs_mag_cond  & (sample_n<Max_array_length-5)[0])
+    loop= (rel_mag_cond& (mini_interval>1e-14)& (~outloop)& abs_mag_cond & (mag_diff_cond) & (sample_n<Max_array_length-5)[0])
+    #loop= ((rel_mag_cond ) & (mini_interval>1e-14)& (~outloop)& abs_mag_cond  & (sample_n<Max_array_length-5)[0])
     #loop= (abs_mag_cond2&(mini_interval>1e-14)& (~outloop)& abs_mag_cond & (mag_diff_cond|(sample_n<Max_array_length/2)[0]) & (sample_n<Max_array_length-5)[0])
     return loop
 @jax.jit
