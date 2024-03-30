@@ -191,12 +191,12 @@ def AE_roots0(coff):
     roots = Roots0(coff)
     return roots
 @jax.jit
-def Aberth_Ehrlich(coff,roots):
+def Aberth_Ehrlich(coff,roots,MAX_ITER=100):
     derp = jnp.polyder(coff)
     mask = 1- jnp.eye(roots.shape[0])
     @jax.jit
     def loop_body(carry):
-        roots,coff,cond,ratio_old=carry
+        roots,coff,cond,ratio_old,n_iter=carry
         
         roots_temp = jnp.where(cond,roots,0)
         ratio = jnp.polyval(coff,roots_temp) / jnp.polyval(derp,roots_temp)
@@ -207,13 +207,13 @@ def Aberth_Ehrlich(coff,roots):
         cond = jnp.abs(w) > 2e-10
         maskw = jnp.where(cond, w, 0)
         roots -= maskw
-        return (roots,coff,cond,ratio)
+        return (roots,coff,cond,ratio,n_iter+1)
     def cond_fun(carry):
-        roots,coff,cond,ratio=carry
-        return cond.any()
+        roots,coff,cond,ratio,n_iter=carry
+        return cond.any()&(n_iter<MAX_ITER)
 
     f=lambda x:jnp.polyval(coff,x)
-    solution=lambda f,x0: lax.while_loop(cond_fun,loop_body,(x0,coff,jnp.ones_like(x0,dtype=bool),x0))[0]
+    solution=lambda f,x0: lax.while_loop(cond_fun,loop_body,(x0,coff,jnp.ones_like(x0,dtype=bool),x0,0))[0]
     sclar=lambda g, y: jnp.linalg.solve(jax.jacobian(g,holomorphic=True)(y), y)
 
     return lax.custom_root(f,roots,solve=solution,tangent_solve=sclar)
