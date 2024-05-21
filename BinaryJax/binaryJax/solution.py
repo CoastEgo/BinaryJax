@@ -22,6 +22,8 @@ def add_points(idx,add_zeta,add_coff,add_theta,roots,parity,theta,ghost_roots_di
     return theta,ghost_roots_dis,buried_error,sort_flag,roots,parity,Is_create,outloop
 @jax.jit
 def get_buried_error(ghost_roots_dis,sample_n):
+    ## add error to avoid buried image, here we set upper limits for number of interval to add : 20 to reduce
+    ## the waste caused by for i loop/scan
     n_ite=ghost_roots_dis.shape[0]
     error_buried=jnp.zeros((n_ite,1))
     idx1=jnp.where(ghost_roots_dis[0:-2]>2*ghost_roots_dis[1:-1],size=20,fill_value=-3)[0]+1#i-(i+1)>(i+1)对应的i+1
@@ -156,6 +158,7 @@ def find_create_points(roots, sample_n):
     return Is_create
 @jax.jit
 def sort_body1(values,k):
+    ## sort new added sampling
     roots, parity = values
     @jax.jit
     def False_fun_sort1(carry):
@@ -169,6 +172,7 @@ def sort_body1(values,k):
     return (roots,parity),k
 @jax.jit
 def sort_body2(carry,i):
+    ## sort the connection between new added sampling and old sampling
     @jax.jit
     def False_fun(carry):
         roots,parity,i=carry
