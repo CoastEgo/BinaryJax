@@ -52,10 +52,12 @@ def get_sorted_roots(roots,parity,sort_flag):
     return roots,parity,sort_flag
 @jax.jit
 def get_real_roots(coff,zeta_l,theta,s,m1,m2):
+    ## here we choose scan instead of vmap because vmap may cause some overhead for small addition number (50/35)
     n_ite=zeta_l.shape[0]
     sample_n=(~jnp.isnan(zeta_l)).any(axis=1).sum()
     mask=(jnp.arange(n_ite)<sample_n)
     roots=get_roots(n_ite,jnp.where(mask[:,None],coff,0.))#求有效的根
+    # roots = get_roots_vmap(n_ite,jnp.where(mask[:,None],coff,0.))
     roots=jnp.where(mask[:,None],roots,jnp.nan)
     parity=get_parity(roots,s,m1,m2)
     error=verify(zeta_l,roots,s,m1,m2)

@@ -10,6 +10,7 @@ jax.config.update("jax_platform_name", "cpu")
 
 @jax.jit
 def point_light_curve(trajectory_l,s,q,m1,m2,rho):
+    ## here we use vmap version for point light curve rather than scan which is faster when the number of points is large
     zeta_l = trajectory_l[:,None]
     coff=get_poly_coff(zeta_l,s,m2)
     z_l=get_roots_vmap(trajectory_l.shape[0],coff)
