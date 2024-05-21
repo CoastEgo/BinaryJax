@@ -96,7 +96,7 @@ def heriachical_contour(mag_init,cond,trajectory_l,tol,retol,rho,s,q,m1,m2,total
     (sample_n,theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,
     Is_create,_,rho,s,q,epsilon,epsilon_rel,mag,maglast,outloop)=carry
     
-    #mag=lax.cond((sample_n<Max_array_length-5)[0],lambda x:x[0],lambda x:x[1],(mag,maglast))
+    mag=lax.cond((sample_n<total_length-3)[0],lambda x:x[0],lambda x:x[1],(mag,maglast))
 
     return mag[0]
 
@@ -183,9 +183,9 @@ def while_body_fun(carry):
     #一次多个区间加点:
     
     ### absolute error adding mode
-    total_number = 30
+    total_number = 50
 
-    idx = jnp.where(error_hist/jnp.abs(mag)>epsilon_rel/jnp.sqrt(sample_n),size=Max_array_length,fill_value=0)[0]
+    idx = jnp.where(error_hist/jnp.abs(mag)>epsilon_rel/jnp.sqrt(sample_n),size=30,fill_value=0)[0]
     
     add_number=jnp.ceil((error_hist[idx]/jnp.abs(mag)/epsilon_rel*jnp.sqrt(sample_n))**0.2).astype(int)#至少要插入一个点，不包括相同的第一个
     

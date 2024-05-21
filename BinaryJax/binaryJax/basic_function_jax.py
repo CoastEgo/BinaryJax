@@ -174,7 +174,7 @@ def custom_insert(array,idx,add_array,add_number,pad_item):
 @jax.jit
 def theta_encode(carry,k):
     (theta,idx,add_number,add_theta_encode)=carry
-    add_max=30
+    add_max=50
     # add_max = theta.shape[0]
     theta_diff = (theta[idx[k]] - theta[idx[k]-1]) / (add_number[k]+1) ## index of theta to be added
     add_theta=jnp.arange(1,add_max+1)[:,None]*theta_diff+theta[idx[k]-1]
