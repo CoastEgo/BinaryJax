@@ -132,6 +132,8 @@ def find_create_points(roots, sample_n):
     cond=jnp.isnan(roots)
     Is_create=jnp.zeros_like(roots,dtype=int)
     idx_x,idx_y=jnp.where(jnp.diff(cond,axis=0)&(~cond[0:-1].all(axis=1))[:,None]&(jnp.arange(roots.shape[0]-1)!=sample_n-1)[:,None],size=20,fill_value=-2)
+    ## the roots at i is nan but the roots at i+1 is not nan/ the roots at i is not nan but the roots at i+1 is nan
+    ## the index i can't be the last index
     idx_x+=1
     @jax.jit
     def update_is_create(carry, inputs):
@@ -144,7 +146,7 @@ def find_create_points(roots, sample_n):
                             lambda _: -1,
                             lambda _: 10,
                             None)
-        create_value = lax.cond(~cond[x, y], create_value_true, create_value_false, None)
+        create_value = lax.cond(~cond[x, y], create_value_true, create_value_false, None) ## if the root is not nan, then it is created
         Is_create = Is_create.at[lax.cond(~cond[x, y], lambda _: x, lambda _: x - 1, None), y].set(create_value)
         return (cond, Is_create), (x, y)
     initial_carry = (cond, Is_create)
