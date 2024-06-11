@@ -95,7 +95,7 @@ def heriachical_contour(trajectory_l,tol,retol,rho,s,q,m1,m2,sample_n,outlop,def
         resultnew=resultnew[0]'''
         
         Max_array_length+=add_length
-        return resultnew,resultnew,Max_array_length
+        return resultnew,resultlast,Max_array_length
     # first add
     result=contour_integrate(rho,s,q,m1,m2,trajectory_l,tol,epsilon_rel=retol)
     result,resultlast=result
