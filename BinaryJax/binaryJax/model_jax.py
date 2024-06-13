@@ -44,7 +44,7 @@ def model(t_0,u_0,t_E,rho,q,s,alpha_deg,times,tol=1e-2,retol=0.001):
 
     mag,cond=point_light_curve(trajectory_l,s,q,m1,m2,rho)
 
-    mag_contour = lambda trajectory_l: heriachical_contour(trajectory_l,tol,retol,rho,s,q,m1,m2,trajectory_n,False)[0]
+    mag_contour = lambda trajectory_l: heriachical_contour(trajectory_l,tol,retol,rho,s,q,m1,m2,trajectory_n,0)[0]
     
     #mag_contour = lambda trajectory_l: contour_integrate(rho,s,q,m1,m2,trajectory_l,tol,epsilon_rel=retol)[0][-3][0]
     mag_final = lax.map(lambda x: lax.cond(x[0],lambda _: x[1], jax.jit(mag_contour),x[2]), [cond,mag,trajectory_l])
@@ -71,7 +71,7 @@ def heriachical_contour(trajectory_l,tol,retol,rho,s,q,m1,m2,sample_n,outlop,def
     @partial(jax.jit,static_argnums=(-1,))
     def reshape_fun(carry,arraylength):
         (sample_n,theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,
-        Is_create,trajectory_l,rho,s,q,epsilon,epsilon_rel,mag,maglast,outloop)=carry
+        Is_create,trajectory_l,rho,s,q,epsilon,epsilon_rel,mag,mag_no_diff_num,outloop)=carry
         ## reshape the array and fill the new array with nan
         pad_list = [theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,Is_create]
         pad_value = [jnp.nan,0.,jnp.nan,jnp.nan,jnp.nan,0.,True,0]
@@ -79,7 +79,7 @@ def heriachical_contour(trajectory_l,tol,retol,rho,s,q,m1,m2,sample_n,outlop,def
 
         theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,Is_create=padded_list
         carry=(sample_n,theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,
-        Is_create,trajectory_l,rho,s,q,epsilon,epsilon_rel,mag,maglast,outloop)
+        Is_create,trajectory_l,rho,s,q,epsilon,epsilon_rel,mag,mag_no_diff_num,outloop)
         return carry
     @jax.jit
     def secondary_contour(carry):
@@ -110,8 +110,8 @@ def heriachical_contour(trajectory_l,tol,retol,rho,s,q,m1,m2,sample_n,outlop,def
         result,resultlast,Max_array_length=lax.cond((result[0]<Max_array_length-5)[0],lambda x:(x[0],x[1],x[-1]),secondary_contour,(result,resultlast,add_length,Max_array_length))
 
     (sample_n,theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,
-    Is_create,_,rho,s,q,epsilon,epsilon_rel,mag,maglast,outloop)=result
-    
+    Is_create,_,rho,s,q,epsilon,epsilon_rel,mag,mag_no_diff_num,outloop)=result
+    maglast = resultlast[-3]
     mag=lax.cond((sample_n<Max_array_length-5)[0],lambda x:x[0],lambda x:x[1],(mag,maglast))
 
     return (mag[0],sample_n,outlop)
@@ -132,13 +132,13 @@ def contour_integrate(rho,s,q,m1,m2,trajectory_l,epsilon,epsilon_rel=0,inite=30,
     roots,parity,sort_flag=get_sorted_roots(roots,parity,sort_flag)
     Is_create=find_create_points(roots,sample_n)
     #####计算第一次的误差，放大率
-    maglast=jnp.array([1.])
+    mag_no_diff_num = 0
     mag=1/2*jnp.nansum(jnp.nansum((roots.imag[0:-1]+roots.imag[1:])*(roots.real[0:-1]-roots.real[1:])*parity[0:-1],axis=0))
     error_hist,magc,parab=error_sum(Is_create,roots,parity,theta,rho,q,s)
     mag=(mag+magc+parab)/(jnp.pi*rho**2)
     error_hist+=buried_error
     carry=(sample_n,theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,
-            Is_create,trajectory_l,rho,s,q,epsilon,epsilon_rel,mag,maglast,outloop)
+            Is_create,trajectory_l,rho,s,q,epsilon,epsilon_rel,mag,mag_no_diff_num,outloop)
     carrylast=carry
 
     ## switch the different method to add points while loop or scan
@@ -159,7 +159,7 @@ def cond_fun(carry):
     carry,carrylast=carry
     ## function to judge whether to continue the loop use relative error
     (sample_n,theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,
-        Is_create,trajectory_l,rho,s,q,epsilon,epsilon_rel,mag,maglast,outloop)=carry
+        Is_create,trajectory_l,rho,s,q,epsilon,epsilon_rel,mag,mag_no_diff_num,outloop)=carry
     Max_array_length=jnp.shape(theta)[0]
     mini_interval=jnp.nanmin(jnp.abs(jnp.diff(theta,axis=0)))
     abs_mag_cond=(jnp.nansum(error_hist)>epsilon)
@@ -167,14 +167,18 @@ def cond_fun(carry):
     abs_mag_cond2=(error_hist>epsilon/jnp.sqrt(sample_n)).any()
     rel_mag_cond=(error_hist/jnp.abs(mag)>epsilon_rel/jnp.sqrt(sample_n)).any()
 
-    #rel_mag_cond=(jnp.nansum(error_hist)/jnp.abs(mag)>epsilon_rel)[0]
-    relmag_diff_cond=(jnp.abs((mag-maglast)/maglast)>1/2*epsilon_rel)[0]
-    mag_diff_cond=(jnp.abs(mag-maglast)>1/2*epsilon)[0]
+    # rel_mag_cond=(jnp.nansum(error_hist)>epsilon_rel*mag)[0]
+    # relmag_diff_cond=(jnp.abs((mag-maglast)/maglast)>1/2*epsilon_rel)[0]
+    # mag_diff_cond=(jnp.abs(mag-maglast)>1/2*epsilon)[0]
 
     ## switch the different stopping condition: absolute error or relative error
     ## to modify the stopping condition, you will also need to modify the add points method in the while_body_fun
+    # outloop is the number of loop whose add points have ambiguous parity or roots, in this situation we will delete this points and add outloop by 1,
+    # if outloop is larger than the threshold we stop the while loop
 
-    loop= (rel_mag_cond& (mini_interval>1e-14)& (~outloop)& abs_mag_cond & (mag_diff_cond) & (sample_n<Max_array_length-5)[0])
+    loop= (rel_mag_cond& (mini_interval>1e-14)& (outloop<=2)& abs_mag_cond & (mag_no_diff_num<2) & (sample_n<Max_array_length-5)[0])
+    # jax.debug.print('{}',mag)
+    # jax.debug.breakpoint()
     #loop= ((rel_mag_cond ) & (mini_interval>1e-14)& (~outloop)& abs_mag_cond  & (sample_n<Max_array_length-5)[0])
     #loop= (abs_mag_cond2&(mini_interval>1e-14)& (~outloop)& abs_mag_cond & (mag_diff_cond|(sample_n<Max_array_length/2)[0]) & (sample_n<Max_array_length-5)[0])
     return loop
@@ -184,7 +188,7 @@ def while_body_fun(carry):
     carrylast=carry
     ## function to add points, calculate the error and mag
     (sample_n,theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,
-        Is_create,trajectory_l,rho,s,q,epsilon,epsilon_rel,mag,maglast,outloop)=carry
+        Is_create,trajectory_l,rho,s,q,epsilon,epsilon_rel,mag,mag_no_diff_num,outloop)=carry
     add_max=4
     Max_array_length=jnp.shape(theta)[0]
 
@@ -221,14 +225,17 @@ def while_body_fun(carry):
     add_zeta_l=get_zeta_l(rho,trajectory_l,add_theta)
     add_coff=get_poly_coff(add_zeta_l,s,q/(1+q))
     sample_n+=jnp.sum(add_number)
-    theta,ghost_roots_dis,buried_error,sort_flag,roots,parity,Is_create,outloop=add_points(
+    theta,ghost_roots_dis,buried_error,sort_flag,roots,parity,Is_create,add_outloop=add_points(
         idx,add_zeta_l,add_coff,add_theta,roots,parity,theta,ghost_roots_dis,sort_flag,s,1/(1+q),q/(1+q),sample_n,add_number)
+    outloop += add_outloop
     ####计算误差
     maglast=mag
     mag=1/2*jnp.nansum(jnp.nansum((roots.imag[0:-1]+roots.imag[1:])*(roots.real[0:-1]-roots.real[1:])*parity[0:-1],axis=0))
     error_hist,magc,parab=error_sum(Is_create,roots,parity,theta,rho,q,s)
     mag=(mag+magc+parab)/(jnp.pi*rho**2)
+    mag_no_diff_num += (jnp.abs(mag-maglast)<1/2*epsilon).sum()
+    # check the change of the mag, if the mag is not changed at least 2 iteration, we stop the loop
     error_hist+=buried_error
     carry=(sample_n,theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,
-        Is_create,trajectory_l,rho,s,q,epsilon,epsilon_rel,mag,maglast,outloop)
+        Is_create,trajectory_l,rho,s,q,epsilon,epsilon_rel,mag,mag_no_diff_num,outloop)
     return (carry,carrylast)

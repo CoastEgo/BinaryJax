@@ -73,7 +73,7 @@ def get_real_roots(coff,zeta_l,theta,s,m1,m2):
     idx_parity_wrong=jnp.where((parity_sum!=-1)&mask,size=n_ite,fill_value=-1)[0]#parity计算出现错误的根的索引
     real_parity=lax.cond((idx_parity_wrong!=-1).any(),update_parity,lambda x:x[-1],(zeta_l,real_roots,nan_num,sample_n,idx_parity_wrong,cond,s,m1,m2,real_parity))
     parity_sum=jnp.nansum(real_parity,axis=1)
-    outloop=False
+    outloop=0
     carry=lax.cond(((parity_sum!=-1)&mask).any(),parity_delete_cond,lambda x:x,(sample_n,theta,real_parity,real_roots,outloop,parity_sum))
     sample_n,theta,real_parity,real_roots,outloop,parity_sum=carry
     ###计算得到最终的
@@ -189,5 +189,6 @@ def parity_delete_cond(carry):
     sample_n-=jnp.size(delidx)
     delete_tree = [theta, real_parity, real_roots]
     theta,real_parity,real_roots=jax.tree_map(lambda x: custom_delete(x,delidx), delete_tree)
-    outloop=True
+    outloop+=1
+    # if the parity is still wrong, then delete the point
     return (sample_n,theta,real_parity,real_roots,outloop,parity_sum)
