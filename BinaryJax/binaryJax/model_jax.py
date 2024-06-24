@@ -228,7 +228,9 @@ def while_body_fun(carry):
     theta,ghost_roots_dis,buried_error,sort_flag,roots,parity,Is_create,add_outloop=add_points(
         idx,add_zeta_l,add_coff,add_theta,roots,parity,theta,ghost_roots_dis,sort_flag,s,1/(1+q),q/(1+q),sample_n,add_number)
     outloop += add_outloop
-    ####计算误差
+    ## refine gradient of roots respect to zeta_l
+    # zeta_l=get_zeta_l(rho,trajectory_l,theta)
+    # roots = refine_gradient(zeta_l,q,s,roots)
     maglast=mag
     mag=1/2*jnp.nansum(jnp.nansum((roots.imag[0:-1]+roots.imag[1:])*(roots.real[0:-1]-roots.real[1:])*parity[0:-1],axis=0))
     error_hist,magc,parab=error_sum(Is_create,roots,parity,theta,rho,q,s)
@@ -239,3 +241,28 @@ def while_body_fun(carry):
     carry=(sample_n,theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,
         Is_create,trajectory_l,rho,s,q,epsilon,epsilon_rel,mag,mag_no_diff_num,outloop)
     return (carry,carrylast)
+@jax.custom_jvp
+def refine_gradient(zeta_l,q,s,z):
+    return z
+@refine_gradient.defjvp
+def refine_gradient_jvp(primals,tangents):
+    '''
+    use the custom jvp to refine the gradient of roots respect to zeta_l, based on the equation on V.Bozza 2010 eq 20. The necessity of this function is still under investigation.
+    '''
+    zeta,q,s,z=primals
+    tangent_zeta,tangent_q,tangent_s,tangent_z=tangents
+
+    z_c=jnp.conj(z)
+    parZetaConZ=1/(1+q)*(1/(z_c-s)**2+q/z_c**2)
+    detJ = 1-jnp.abs(parZetaConZ)**2
+
+    add_item_q =  1/(1+q)**2*(1/(z_c-s)-1/z_c)
+    add_item_q = tangent_q*(add_item_q-jnp.conj(add_item_q)*parZetaConZ)
+
+    add_item_s = -1/(1+q)/(z_c-s)**2
+    add_item_s = tangent_s*(add_item_s-jnp.conj(add_item_s)*parZetaConZ)
+
+    tangent_z2 =  (tangent_zeta-parZetaConZ * jnp.conj(tangent_zeta)-add_item_q-add_item_s)/detJ
+    tangent_z2 = jnp.where(jnp.isnan(tangent_z2),0.,tangent_z2)
+    # jax.debug.print('{}',(tangent_z2-tangent_z).sum())
+    return z,tangent_z2
