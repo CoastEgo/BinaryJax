@@ -1,10 +1,11 @@
-import numpy as jnp
+import numpy as np
 import jax.numpy as jnp
 import jax
 from jax import lax
 from .error_estimator import *
 from .solution import *
 from .basic_function_jax import Quadrupole_test
+from functools import partial
 jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
 
@@ -29,8 +30,8 @@ def point_light_curve(trajectory_l,s,q,m1,m2,rho):
     cond,mag=Quadrupole_test(rho,s,q,zeta_l,z,zG)
     return mag,cond
     
-@jax.jit
-def model(t_0,u_0,t_E,rho,q,s,alpha_deg,times,tol=1e-2,retol=0.001):
+@partial(jax.jit,static_argnames=['return_info','default_strategy'])
+def model(t_0,u_0,t_E,rho,q,s,alpha_deg,times,tol=1e-2,retol=0.001,return_info=False,default_strategy=(60,80,150)):
     # Here the parameterization is consistent with Mulensmodel and VBBinaryLensing
     # But the alpha is 180 degree different from VBBinaryLensing
     ### initialize parameters
@@ -44,11 +45,26 @@ def model(t_0,u_0,t_E,rho,q,s,alpha_deg,times,tol=1e-2,retol=0.001):
 
     mag,cond=point_light_curve(trajectory_l,s,q,m1,m2,rho)
 
-    mag_contour = lambda trajectory_l: heriachical_contour(trajectory_l,tol,retol,rho,s,q,m1,m2,trajectory_n,0)[0]
-    
-    #mag_contour = lambda trajectory_l: contour_integrate(rho,s,q,m1,m2,trajectory_l,tol,epsilon_rel=retol)[0][-3][0]
-    mag_final = lax.map(lambda x: lax.cond(x[0],lambda _: x[1], jax.jit(mag_contour),x[2]), [cond,mag,trajectory_l])
-    return mag_final
+    if return_info:
+        pad_value = [jnp.nan,0.,jnp.nan+1j*jnp.nan,jnp.nan,jnp.nan,0.,True,0]
+        shape = [1,1,5,5,1,1,1,5]
+        init_fun = lambda x,y : jnp.full((sum(default_strategy),y),x)
+        theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,Is_create = jax.tree_map(init_fun,pad_value,shape)
+        sample_n=jnp.array([0]);epsilon=tol;epsilon_rel=retol;mag_no_diff_num=0;outloop=0
+        carry_init = (sample_n,theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,
+        Is_create,trajectory_l[0],rho,s,q,epsilon,epsilon_rel,jnp.array([0.]),mag_no_diff_num,outloop)
+        
+        mag_contour = lambda trajectory_l: heriachical_contour(trajectory_l,tol,retol,rho,s,q,m1,m2,trajectory_n,default_strategy)
+        result = lax.map(lambda x: lax.cond(x[0],lambda _: (x[1],carry_init), jax.jit(mag_contour),x[2]), [cond,mag,trajectory_l])
+        mag_final,carry_list = result
+        return mag_final,carry_list
+    else:
+        mag_contour = lambda trajectory_l: heriachical_contour(trajectory_l,tol,retol,rho,s,q,m1,m2,trajectory_n,default_strategy)[0]
+        mag_final = lax.map(lambda x: lax.cond(x[0],lambda _: x[1], 
+                                               jax.jit(mag_contour),x[2]), 
+                                               [cond,mag,trajectory_l])
+
+        return mag_final
 
 def to_centroid(s,q,x):#change coordinate system to cetorid
     delta_x=s/(1+q)
@@ -60,8 +76,8 @@ def to_lowmass(s,q,x):#change coordinaate system to lowmass
 def get_trajectory_l(s,q,alpha,b,times):
     trajectory_l=to_lowmass(s,q,times*jnp.cos(alpha)-b*jnp.sin(alpha)+1j*(b*jnp.cos(alpha)+times*jnp.sin(alpha)))
     return trajectory_l
-@jax.jit
-def heriachical_contour(trajectory_l,tol,retol,rho,s,q,m1,m2,sample_n,outlop,default_strategy=[60,80,150]):
+@partial(jax.jit,static_argnames=['default_strategy'])
+def heriachical_contour(trajectory_l,tol,retol,rho,s,q,m1,m2,sample_n,default_strategy=(60,80,150)):
     # JIT compile operation needs shape of the array to be determined.
     # But for optimial sampling, It is hard to know the array length before the code runs so we need to assign large enough array length
     # which will cause the waste of memory and time. 
@@ -97,7 +113,7 @@ def heriachical_contour(trajectory_l,tol,retol,rho,s,q,m1,m2,sample_n,outlop,def
         Max_array_length+=add_length
         return resultnew,resultlast,Max_array_length
     # first add
-    result=contour_integrate(rho,s,q,m1,m2,trajectory_l,tol,epsilon_rel=retol)
+    result=contour_integrate(rho,s,q,m1,m2,trajectory_l,tol,epsilon_rel=retol,inite=30,n_ite=default_strategy[0])
     result,resultlast=result
     Max_array_length=default_strategy[0]
     for i in range(len(default_strategy)-1):
@@ -114,9 +130,9 @@ def heriachical_contour(trajectory_l,tol,retol,rho,s,q,m1,m2,sample_n,outlop,def
     maglast = resultlast[-3]
     mag=lax.cond((sample_n<Max_array_length-5)[0],lambda x:x[0],lambda x:x[1],(mag,maglast))
 
-    return (mag[0],sample_n,outlop)
+    return (mag[0],result)
 
-@partial(jax.jit,static_argnums=(-1,))
+@partial(jax.jit,static_argnames=('inite','n_ite'))
 def contour_integrate(rho,s,q,m1,m2,trajectory_l,epsilon,epsilon_rel=0,inite=30,n_ite=60):
     ###初始化
     sample_n=jnp.array([inite])
@@ -176,7 +192,7 @@ def cond_fun(carry):
     # outloop is the number of loop whose add points have ambiguous parity or roots, in this situation we will delete this points and add outloop by 1,
     # if outloop is larger than the threshold we stop the while loop
 
-    loop= (rel_mag_cond& (mini_interval>1e-14)& (outloop<=2)& abs_mag_cond & (mag_no_diff_num<2) & (sample_n<Max_array_length-5)[0])
+    loop= (rel_mag_cond& (mini_interval>1e-14)& (outloop<=2)& abs_mag_cond & (mag_no_diff_num<3) & (sample_n<Max_array_length-5)[0])
     # jax.debug.print('{}',mag)
     # jax.debug.breakpoint()
     #loop= ((rel_mag_cond ) & (mini_interval>1e-14)& (~outloop)& abs_mag_cond  & (sample_n<Max_array_length-5)[0])
