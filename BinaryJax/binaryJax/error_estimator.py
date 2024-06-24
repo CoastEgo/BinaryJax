@@ -12,16 +12,35 @@ def basic_partial(z,theta,rho,q,s):
     detJ=1-jnp.abs(parZetaConZ)**2
     de_z=(de_zeta-parZetaConZ*jnp.conj(de_zeta))/detJ
     deXProde2X=(rho**2+jnp.imag(de_z**2*de_zeta*par2ConZetaZ))/detJ
-    return deXProde2X,de_z,delta_theta
+
+    # calculate the derivative of x'^x'' with respect to \theta x'^x'''
+    de2_zeta = -rho*jnp.exp(1j*theta)
+    de2_zetaConj = -rho*jnp.exp(-1j*theta)
+    par3ConZetaZ=6/(1+q)*(1/(z-s)**4+q/(z)**4)
+    de2_z = (de2_zeta-jnp.conj(par2ConZetaZ)*jnp.conj(de_z)**2-parZetaConZ*(
+        de2_zetaConj-par2ConZetaZ*de_z**2))/detJ
+    
+    # deXProde2X_test = 1/(2*1j)*(de2_z*jnp.conj(de_z)-de_z*jnp.conj(de2_z))
+    # jax.debug.print('deXProde2X_test error is {}',jnp.nansum(jnp.abs(deXProde2X_test-deXProde2X)))
+    de_deXPro_de2X=1/detJ**2*jnp.imag(
+        detJ*(de2_zeta*par2ConZetaZ*de_z**2+de_zeta*par3ConZetaZ*de_z**3+de_zeta*par2ConZetaZ*2*de_z*de2_z)
+        +(jnp.conj(par2ConZetaZ)*jnp.conj(de_z)*jnp.conj(parZetaConZ)+parZetaConZ*par2ConZetaZ*de_z
+        )*de_zeta*par2ConZetaZ*de_z**2)
+    # deXProde2X = jax.lax.stop_gradient(deXProde2X)
+    return deXProde2X,de_z,delta_theta,de_deXPro_de2X
+
 @jax.jit
-def error_ordinary(deXProde2X,de_z,delta_theta,z,parity):
+def error_ordinary(deXProde2X,de_z,delta_theta,z,parity,de_deXPro_de2X):
     e1=jnp.nansum(jnp.abs(1/48*jnp.abs(jnp.abs(deXProde2X[0:-1]-jnp.abs(deXProde2X[1:])))*delta_theta**3),axis=1)
     dAp_1=1/24*((deXProde2X[0:-1]+deXProde2X[1:]))*delta_theta
     dAp=dAp_1*delta_theta**2*parity[0:-1]
     delta_theta_wave=jnp.abs(z[0:-1]-z[1:])**2/jnp.abs(dot_product(de_z[0:-1],de_z[1:]))
     e2=jnp.nansum(3/2*jnp.abs(dAp_1*(delta_theta_wave-delta_theta**2)),axis=1)
     e3=jnp.nansum(1/10*jnp.abs(dAp)*delta_theta**2,axis=1)
-    e_tot=e1+e2+e3
+    de_dAp=1/24*(de_deXPro_de2X[0:-1]-de_deXPro_de2X[1:])*delta_theta**3*parity[0:-1]
+    e4 = jnp.nansum(1/10*jnp.abs(de_dAp),axis=1) ## e4 is the error item to estimate the gradient error of the parabolic correction term
+    # jax.debug.print('{}',jnp.nansum(e4)))
+    e_tot=e1+e2+e3+e4
     return e_tot,jnp.nansum(dAp)#抛物线近似的补偿项
 @jax.jit
 def error_critial(i,create,Is_create,parity,deXProde2X,z,de_z):
@@ -39,9 +58,9 @@ def error_critial(i,create,Is_create,parity,deXProde2X,z,de_z):
 @jax.jit
 def error_sum(Is_create,z,parity,theta,rho,q,s):
     error_hist=jnp.zeros_like(theta)
-    deXProde2X,de_z,delta_theta=basic_partial(z,theta,rho,q,s)
+    deXProde2X,de_z,delta_theta,de_deXPro_de2X=basic_partial(z,theta,rho,q,s)
     mag=jnp.array([0.])
-    e_ord,parab=error_ordinary(deXProde2X,de_z,delta_theta,z,parity)
+    e_ord,parab=error_ordinary(deXProde2X,de_z,delta_theta,z,parity,de_deXPro_de2X)
     error_hist=error_hist.at[1:].set(e_ord[:,None])
     carry=jax.lax.cond((Is_create!=0).any(),no_create_true_fun,lambda x:x,(mag,parab,Is_create,error_hist,parity,deXProde2X,z,de_z))
     mag,parab,Is_create,error_hist,parity,deXProde2X,z,de_z=carry
