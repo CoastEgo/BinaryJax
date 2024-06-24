@@ -174,11 +174,18 @@ from functools import partial
 #     roots,_=carry
 #     return roots
 
-## Aberth-Ehrlich method in jax, adopted from https://github.com/AstroFatheddin/FS-Roots
-## https://arxiv.org/abs/2206.00482
-## author: Hossein Fatheddin
+
 @jax.jit
 def AE_roots0(coff):
+    """
+    Computes the initial guesses using the Aberth-Ehrlich method.
+
+    Args:
+        coff (ndarray): Coefficients of the polynomial.
+
+    Returns:
+        ndarray: Array of initial guesses for the roots of the polynomial.
+    """
     def UV(coff):
         U = 1 + 1 / jnp.abs(coff[0]) * jnp.max(jnp.abs(coff[:-1]))
         V = jnp.abs(coff[-1]) / (jnp.abs(coff[-1]) + jnp.max(jnp.abs(coff[:-1])))
@@ -191,32 +198,48 @@ def AE_roots0(coff):
     roots = Roots0(coff)
     return roots
 @jax.jit
-def Aberth_Ehrlich(coff,roots,MAX_ITER=100):
+def Aberth_Ehrlich(coff, roots, MAX_ITER=100):
+    """
+    Solves a polynomial equation using the Aberth-Ehrlich method.
+    Adopted from https://arxiv.org/abs/2206.00482 Hossein Fatheddin
+    Use jax.lax.custom_root to get precise derivative in automatic differentiation
+
+    Args:
+        coff (ndarray): Coefficients of the polynomial equation.
+        roots (ndarray): Initial guesses for the roots of the polynomial equation.
+        MAX_ITER (int, optional): Maximum number of iterations. Defaults to 100.
+
+    Returns:
+        ndarray: The roots of the polynomial equation.
+
+    """
     derp = jnp.polyder(coff)
-    mask = 1- jnp.eye(roots.shape[0])
+    mask = 1 - jnp.eye(roots.shape[0])
+
     @jax.jit
     def loop_body(carry):
-        roots,coff,cond,ratio_old,n_iter=carry
-        
-        roots_temp = jnp.where(cond,roots,0)
-        ratio = jnp.polyval(coff,roots_temp) / jnp.polyval(derp,roots_temp)
-        ratio = jnp.where(cond,ratio,ratio_old)
+        roots, coff, cond, ratio_old, n_iter = carry
 
-        sum_term = jnp.nansum(mask *  1/(roots - roots[:, None]), axis=0)
+        roots_temp = jnp.where(cond, roots, 0)
+        ratio = jnp.polyval(coff, roots_temp) / jnp.polyval(derp, roots_temp)
+        ratio = jnp.where(cond, ratio, ratio_old)
+
+        sum_term = jnp.nansum(mask * 1 / (roots - roots[:, None]), axis=0)
         w = ratio / (1 - (ratio * sum_term))
         cond = jnp.abs(w) > 2e-10
         maskw = jnp.where(cond, w, 0)
         roots -= maskw
-        return (roots,coff,cond,ratio,n_iter+1)
+        return (roots, coff, cond, ratio, n_iter + 1)
+
     def cond_fun(carry):
-        roots,coff,cond,ratio,n_iter=carry
-        return cond.any()&(n_iter<MAX_ITER)
+        roots, coff, cond, ratio, n_iter = carry
+        return cond.any() & (n_iter < MAX_ITER)
 
-    f=lambda x:jnp.polyval(coff,x)
-    solution=lambda f,x0: lax.while_loop(cond_fun,loop_body,(x0,coff,jnp.ones_like(x0,dtype=bool),x0,0))[0]
-    sclar=lambda g, y: jnp.linalg.solve(jax.jacobian(g,holomorphic=True)(y), y)
+    f = lambda x: jnp.polyval(coff, x)
+    solution = lambda f, x0: lax.while_loop(cond_fun, loop_body, (x0, coff, jnp.ones_like(x0, dtype=bool), x0, 0))[0]
+    sclar = lambda g, y: jnp.linalg.solve(jax.jacobian(g, holomorphic=True)(y), y)
 
-    return lax.custom_root(f,roots,solve=solution,tangent_solve=sclar)
+    return lax.custom_root(f, roots, solve=solution, tangent_solve=sclar)
 '''
 if __name__=='__main__':
     inite=30;n_ite=400

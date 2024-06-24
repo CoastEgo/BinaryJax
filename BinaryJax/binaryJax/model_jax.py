@@ -10,7 +10,21 @@ jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
 
 @jax.jit
-def point_light_curve(trajectory_l,s,q,m1,m2,rho):
+def point_light_curve(trajectory_l,s,q,rho):
+    """
+    Calculate the point source light curve.
+
+    Args:
+        trajectory_l (ndarray): The trajectory of the lensing event.
+        s (float): The projected separation between the lens and the source.
+        q (float): The mass ratio between the lens and the source.
+        rho (float): The source radius in units of the Einstein radius.
+
+    Returns:
+        tuple: A tuple containing the magnitude of the light curve and a boolean array indicating the validity of the calculation.
+        if the quadrupole test is passed, the corresponding element in the boolean array is True.
+    """
+    m1=1/(1+q);m2=q/(1+q)
     zeta_l = trajectory_l[:,None]
     coff=get_poly_coff(zeta_l,s,m2)
     z_l=get_roots_vmap(trajectory_l.shape[0],coff)
@@ -32,18 +46,37 @@ def point_light_curve(trajectory_l,s,q,m1,m2,rho):
     
 @partial(jax.jit,static_argnames=['return_info','default_strategy'])
 def model(t_0,u_0,t_E,rho,q,s,alpha_deg,times,tol=1e-2,retol=0.001,return_info=False,default_strategy=(60,80,150)):
+    """
+    Compute the microlensing model for a binary lens system using JAX.
+
+    Args:
+        t_0 (float): The time of the peak of the microlensing event.
+        u_0 (float): The impact parameter of the source trajectory.
+        t_E (float): The Einstein crossing time.
+        rho (float): The source radius normalized to the Einstein radius.
+        q (float): The planet to host mass ratio of the binary lens system.
+        s (float): The projected separation of the binary lens system normalized to the Einstein radius.
+        alpha_deg (float): The angle between the source trajectory and the binary axis in degrees.
+        times (array-like): The times at which to compute the model.
+        tol (float, optional): The tolerance for the adaptive contour integration. Defaults to 1e-2.
+        retol (float, optional): The relative tolerance for the adaptive contour integration. Defaults to 0.001.
+        return_info (bool, optional): Whether to return additional information about the computation. Defaults to False.
+        default_strategy (tuple, optional): The default strategy for the hierarchical contour integration. Defaults to (60,80,150).
+
+    Returns:
+        array-like: The magnification of the source at the given times.
+        tuple: Additional information about the computation if return_info is True.
+    """
     # Here the parameterization is consistent with Mulensmodel and VBBinaryLensing
-    # But the alpha is 180 degree different from VBBinaryLensing
     ### initialize parameters
     alpha_rad=alpha_deg*2*jnp.pi/360
     tau=(times-t_0)/t_E
     trajectory_n=tau.shape[0]
-    m1=1/(1+q);m2=q/(1+q)
     ## switch the coordinate system to the lowmass
     trajectory = tau*jnp.exp(1j*alpha_rad)+1j*u_0*jnp.exp(1j*alpha_rad)
     trajectory_l = to_lowmass(s,q,trajectory)
 
-    mag,cond=point_light_curve(trajectory_l,s,q,m1,m2,rho)
+    mag,cond=point_light_curve(trajectory_l,s,q,rho)
 
     if return_info:
         pad_value = [jnp.nan,0.,jnp.nan+1j*jnp.nan,jnp.nan,jnp.nan,0.,True,0]
@@ -54,26 +87,66 @@ def model(t_0,u_0,t_E,rho,q,s,alpha_deg,times,tol=1e-2,retol=0.001,return_info=F
         carry_init = (sample_n,theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,
         Is_create,trajectory_l[0],rho,s,q,epsilon,epsilon_rel,jnp.array([0.]),mag_no_diff_num,outloop)
         
-        mag_contour = lambda trajectory_l: heriachical_contour(trajectory_l,tol,retol,rho,s,q,m1,m2,trajectory_n,default_strategy)
+        mag_contour = lambda trajectory_l: heriachical_contour(trajectory_l,tol,retol,rho,s,q,trajectory_n,default_strategy)
         result = lax.map(lambda x: lax.cond(x[0],lambda _: (x[1],carry_init), jax.jit(mag_contour),x[2]), [cond,mag,trajectory_l])
         mag_final,carry_list = result
         return mag_final,carry_list
     else:
-        mag_contour = lambda trajectory_l: heriachical_contour(trajectory_l,tol,retol,rho,s,q,m1,m2,trajectory_n,default_strategy)[0]
+        mag_contour = lambda trajectory_l: heriachical_contour(trajectory_l,tol,retol,rho,s,q,trajectory_n,default_strategy)[0]
         mag_final = lax.map(lambda x: lax.cond(x[0],lambda _: x[1], 
                                                jax.jit(mag_contour),x[2]), 
                                                [cond,mag,trajectory_l])
 
         return mag_final
 
-def to_centroid(s,q,x):#change coordinate system to cetorid
-    delta_x=s/(1+q)
-    return -(jnp.conj(x)-delta_x)
-def to_lowmass(s,q,x):#change coordinaate system to lowmass
-    delta_x=s/(1+q)
-    return -jnp.conj(x)+delta_x
+def to_centroid(s, q, x):
+    """
+    Transforms the coordinate system to the centroid.
+
+    Parameters:
+    s (float): The projected separation between the two objects.
+    q (float): The planet to host mass ratio.
+    x (complex): The original coordinate.
+
+    Returns:
+    complex: The transformed coordinate in the centroid system.
+    """
+    delta_x = s / (1 + q)
+    return -(jnp.conj(x) - delta_x)
+def to_lowmass(s, q, x):
+    """
+    Transforms the coordinate system to the system where the lower mass object is at the origin.
+
+    Parameters:
+    s (float): The separation between the two components.
+    q (float): The mass ratio of the two components.
+    x (complex): The original centroid coordinate.
+
+    Returns:
+    complex: The transformed coordinate in the low mass component coordinate system.
+    """
+    delta_x = s / (1 + q)
+    return -jnp.conj(x) + delta_x 
 @partial(jax.jit,static_argnames=['default_strategy'])
-def heriachical_contour(trajectory_l,tol,retol,rho,s,q,m1,m2,sample_n,default_strategy=(60,80,150)):
+def heriachical_contour(trajectory_l,tol,retol,rho,s,q,sample_n,default_strategy=(60,80,150)):
+    """
+    Perform hierarchical sampling for adaptive contour integration. 
+    This function is used to reduce the memory usage and improve the performance of the contour integration. The reason is that the optimal fixed array length 
+    is hard to determine before the code runs which the basic requirement for JIT compilation.
+
+    Args:
+        trajectory_l (complex): The trajectory of the lensing event at the low mass coordinate system.
+        tol (float): The tolerance value.
+        retol (float): The relative tolerance value.
+        rho (float): The density value.
+        s (float): The separation value.
+        q (float): The mass ratio value.
+        sample_n (int): The number of samples.
+        default_strategy (tuple, optional): The default strategy for array length. Defaults to (60,80,150).
+
+    Returns:
+        tuple: A tuple containing the magnitude and the result of the contour integration.
+    """
     # JIT compile operation needs shape of the array to be determined.
     # But for optimial sampling, It is hard to know the array length before the code runs so we need to assign large enough array length
     # which will cause the waste of memory and time. 
@@ -82,6 +155,16 @@ def heriachical_contour(trajectory_l,tol,retol,rho,s,q,m1,m2,sample_n,default_st
     # current is 60 + 80 + 150 = 290
     @partial(jax.jit,static_argnums=(-1,))
     def reshape_fun(carry,arraylength):
+        """
+        Reshape the arrays and fill the new array with NaN values.
+
+        Args:
+            carry: The carry variable.
+            arraylength (int): The length of the array to be added.
+
+        Returns:
+            The reshaped carry variable.
+        """
         (sample_n,theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,
         Is_create,trajectory_l,rho,s,q,epsilon,epsilon_rel,mag,mag_no_diff_num,outloop)=carry
         ## reshape the array and fill the new array with nan
@@ -93,8 +176,18 @@ def heriachical_contour(trajectory_l,tol,retol,rho,s,q,m1,m2,sample_n,default_st
         carry=(sample_n,theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,
         Is_create,trajectory_l,rho,s,q,epsilon,epsilon_rel,mag,mag_no_diff_num,outloop)
         return carry
+    
     @jax.jit
     def secondary_contour(carry):
+        """
+        Perform secondary contour integration with a longer array length.
+
+        Args:
+            carry: The carry variable.
+
+        Returns:
+            The result of the secondary contour integration.
+        """
         result,resultlast,add_length,Max_array_length=carry
 
         ## switch the different method to add points while loop or scan
@@ -108,8 +201,9 @@ def heriachical_contour(trajectory_l,tol,retol,rho,s,q,m1,m2,sample_n,default_st
         
         Max_array_length+=add_length
         return resultnew,resultlast,Max_array_length
+    
     # first add
-    result=contour_integrate(rho,s,q,m1,m2,trajectory_l,tol,epsilon_rel=retol,inite=30,n_ite=default_strategy[0])
+    result=contour_integrate(rho,s,q,trajectory_l,tol,epsilon_rel=retol,inite=30,n_ite=default_strategy[0])
     result,resultlast=result
     Max_array_length=default_strategy[0]
     for i in range(len(default_strategy)-1):
@@ -129,8 +223,24 @@ def heriachical_contour(trajectory_l,tol,retol,rho,s,q,m1,m2,sample_n,default_st
     return (mag[0],result)
 
 @partial(jax.jit,static_argnames=('inite','n_ite'))
-def contour_integrate(rho,s,q,m1,m2,trajectory_l,epsilon,epsilon_rel=0,inite=30,n_ite=60):
-    ###初始化
+def contour_integrate(rho,s,q,trajectory_l,epsilon,epsilon_rel=0,inite=30,n_ite=60):
+    """
+    Perform contour integration to calculate the result of the binary lens model.
+
+    Args:
+        rho (float): The radius of the lens.
+        s (float): The separation between the two lens components.
+        q (float): The mass ratio of the two lens components.
+        trajectory_l (array): The trajectory of the lens in the low mass coordinate system.
+        epsilon (float): The integration precision.
+        epsilon_rel (float, optional): The relative integration precision. Defaults to 0.
+        inite (int, optional): The number of initial integration points. Defaults to 30.
+        n_ite (int, optional): The total number of integration points. Defaults to 60.
+
+    Returns:
+        tuple: A tuple containing the integration result and other intermediate variables.
+    """
+    m1=1/(1+q);m2=q/(1+q)
     sample_n=jnp.array([inite])
     theta=jnp.where(jnp.arange(n_ite)<inite,jnp.resize(jnp.linspace(0,2*jnp.pi,inite),n_ite),jnp.nan)[:,None]#shape(500,1)
     error_hist=jnp.ones(n_ite)
@@ -259,7 +369,8 @@ def refine_gradient(zeta_l,q,s,z):
 @refine_gradient.defjvp
 def refine_gradient_jvp(primals,tangents):
     '''
-    use the custom jvp to refine the gradient of roots respect to zeta_l, based on the equation on V.Bozza 2010 eq 20. The necessity of this function is still under investigation.
+    use the custom jvp to refine the gradient of roots respect to zeta_l, based on the equation on V.Bozza 2010 eq 20.
+    The necessity of this function is still under investigation.
     '''
     zeta,q,s,z=primals
     tangent_zeta,tangent_q,tangent_s,tangent_z=tangents

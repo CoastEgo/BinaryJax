@@ -73,9 +73,20 @@ def augmenting_path(cost, u, v, path, row4col, i):
     return sink, minVal, remaining, SR, SC, shortestPathCosts, path
 @jax.jit
 def solve(cost):
-    '''transpose = cost.shape[1] < cost.shape[0]
-    if transpose:#判断矩阵是否需要转置，对于方阵不需要
-        cost = cost.T'''
+    '''
+    Solves the linear sum assignment problem using the Hungarian algorithm.
+    adapted from https://github.com/google/jax/issues/10403
+    Parameters:
+    - cost (ndarray): The cost matrix representing the assignment problem.
+
+    Returns:
+    - row_ind (ndarray): The row indices of the assigned elements.
+    - col_ind (ndarray): The column indices of the assigned elements.
+    '''
+
+    # transpose = cost.shape[1] < cost.shape[0]
+    # if transpose:#判断矩阵是否需要转置，对于方阵不需要
+    #     cost = cost.T
 
     u = jnp.full(cost.shape[0], 0.)
     v = jnp.full(cost.shape[1], 0.)
@@ -110,11 +121,11 @@ def solve(cost):
     carry,_=lax.scan(loop_body,(u,v,path,col4row,row4col,cost),jnp.arange(cost.shape[0]))
     u,v,path,col4row,row4col,cost=carry
     return jnp.arange(cost.shape[0]), col4row
-    '''if transpose:
-        v = col4row.argsort()
-        return col4row[v], v
-    else:
-        return jnp.arange(cost.shape[0]), col4row'''
+    # if transpose:
+    #     v = col4row.argsort()
+    #     return col4row[v], v
+    # else:
+    #     return jnp.arange(cost.shape[0]), col4row
 
 def main():
     key = random.PRNGKey(0)

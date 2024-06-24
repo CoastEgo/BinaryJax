@@ -69,6 +69,7 @@ def error_sum(Is_create,z,parity,theta,rho,q,s):
     return error_hist/(np.pi*rho**2),mag,parab
 @jax.jit
 def no_create_true_fun(carry):
+    ## if there is image create or destroy, we need to calculate the error
     mag,parab,Is_create,error_hist,parity,deXProde2X,z,de_z=carry
     critial_idx_row=jnp.where((Is_create!=0).any(axis=1),size=20,fill_value=-2)[0]
     carry,_=jax.lax.scan(error_scan,(mag,parab,Is_create,error_hist,parity,deXProde2X,z,de_z),critial_idx_row)
@@ -80,6 +81,7 @@ def error_scan(carry,i):
     return carry[0:-1],i
 @jax.jit
 def create_in_diff_row(carry):
+    # if the creation and destruction of the image are in different rows 3-5-5-3
     mag,parab,Is_create,error_hist,parity,deXProde2X,z,de_z,i=carry
     create=Is_create[i].sum()/2
     e_crit,dacp,magc=error_critial(i,create,Is_create,parity,deXProde2X,z,de_z)
@@ -90,6 +92,7 @@ def create_in_diff_row(carry):
     return  (mag,parab,Is_create,error_hist,parity,deXProde2X,z,de_z,i)
 @jax.jit
 def create_in_same_row(carry):
+    # if the creation and destruction of the image are in the same row 3-5-3
     mag,parab,Is_create,error_hist,parity,deXProde2X,z,de_z,i=carry
     create=1
     e_crit,dacp,magc=error_critial(i,create,Is_create,parity,deXProde2X,z,de_z)
