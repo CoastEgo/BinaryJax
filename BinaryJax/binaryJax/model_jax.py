@@ -36,12 +36,12 @@ def model(t_0,u_0,t_E,rho,q,s,alpha_deg,times,tol=1e-2,retol=0.001,return_info=F
     # But the alpha is 180 degree different from VBBinaryLensing
     ### initialize parameters
     alpha_rad=alpha_deg*2*jnp.pi/360
-    times=(times-t_0)/t_E
-    trajectory_n=times.shape[0]
+    tau=(times-t_0)/t_E
+    trajectory_n=tau.shape[0]
     m1=1/(1+q);m2=q/(1+q)
     ## switch the coordinate system to the lowmass
-    trajectory_l=get_trajectory_l(s,q,alpha_rad,u_0,times)
-
+    trajectory = tau*jnp.exp(1j*alpha_rad)+1j*u_0*jnp.exp(1j*alpha_rad)
+    trajectory_l = to_lowmass(s,q,trajectory)
 
     mag,cond=point_light_curve(trajectory_l,s,q,m1,m2,rho)
 
@@ -72,10 +72,6 @@ def to_centroid(s,q,x):#change coordinate system to cetorid
 def to_lowmass(s,q,x):#change coordinaate system to lowmass
     delta_x=s/(1+q)
     return -jnp.conj(x)+delta_x
-@jax.jit
-def get_trajectory_l(s,q,alpha,b,times):
-    trajectory_l=to_lowmass(s,q,times*jnp.cos(alpha)-b*jnp.sin(alpha)+1j*(b*jnp.cos(alpha)+times*jnp.sin(alpha)))
-    return trajectory_l
 @partial(jax.jit,static_argnames=['default_strategy'])
 def heriachical_contour(trajectory_l,tol,retol,rho,s,q,m1,m2,sample_n,default_strategy=(60,80,150)):
     # JIT compile operation needs shape of the array to be determined.

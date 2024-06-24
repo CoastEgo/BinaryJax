@@ -44,8 +44,7 @@ def get_poly_coff(zeta_l,s,m2):
     return coff
 @jax.jit
 def get_zeta_l(rho,trajectory_centroid_l,theta):#获得等高线采样的zeta
-    rel_centroid=rho*jnp.cos(theta)+1j*rho*jnp.sin(theta)
-    zeta_l=trajectory_centroid_l+rel_centroid
+    zeta_l=trajectory_centroid_l+rho*jnp.exp(1j*theta)
     return zeta_l
 @jax.jit
 def verify(zeta_l,z_l,s,m1,m2):#verify whether the root is right
