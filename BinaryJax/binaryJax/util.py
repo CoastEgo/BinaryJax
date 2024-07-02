@@ -1,7 +1,31 @@
 import jax
 import jax.numpy as jnp
 from jax import lax
+from typing import NamedTuple,Union,Any,Optional
 
+class Iterative_State(NamedTuple):
+    sample_num: int
+    theta: jax.Array
+    roots: jax.Array
+    parity: jax.Array
+    ghost_roots_distant: jax.Array
+    sort_flag: Union[bool,jax.Array]
+    Is_create: jax.Array
+
+class Error_State(NamedTuple):
+    mag: jax.Array
+    mag_no_diff: int
+    outloop: int
+    error_hist: jax.Array
+    epsilon: float
+    epsilon_rel: float
+
+class Model_Param(NamedTuple):
+    rho: float
+    q: float
+    s: float
+    m1: float
+    m2: float
 '''@jax.jit
 def custom_insert(array,idx,add_array,add_number):
     ite=jnp.arange(array.shape[0])

@@ -6,6 +6,8 @@ from .error_estimator import *
 from .solution import *
 from .basic_function_jax import Quadrupole_test
 from functools import partial
+from .util import Iterative_State,Error_State,Model_Param,insert_body
+from .polynomial_solver import get_roots_vmap
 jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
 
@@ -163,16 +165,20 @@ def heriachical_contour(trajectory_l,tol,retol,rho,s,q,sample_n,default_strategy
         Returns:
             The reshaped carry variable.
         """
-        (sample_n,theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,
-        Is_create,trajectory_l,rho,s,q,epsilon,epsilon_rel,mag,mag_no_diff_num,outloop)=carry
+        (trajectory_l,rho,s,q,roots_State,mag_State)=carry
+
+        sample_n,theta,roots,parity,ghost_roots_dis,sort_flag,Is_create=roots_State
+
+        error_hist = mag_State.error_hist
         ## reshape the array and fill the new array with nan
-        pad_list = [theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,Is_create]
-        pad_value = [jnp.nan,0.,jnp.nan,jnp.nan,jnp.nan,0.,True,0]
+        pad_list = [theta,error_hist,roots,parity,ghost_roots_dis,sort_flag,Is_create]
+        pad_value = [jnp.nan,0.,jnp.nan,jnp.nan,jnp.nan,True,0]
         padded_list =jax.tree_map(lambda x,y: jnp.pad(x,((0,arraylength),(0,0)),'constant',constant_values=y),pad_list,pad_value)
 
-        theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,Is_create=padded_list
-        carry=(sample_n,theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,
-        Is_create,trajectory_l,rho,s,q,epsilon,epsilon_rel,mag,mag_no_diff_num,outloop)
+        theta,error_hist,roots,parity,ghost_roots_dis,sort_flag,Is_create=padded_list
+        carry=(trajectory_l,rho,s,q,
+               Iterative_State(sample_n,theta,roots,parity,ghost_roots_dis,sort_flag,Is_create),
+                Error_State(mag_State.mag,mag_State.mag_no_diff,mag_State.outloop,error_hist,mag_State.epsilon,mag_State.epsilon_rel))
         return carry
     
     @jax.jit
@@ -211,13 +217,14 @@ def heriachical_contour(trajectory_l,tol,retol,rho,s,q,sample_n,default_strategy
         resultlast = reshape_fun(resultlast,add_length)
         result = reshape_fun(result,add_length)
 
-        result,resultlast,Max_array_length=lax.cond((result[0]<Max_array_length-5)[0],lambda x:(x[0],x[1],x[-1]),secondary_contour,(result,resultlast,add_length,Max_array_length))
+        result,resultlast,Max_array_length=lax.cond((result[-2].sample_num<Max_array_length-5)[0],lambda x:(x[0],x[1],x[-1]),secondary_contour,(result,resultlast,add_length,Max_array_length))
 
-    (sample_n,theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,
-    Is_create,_,rho,s,q,epsilon,epsilon_rel,mag,mag_no_diff_num,outloop)=result
-    maglast = resultlast[-3]
-    mag=lax.cond((sample_n<Max_array_length-5)[0],lambda x:x[0],lambda x:x[1],(mag,maglast))
-
+    (trajectory_l,rho,s,q,roots_State,mag_State)=result
+    mag = mag_State.mag
+    maglast = resultlast[-1].mag
+    condition = (roots_State.sample_num<Max_array_length-5)[0]
+    mag=lax.cond(condition,lambda x:x[0],lambda x:x[1],(mag,maglast))
+    result = lax.cond(condition,lambda x:x[0],lambda x:x[1],(result,resultlast))
     return (mag[0],result)
 
 @partial(jax.jit,static_argnames=('inite','n_ite'))
@@ -251,14 +258,15 @@ def contour_integrate(rho,s,q,trajectory_l,epsilon,epsilon_rel=0,inite=30,n_ite=
     sort_flag=sort_flag.at[0].set(True)
     roots,parity,sort_flag=get_sorted_roots(roots,parity,sort_flag)
     Is_create=find_create_points(roots,sample_n)
+    roots_State = Iterative_State(sample_n,theta,roots,parity,ghost_roots_dis,sort_flag,Is_create)
     #####计算第一次的误差，放大率
     mag_no_diff_num = 0
     mag=1/2*jnp.nansum(jnp.nansum((roots.imag[0:-1]+roots.imag[1:])*(roots.real[0:-1]-roots.real[1:])*parity[0:-1],axis=0))
-    error_hist,magc,parab=error_sum(Is_create,roots,parity,theta,rho,q,s)
+    error_hist,magc,parab=error_sum(roots_State,rho,q,s)
     mag=(mag+magc+parab)/(jnp.pi*rho**2)
     error_hist+=buried_error
-    carry=(sample_n,theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,
-            Is_create,trajectory_l,rho,s,q,epsilon,epsilon_rel,mag,mag_no_diff_num,outloop)
+    mag_State = Error_State(mag,mag_no_diff_num,outloop,error_hist,epsilon,epsilon_rel)
+    carry=(trajectory_l,rho,s,q,roots_State,mag_State)
     carrylast=carry
 
     ## switch the different method to add points while loop or scan
@@ -278,8 +286,16 @@ def scan_body(carry,i):
 def cond_fun(carry):
     carry,carrylast=carry
     ## function to judge whether to continue the loop use relative error
-    (sample_n,theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,
-        Is_create,trajectory_l,rho,s,q,epsilon,epsilon_rel,mag,mag_no_diff_num,outloop)=carry
+    (trajectory_l,rho,s,q,roots_State,mag_State)=carry
+    theta = roots_State.theta
+    sample_n = roots_State.sample_num
+    error_hist = mag_State.error_hist
+    epsilon = mag_State.epsilon
+    epsilon_rel = mag_State.epsilon_rel
+    mag = mag_State.mag
+    mag_no_diff_num = mag_State.mag_no_diff
+    outloop = mag_State.outloop
+
     Max_array_length=jnp.shape(theta)[0]
     mini_interval=jnp.nanmin(jnp.abs(jnp.diff(theta,axis=0)))
     abs_mag_cond=(jnp.nansum(error_hist)>epsilon)
@@ -307,10 +323,15 @@ def while_body_fun(carry):
     carry,carrylast=carry
     carrylast=carry
     ## function to add points, calculate the error and mag
-    (sample_n,theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,
-        Is_create,trajectory_l,rho,s,q,epsilon,epsilon_rel,mag,mag_no_diff_num,outloop)=carry
+    (trajectory_l,rho,s,q,roots_State,mag_State)=carry
     add_max=4
+    theta = roots_State.theta
+    epsilon_rel = mag_State.epsilon_rel
+    error_hist = mag_State.error_hist
+    mag = mag_State.mag
+    sample_n = roots_State.sample_num
     Max_array_length=jnp.shape(theta)[0]
+    add_total_num = theta.shape[0]
 
     #一次多个区间加点:
     
@@ -332,34 +353,35 @@ def while_body_fun(carry):
     # idx = jnp.roll(idx,-zerot_counts)
 
     idx = jnp.where(error_hist/jnp.abs(mag)>epsilon_rel/jnp.sqrt(sample_n),size=int(Max_array_length/5),fill_value=0)[0]
-    
+
     add_number=jnp.ceil((error_hist[idx]/jnp.abs(mag)/epsilon_rel*jnp.sqrt(sample_n))**0.2).astype(int)#至少要插入一个点，不包括相同的第一个
     
     add_number=jnp.where((idx==0)[:,None],0,add_number)
     add_number=jnp.where(add_number>add_max,add_max,add_number)
-    
+
+    # add_number = jax.lax.cond(add_number.sum()>add_total_num,lambda x : (x*(add_total_num/x.sum())).astype(int),lambda x:x,add_number)
+    @jax.jit
+    def theta_encode(carry,k):
+        (theta,idx,add_number,add_theta_encode)=carry
+
+        theta_diff = (theta[idx[k]] - theta[idx[k]-1]) / (add_number[k]+1)
+        add_theta=jnp.arange(1,add_total_num+1)[:,None]*theta_diff+theta[idx[k]-1]
+        add_theta=jnp.where((jnp.arange(add_total_num)<add_number[k])[:,None],add_theta,jnp.nan)
+        carry2,_=insert_body((add_theta_encode,add_theta,jnp.where(jnp.isnan(add_theta_encode),size=1)[0],add_number[k][None]),0)
+        add_theta_encode=carry2[0]
+        return (theta,idx,add_number,add_theta_encode),k
     carry,_=lax.scan(theta_encode,(theta,idx,add_number,
-                               jnp.full(theta.shape,jnp.nan)),jnp.arange(idx.shape[0]))
-    add_theta=carry[-1]
+                               jnp.full((add_total_num,1),jnp.nan)),jnp.arange(idx.shape[0]))
+    add_theta=carry[-1] 
     ####
     add_zeta_l=get_zeta_l(rho,trajectory_l,add_theta)
-    add_coff=get_poly_coff(add_zeta_l,s,q/(1+q))
-    sample_n+=jnp.sum(add_number)
-    theta,ghost_roots_dis,buried_error,sort_flag,roots,parity,Is_create,add_outloop=add_points(
-        idx,add_zeta_l,add_coff,add_theta,roots,parity,theta,ghost_roots_dis,sort_flag,s,1/(1+q),q/(1+q),sample_n,add_number)
-    outloop += add_outloop
+    roots_State,buried_error,add_outloop=add_points(idx,add_zeta_l,add_theta,roots_State,s,1/(1+q),q/(1+q),add_number)
     ## refine gradient of roots respect to zeta_l
     # zeta_l=get_zeta_l(rho,trajectory_l,theta)
     # roots = refine_gradient(zeta_l,q,s,roots)
-    maglast=mag
-    mag=1/2*jnp.nansum(jnp.nansum((roots.imag[0:-1]+roots.imag[1:])*(roots.real[0:-1]-roots.real[1:])*parity[0:-1],axis=0))
-    error_hist,magc,parab=error_sum(Is_create,roots,parity,theta,rho,q,s)
-    mag=(mag+magc+parab)/(jnp.pi*rho**2)
-    mag_no_diff_num += (jnp.abs(mag-maglast)<1/2*epsilon).sum()
-    # check the change of the mag, if the mag is not changed at least 2 iteration, we stop the loop
-    error_hist+=buried_error
-    carry=(sample_n,theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,
-        Is_create,trajectory_l,rho,s,q,epsilon,epsilon_rel,mag,mag_no_diff_num,outloop)
+    mag_State = update_mag(roots_State,mag_State,rho,q,s,buried_error,add_outloop)
+
+    carry=(trajectory_l,rho,s,q,roots_State,mag_State)
     return (carry,carrylast)
 @jax.custom_jvp
 def refine_gradient(zeta_l,q,s,z):
@@ -387,3 +409,21 @@ def refine_gradient_jvp(primals,tangents):
     tangent_z2 = jnp.where(jnp.isnan(tangent_z2),0.,tangent_z2)
     # jax.debug.print('{}',(tangent_z2-tangent_z).sum())
     return z,tangent_z2
+@jax.jit
+def update_mag(roots_State,mag_State_last,rho,q,s,buried_error,add_outloop):
+    maglast=mag_State_last.mag
+    epsilon = mag_State_last.epsilon
+    epsilon_rel = mag_State_last.epsilon_rel
+
+    mag=1/2*jnp.nansum(jnp.nansum((roots_State.roots.imag[0:-1]+roots_State.roots.imag[1:])*
+                                  (roots_State.roots.real[0:-1]-roots_State.roots.real[1:])*roots_State.parity[0:-1],axis=0))
+    error_hist,magc,parab=error_sum(roots_State,rho,q,s)
+    mag=(mag+magc+parab)/(jnp.pi*rho**2)
+    add_mag_no_diff_num = (jnp.abs(mag-maglast)<1/2*epsilon).sum()
+    # check the change of the mag, if the mag is not changed at least 2 iteration, we stop the loop
+    error_hist+=buried_error
+    mag_State = Error_State(mag,
+                            add_mag_no_diff_num+mag_State_last.mag_no_diff,
+                            add_outloop+mag_State_last.outloop,
+                            error_hist,epsilon,epsilon_rel)
+    return mag_State

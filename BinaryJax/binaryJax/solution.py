@@ -2,24 +2,30 @@ import numpy as np
 import jax.numpy as jnp
 import jax
 from jax import lax
+from .util import Iterative_State,custom_insert,custom_delete
 from .basic_function_jax import *
+from .linear_sum_assignment_jax import find_nearest
+from .polynomial_solver import get_roots
 jax.config.update("jax_platform_name", "cpu")
 jax.config.update("jax_enable_x64", True)
 @jax.jit
-def add_points(idx,add_zeta,add_coff,add_theta,roots,parity,theta,ghost_roots_dis,sort_flag,s,m1,m2,sample_n,add_number):
+def add_points(idx,add_zeta,add_theta,roots_State,s,m1,m2,add_number):
+    sample_n,theta,roots,parity,ghost_roots_dis,sort_flag,Is_create=roots_State
+    sample_n +=jnp.sum(add_number)
+    add_coff = get_poly_coff(add_zeta,s,m2)
     add_roots,add_parity,add_ghost_roots,outloop,add_coff,add_zeta,add_theta=get_real_roots(add_coff,add_zeta,add_theta,s,m1,m2)#可能删掉不合适的根
-    insert_fun = lambda x,y: custom_insert(x,idx,y,add_number)
-    theta,ghost_roots_dis = jax.tree_map(insert_fun, (theta,ghost_roots_dis), (add_theta,add_ghost_roots))
+    insert_fun = lambda x,y,z: custom_insert(x,idx,y,add_number,z)
+    theta,ghost_roots_dis = jax.tree_map(insert_fun, (theta,ghost_roots_dis), (add_theta,add_ghost_roots),(jnp.nan,)*2)
 
     buried_error=get_buried_error(ghost_roots_dis,sample_n)
 
-    sort_flag = insert_fun(sort_flag,jnp.array([False])[:,None])
+    sort_flag = insert_fun(sort_flag,jnp.full(theta.shape,False),jnp.array([True]))
 
-    unsorted_roots,unsorted_parity=jax.tree_map(insert_fun, (roots,parity), (add_roots,add_parity))
+    unsorted_roots,unsorted_parity =jax.tree_map(insert_fun, (roots,parity),(add_roots,add_parity),(jnp.nan,)*2)
 
     roots,parity,sort_flag=get_sorted_roots(unsorted_roots,unsorted_parity,sort_flag)
     Is_create=find_create_points(roots,sample_n)
-    return theta,ghost_roots_dis,buried_error,sort_flag,roots,parity,Is_create,outloop
+    return Iterative_State(sample_n,theta,roots,parity,ghost_roots_dis,sort_flag,Is_create),buried_error,outloop
 @jax.jit
 def get_buried_error(ghost_roots_dis,sample_n):
     n_ite=ghost_roots_dis.shape[0]

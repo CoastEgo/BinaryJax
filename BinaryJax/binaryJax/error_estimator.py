@@ -30,9 +30,14 @@ def error_critial(i,create,Is_create,parity,deXProde2X,z,de_z):
     ce_tot=ce1+ce2+ce3
     return ce_tot,jnp.nansum(dAcP),1/2*(z[i,pos_idx].imag+z[i,neg_idx].imag)*(z[i,pos_idx].real-z[i,neg_idx].real)#critial 附近的抛物线近似'''
 @jax.jit
-def error_sum(Is_create,z,parity,theta,rho,q,s):
+def error_sum(Roots_State,rho,q,s):
+    Is_create = Roots_State.Is_create
+    z = Roots_State.roots
+    parity = Roots_State.parity
+    theta = Roots_State.theta
     error_hist=jnp.zeros_like(theta)
-    deXProde2X,de_z,delta_theta,de_deXPro_de2X=basic_partial(z,theta,rho,q,s)
+    delta_theta = jnp.diff(theta,axis=0)
+    deXProde2X,de_z,de_deXPro_de2X=basic_partial(z,theta,rho,q,s)
     mag=jnp.array([0.])
     e_ord,parab=error_ordinary(deXProde2X,de_z,delta_theta,z,parity,de_deXPro_de2X)
     error_hist=error_hist.at[1:].set(e_ord[:,None])
