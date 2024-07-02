@@ -39,9 +39,7 @@ def point_light_curve(trajectory_l,s,q,rho):
         return cond
     cond=lax.cond((index!=-1).any(),ambigious_deal,lambda x : x[-1],(error,index,cond)) #某些情况下出现的根不是5或者3个#'''
 
-    z=jnp.where(cond,z_l,jnp.nan)
-    zG=jnp.where(cond,jnp.nan,z_l)
-    cond,mag=Quadrupole_test(rho,s,q,zeta_l,z,zG)
+    cond,mag=Quadrupole_test(rho,s,q,zeta_l,z_l,cond)
     return mag,cond
     
 @partial(jax.jit,static_argnames=['return_info','default_strategy'])
