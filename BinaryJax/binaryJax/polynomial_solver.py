@@ -6,6 +6,31 @@ from jax import lax
 '''from basic_function_jax import get_poly_coff,get_zeta_l
 from model_jax import get_trajectory_l'''
 from functools import partial
+@jax.jit # 定义函数以进行矢量化
+def loop_body(carry,k):#采用判断来减少浪费
+    coff,roots=carry
+    def False_fun(carry):
+        coff,roots,k=carry
+        #roots=roots.at[k].set(jnp.roots(coff,strip_zeros=False))
+        #roots=roots.at[k].set(halfanalytical(coff))
+        #roots=roots.at[k].set(implict_zroots(coff,roots[k-1]))
+        roots = roots.at[k].set(Aberth_Ehrlich(coff,roots[k-1]))
+        return roots
+    roots=lax.cond((coff[k]==0).all(),lambda x:x[1],False_fun,(coff[k],roots,k))
+    return (coff,roots),k#'''
+@partial(jax.jit,static_argnums=0)
+def get_roots(sample_n, coff):
+
+    roots = jnp.zeros((sample_n,5),dtype=jnp.complex128)
+    roots = roots.at[0].set(Aberth_Ehrlich(coff[0],AE_roots0(coff[0])))
+    carry,_=lax.scan(loop_body,(coff,roots),jnp.arange(1,sample_n))#scan循环，但是没有浪费
+    coff,roots=carry
+    return roots
+def get_roots_vmap(sample_n, coff):
+    ## used when solving the coff without zero coffes
+    roots_solver= lambda x: Aberth_Ehrlich(x,AE_roots0(x))
+    roots = jax.vmap(jax.jit(roots_solver), in_axes=(0))(coff)
+    return roots
 # @jax.jit
 # def laguerre_method(coff,x0,n, epsilon= 1e-10):
 #     der1=jnp.polyder(coff,1)

@@ -58,137 +58,32 @@ def get_parity(z,s,m1,m2):#get the parity of roots
 def get_parity_error(z,s,m1,m2):
     de_conjzeta_z1=m1/(jnp.conj(z)-s)**2+m2/jnp.conj(z)**2
     return jnp.abs((1-jnp.abs(de_conjzeta_z1)**2))
-@jax.jit # 定义函数以进行矢量化
-def loop_body(carry,k):#采用判断来减少浪费
-    coff,roots=carry
-    def False_fun(carry):
-        coff,roots,k=carry
-        #roots=roots.at[k].set(jnp.roots(coff,strip_zeros=False))
-        #roots=roots.at[k].set(halfanalytical(coff))
-        #roots=roots.at[k].set(implict_zroots(coff,roots[k-1]))
-        roots = roots.at[k].set(Aberth_Ehrlich(coff,roots[k-1]))
-        return roots
-    roots=lax.cond((coff[k]==0).all(),lambda x:x[1],False_fun,(coff[k],roots,k))
-    return (coff,roots),k#'''
-@partial(jax.jit,static_argnums=0)
-def get_roots(sample_n, coff):
-
-    roots = jnp.zeros((sample_n,5),dtype=jnp.complex128)
-    roots = roots.at[0].set(Aberth_Ehrlich(coff[0],AE_roots0(coff[0])))
-    carry,_=lax.scan(loop_body,(coff,roots),jnp.arange(1,sample_n))#scan循环，但是没有浪费
-    coff,roots=carry
-    return roots
-def get_roots_vmap(sample_n, coff):
-    ## used when solving the coff without zero coffes
-    roots_solver= lambda x: Aberth_Ehrlich(x,AE_roots0(x))
-    roots = jax.vmap(jax.jit(roots_solver), in_axes=(0))(coff)
-    return roots
 @jax.jit
 def dot_product(a,b):
     return jnp.real(a)*jnp.real(b)+jnp.imag(a)*jnp.imag(b)
-@jax.jit
-def find_nearest_sort(array1, parity1, array2, parity2):
-    # sort the image using a navie method, and don't promise the minimum distance,
-    # but may be sufficient for binary lens. VBBL use the similar method.
-    # To use Jax's shard_map api to get get combination of
-    # jax.jit and parallel, we can't use while loop now.
-    # check here for more details: https://jax.readthedocs.io/en/latest/jep/14273-shard-map.html
-    cost=jnp.abs(array2-array1[:,None])+jnp.abs(parity2-parity1[:,None])*5
-    cost=jnp.where(jnp.isnan(cost),100,cost)
-    idx=jnp.argmin(cost,axis=1)
-    @jax.jit
-    def nan_in_array1(carry):
-        array1,array2,cost,idx=carry
-        idx=jnp.where(~jnp.isnan(array1),idx,-1)
-        diff_idx=jnp.setdiff1d(jnp.arange(array1.shape[0]),idx,size=2)
-        used=0
-        for i in range(array1.shape[0]):
-            cond=jnp.isnan(array1[i])
-            idx_i=jnp.where(cond,diff_idx[used],idx[i])
-            idx=idx.at[i].set(idx_i)
-            used=jnp.where(cond,used+1,used)
-        return (array1,array2,cost,idx)
-    def nan_not_in_array1(carry):
-        @jax.jit
-        def nan_in_array2(carry):
-            array1,array2,cost,idx=carry
-            idx=jnp.argmin(cost,axis=0)
-            idx=jnp.where(~jnp.isnan(array1),idx,-1)
-            diff_idx=jnp.setdiff1d(jnp.arange(array2.shape[0]),idx,size=2)
-            used=0
-            for i in range(array1.shape[0]):
-                cond=jnp.isnan(array2[i])
-                idx_i=jnp.where(cond,diff_idx[used],idx[i])
-                idx=idx.at[i].set(idx_i)
-                used=jnp.where(cond,used+1,used)
-            ## rearrange the idx
-            row_resort=jnp.argsort(idx)
-            col_idx=jnp.arange(array1.shape[0])
-            return (array1,array2,cost,col_idx[row_resort])
-        carry=lax.cond(jnp.isnan(array2).sum()==2,nan_in_array2,lambda x:x,(array1,array2,cost,idx))
-        return carry
-    carry=lax.cond(jnp.isnan(array1).sum()==2,nan_in_array1,nan_not_in_array1,(array1,array2,cost,idx))
-    array1,array2,cost,idx=carry
-    return idx
 
 @jax.jit
-def find_nearest(array1, parity1, array2, parity2):
-    # linear sum assignment, the theoritical complexity is O(n^3) but our relization turns out to be much fast
-    # for small cost matrix. adopted from https://github.com/google/jax/issues/10403 and I make it jit-able
-    cost=jnp.abs(array2-array1[:,None])+jnp.abs(parity2-parity1[:,None])*5#系数可以指定防止出现错误，系数越大鲁棒性越好，但是速度会变慢些
-    cost=jnp.where(jnp.isnan(cost),100,cost)
-    row_ind, col_idx=solve(cost)
+def basic_partial(z,theta,rho,q,s):
+    z_c=jnp.conj(z)
+    parZetaConZ=1/(1+q)*(1/(z_c-s)**2+q/z_c**2)
+    par2ConZetaZ=-2/(1+q)*(1/(z-s)**3+q/(z)**3)
+    de_zeta=1j*rho*jnp.exp(1j*theta)
+    detJ=1-jnp.abs(parZetaConZ)**2
+    de_z=(de_zeta-parZetaConZ*jnp.conj(de_zeta))/detJ
+    deXProde2X=(rho**2+jnp.imag(de_z**2*de_zeta*par2ConZetaZ))/detJ
 
-    #col_idx=find_nearest_sort(array1, parity1, array2, parity2)
+    # calculate the derivative of x'^x'' with respect to \theta x'^x'''
+    de2_zeta = -rho*jnp.exp(1j*theta)
+    de2_zetaConj = -rho*jnp.exp(-1j*theta)
+    par3ConZetaZ=6/(1+q)*(1/(z-s)**4+q/(z)**4)
+    de2_z = (de2_zeta-jnp.conj(par2ConZetaZ)*jnp.conj(de_z)**2-parZetaConZ*(
+        de2_zetaConj-par2ConZetaZ*de_z**2))/detJ
     
-    return col_idx
-'''@jax.jit
-def custom_insert(array,idx,add_array,add_number):
-    ite=jnp.arange(array.shape[0])
-    mask = ite < idx
-    array=jnp.where(mask[:,None],array,jnp.roll(array,add_number,axis=0))
-    mask2=(ite >=idx)&(ite<idx+add_number)
-    add_array=jnp.resize(add_array,array.shape)
-    add_array=jnp.roll(add_array,idx,axis=0)
-    array=jnp.where(mask2[:,None],add_array,array)
-    return array'''
-@jax.jit
-def insert_body(carry,k):
-    array,add_array,idx,add_number=carry
-    ite=jnp.arange(array.shape[0])
-    mask = ite < idx[k]
-    array=jnp.where(mask[:,None],array,jnp.roll(array,add_number[k],axis=0))
-    mask2=(ite >=idx[k])&(ite<idx[k]+add_number[k])
-    add_array=jnp.roll(add_array,idx[k],axis=0)
-    array=jnp.where(mask2[:,None],add_array,array)
-    add_array=jnp.roll(add_array,-1*add_number[k]-idx[k],axis=0)
-    idx+=add_number[k]
-    return (array,add_array,idx,add_number),k
-@jax.jit
-def custom_insert(array,idx,add_array,add_number):
-    carry,_=lax.scan(insert_body,(array,add_array,idx,add_number),jnp.arange(idx.shape[0]))
-    array,add_array,idx,add_number=carry
-    return array
-@jax.jit
-def theta_encode(carry,k):
-    (theta,idx,add_number,add_theta_encode)=carry
-    add_max=theta.shape[0]
-    theta_diff = (theta[idx[k]] - theta[idx[k]-1]) / (add_number[k]+1)
-    add_theta=jnp.arange(1,add_max+1)[:,None]*theta_diff+theta[idx[k]-1]
-    add_theta=jnp.where((jnp.arange(add_max)<add_number[k])[:,None],add_theta,jnp.nan)
-    carry2,_=insert_body((add_theta_encode,add_theta,jnp.where(jnp.isnan(add_theta_encode),size=1)[0],add_number[k][None]),0)
-    add_theta_encode=carry2[0]
-    return (theta,idx,add_number,add_theta_encode),k
-@jax.jit
-def delete_body(carry, k):
-    array, ite2 = carry
-    mask = ite2 < k
-    array = jnp.where(mask[:,None], array, jnp.roll(array, -1,axis=0))
-    return (array, ite2 + 1), k
-@jax.jit
-def custom_delete(array, idx):
-    ite = jnp.arange(array.shape[0])
-    carry, _ = lax.scan(delete_body, (array, ite), idx)
-    array, _ = carry
-    array = jnp.where((ite < ite.size - (idx<array.shape[0]).sum())[:,None], array, jnp.nan)
-    return array
+    # deXProde2X_test = 1/(2*1j)*(de2_z*jnp.conj(de_z)-de_z*jnp.conj(de2_z))
+    # jax.debug.print('deXProde2X_test error is {}',jnp.nansum(jnp.abs(deXProde2X_test-deXProde2X)))
+    de_deXPro_de2X=1/detJ**2*jnp.imag(
+        detJ*(de2_zeta*par2ConZetaZ*de_z**2+de_zeta*par3ConZetaZ*de_z**3+de_zeta*par2ConZetaZ*2*de_z*de2_z)
+        +(jnp.conj(par2ConZetaZ)*jnp.conj(de_z)*jnp.conj(parZetaConZ)+parZetaConZ*par2ConZetaZ*de_z
+        )*de_zeta*par2ConZetaZ*de_z**2)
+    # deXProde2X = jax.lax.stop_gradient(deXProde2X)
+    return deXProde2X,de_z,de_deXPro_de2X
