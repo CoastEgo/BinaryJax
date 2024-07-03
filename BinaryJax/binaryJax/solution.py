@@ -135,6 +135,26 @@ def loop_parity_body(carry,i):##循环体
     return (zeta_l,real_roots,real_parity,nan_num,sample_n,cond,s,m1,m2),i
 @jax.jit    
 def find_create_points(roots, sample_n):
+    """
+    find the image are created or destroyed
+
+    Parameters
+    ----------
+    roots : jnp.ndarray
+        the roots of the polynomial
+    sample_n : int
+        the number of the sample points
+
+    Returns
+    -------
+    jnp.ndarray
+        the image are created or destroyed, if the image is created, the value is 1 and if the image is destroyed, the value is -1;
+        if the create or destroy are on the same row, the connection is 10
+        [ 1 , 1 , 1 , nan , nan ]
+        [ 1 , 1 , 1 , 1 , 1 ] # create
+         [ 1 , 1 , 1 , 1 , 1 ]  # destroy
+        [ 1 , nan , nan , 1 , 1 ]
+    """
     cond=jnp.isnan(roots)
     Is_create=jnp.zeros_like(roots,dtype=int)
     idx_x,idx_y=jnp.where(jnp.diff(cond,axis=0)&(~cond[0:-1].all(axis=1))[:,None]&(jnp.arange(roots.shape[0]-1)!=sample_n-1)[:,None],size=20,fill_value=-2)

@@ -54,16 +54,16 @@ def custom_insert(array,idx,add_array,add_number,pad_item):
     carry,_=lax.scan(insert_body,(array,add_array,idx,add_number),jnp.arange(idx.shape[0]))
     array,add_array,idx,add_number=carry
     return array
-@jax.jit
-def theta_encode(carry,k):
-    (theta,idx,add_number,add_theta_encode)=carry
-    add_total_num = 30
-    theta_diff = (theta[idx[k]] - theta[idx[k]-1]) / (add_number[k]+1)
-    add_theta=jnp.arange(1,add_total_num+1)[:,None]*theta_diff+theta[idx[k]-1]
-    add_theta=jnp.where((jnp.arange(add_total_num)<add_number[k])[:,None],add_theta,jnp.nan)
-    carry2,_=insert_body((add_theta_encode,add_theta,jnp.where(jnp.isnan(add_theta_encode),size=1)[0],add_number[k][None]),0)
-    add_theta_encode=carry2[0]
-    return (theta,idx,add_number,add_theta_encode),k
+# @jax.jit
+# def theta_encode(carry,k):
+#     (theta,idx,add_number,add_theta_encode)=carry
+#     add_total_num = 30
+#     theta_diff = (theta[idx[k]] - theta[idx[k]-1]) / (add_number[k]+1)
+#     add_theta=jnp.arange(1,add_total_num+1)[:,None]*theta_diff+theta[idx[k]-1]
+#     add_theta=jnp.where((jnp.arange(add_total_num)<add_number[k])[:,None],add_theta,jnp.nan)
+#     carry2,_=insert_body((add_theta_encode,add_theta,jnp.where(jnp.isnan(add_theta_encode),size=1)[0],add_number[k][None]),0)
+#     add_theta_encode=carry2[0]
+#     return (theta,idx,add_number,add_theta_encode),k
 @jax.jit
 def delete_body(carry, k):
     array, ite2 = carry

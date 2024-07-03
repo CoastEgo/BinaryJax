@@ -430,14 +430,14 @@ def refine_gradient_jvp(primals,tangents):
     parZetaConZ=1/(1+q)*(1/(z_c-s)**2+q/z_c**2)
     detJ = 1-jnp.abs(parZetaConZ)**2
 
-    add_item_q =  1/(1+q)**2*(1/(z_c-s)-1/z_c)
-    add_item_q = tangent_q*(add_item_q-jnp.conj(add_item_q)*parZetaConZ)
+    parZetaq =  1/(1+q)**2*(1/(z_c-s)-1/z_c)
+    add_item_q = tangent_q*(parZetaq-jnp.conj(parZetaq)*parZetaConZ)
 
-    add_item_s = -1/(1+q)/(z_c-s)**2
-    add_item_s = tangent_s*(add_item_s-jnp.conj(add_item_s)*parZetaConZ)
+    parZetas = -1/(1+q)/(z_c-s)**2
+    add_item_s = tangent_s*(parZetas-jnp.conj(parZetas)*parZetaConZ)
 
     tangent_z2 =  (tangent_zeta-parZetaConZ * jnp.conj(tangent_zeta)-add_item_q-add_item_s)/detJ
-    tangent_z2 = jnp.where(jnp.isnan(tangent_z2),0.,tangent_z2)
+    # tangent_z2 = jnp.where(jnp.isnan(tangent_z2),0.,tangent_z2)
     # jax.debug.print('{}',(tangent_z2-tangent_z).sum())
     return z,tangent_z2
 @jax.jit
