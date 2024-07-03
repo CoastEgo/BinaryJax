@@ -6,7 +6,7 @@ from .error_estimator import *
 from .solution import *
 from .basic_function_jax import Quadrupole_test
 from functools import partial
-from .util import Iterative_State,Error_State,Model_Param,insert_body
+from .util import Iterative_State,Error_State,Model_Param,insert_body,stop_grad_wrapper
 from .polynomial_solver import get_roots_vmap
 jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
@@ -127,6 +127,42 @@ def to_lowmass(s, q, x):
     """
     delta_x = s / (1 + q)
     return -jnp.conj(x) + delta_x 
+@partial(jax.jit,static_argnames=['default_strategy'])
+def heriachical_contour_warpper(trajectory_l,tol,retol,rho,s,q,sample_n,default_strategy=(60,80,150)):
+    """
+    Wrapper function for the hierarchical contour integration.
+    This function is used for better support of automatic differentiation, which can reduce the computational graph size to accelerate the computation and
+    support the reverse mode differentiation containing the while loop.
+    Args:
+        trajectory_l (complex): The trajectory of the lensing event at the low mass coordinate system.
+        tol (float): The tolerance value.
+        retol (float): The relative tolerance value.
+        rho (float): The density value.
+        s (float): The separation value.
+        q (float): The mass ratio value
+    """
+    mag_nograd,info = stop_grad_wrapper(heriachical_contour)(trajectory_l,tol,retol,rho,s,q,sample_n,default_strategy)
+    # mag_nograd,info = heriachical_contour(trajectory_l,tol,retol,rho,s,q,sample_n,default_strategy)
+    roots_State = info[-2]
+    sample_n,theta,roots,parity,ghost_roots_dis,sort_flag,Is_create=roots_State
+    mask = ~jnp.isnan(roots)
+    roots_100fill = jnp.where(mask,roots,100.)
+    parity = jnp.where(mask,parity,0.)
+    theta = jnp.where(mask,theta,0.)
+
+    # stop gradient to avoid nan in reverse mode
+    zeta_l=get_zeta_l(rho,trajectory_l,theta)
+    roots_100fill = refine_gradient(zeta_l,q,s,roots_100fill)
+
+    mask_diff = mask[1:] & mask[:-1]
+    roots_State_refine_grad = Iterative_State(sample_n,theta,roots_100fill,parity,ghost_roots_dis,sort_flag,Is_create)
+    mag_ndarray= (roots_100fill.imag[0:-1]+roots_100fill.imag[1:])*(roots_100fill.real[0:-1]-roots_100fill.real[1:])*parity[0:-1]
+    mag = 1/2*jnp.sum(jnp.where(mask_diff,mag_ndarray,0.).sum(axis=1))
+    
+    _,magc,parab=error_sum(roots_State_refine_grad,rho,q,s,mask)
+    # parab = jax.lax.stop_gradient(parab)
+    mag=(mag+magc+parab)/(jnp.pi*rho**2)
+    return (mag[0],info)
 @partial(jax.jit,static_argnames=['default_strategy'])
 def heriachical_contour(trajectory_l,tol,retol,rho,s,q,sample_n,default_strategy=(60,80,150)):
     """
@@ -277,11 +313,6 @@ def contour_integrate(rho,s,q,trajectory_l,epsilon,epsilon_rel=0,inite=30,n_ite=
 
     return result
 
-def scan_body(carry,i):
-    # function to adaptively add points using scan with a fixed number of loops
-    # prepare for the reverse mode differentiation or shard_map(it is not compatible with while_loop)
-    carry=jax.lax.cond(cond_fun(carry),while_body_fun,lambda x:x,carry)
-    return carry,i
 @jax.jit
 def cond_fun(carry):
     carry,carrylast=carry
