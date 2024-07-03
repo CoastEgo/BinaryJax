@@ -78,3 +78,9 @@ def custom_delete(array, idx):
     array = jnp.where((ite < ite.size - (idx<array.shape[0]).sum())[:,None], array, jnp.nan)
     return array
 
+def stop_grad_wrapper(func):
+    def wrapper(*args, **kwargs):
+        args = jax.lax.stop_gradient(args)
+        kwargs = jax.lax.stop_gradient(kwargs)
+        return jax.lax.stop_gradient(func(*args, **kwargs))
+    return wrapper
