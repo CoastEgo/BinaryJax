@@ -37,7 +37,8 @@ def error_sum(Roots_State,rho,q,s,mask=None):
     theta = Roots_State.theta
     if mask is None:
         mask = ~jnp.isnan(z)
-    deXProde2X,de_z,de_deXPro_de2X=basic_partial(z,theta,rho,q,s)
+    caustic_crossing = (Is_create!=0).any()
+    deXProde2X,de_z,de_deXPro_de2X=basic_partial(z,theta,rho,q,s,caustic_crossing)
     deXProde2X = jnp.where(mask,deXProde2X,0.)
     de_z = jnp.where(mask,de_z,0.)
     de_deXPro_de2X = jnp.where(mask,de_deXPro_de2X,0.)
@@ -85,7 +86,7 @@ def error_sum(Roots_State,rho,q,s,mask=None):
         parab+=jnp.sum(dApc)
 
         return (mag,parab,error_hist)
-    carry=jax.lax.cond((Is_create!=0).any(),no_create_true_fun,lambda x:x,(0.,0.,jnp.zeros_like(theta)))
+    carry=jax.lax.cond(caustic_crossing,no_create_true_fun,lambda x:x,(0.,0.,jnp.zeros_like(theta)))
     mag_c,parab_c,error_hist_c=carry
     mag+=mag_c
     parab+=parab_c

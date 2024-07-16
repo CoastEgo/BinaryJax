@@ -63,7 +63,7 @@ def dot_product(a,b):
     return jnp.real(a)*jnp.real(b)+jnp.imag(a)*jnp.imag(b)
 
 @jax.jit
-def basic_partial(z,theta,rho,q,s):
+def basic_partial(z,theta,rho,q,s,caustic_crossing):
     z_c=jnp.conj(z)
     parZetaConZ=1/(1+q)*(1/(z_c-s)**2+q/z_c**2)
     par2ConZetaZ=-2/(1+q)*(1/(z-s)**3+q/(z)**3)
@@ -71,19 +71,23 @@ def basic_partial(z,theta,rho,q,s):
     detJ=1-jnp.abs(parZetaConZ)**2
     de_z=(de_zeta-parZetaConZ*jnp.conj(de_zeta))/detJ
     deXProde2X=(rho**2+jnp.imag(de_z**2*de_zeta*par2ConZetaZ))/detJ
+    @jax.jit
+    def get_de_deXPro_de2X(carry):
+        # now only calculate the derivative of x'^x'' with respect to \theta if caustic_crossing is True which is used in e4 calculation
+        # still need to test weather this is robust enough for the case that source is very close to the caustic but not crossing it
 
-    # calculate the derivative of x'^x'' with respect to \theta x'^x'''
-    de2_zeta = -rho*jnp.exp(1j*theta)
-    de2_zetaConj = -rho*jnp.exp(-1j*theta)
-    par3ConZetaZ=6/(1+q)*(1/(z-s)**4+q/(z)**4)
-    de2_z = (de2_zeta-jnp.conj(par2ConZetaZ)*jnp.conj(de_z)**2-parZetaConZ*(
-        de2_zetaConj-par2ConZetaZ*de_z**2))/detJ
-    
-    # deXProde2X_test = 1/(2*1j)*(de2_z*jnp.conj(de_z)-de_z*jnp.conj(de2_z))
-    # jax.debug.print('deXProde2X_test error is {}',jnp.nansum(jnp.abs(deXProde2X_test-deXProde2X)))
-    de_deXPro_de2X=1/detJ**2*jnp.imag(
-        detJ*(de2_zeta*par2ConZetaZ*de_z**2+de_zeta*par3ConZetaZ*de_z**3+de_zeta*par2ConZetaZ*2*de_z*de2_z)
-        +(jnp.conj(par2ConZetaZ)*jnp.conj(de_z)*jnp.conj(parZetaConZ)+parZetaConZ*par2ConZetaZ*de_z
-        )*de_zeta*par2ConZetaZ*de_z**2)
+        de2_zeta = -rho*jnp.exp(1j*theta)
+        de2_zetaConj = -rho*jnp.exp(-1j*theta)
+        par3ConZetaZ=6/(1+q)*(1/(z-s)**4+q/(z)**4)
+        de2_z = (de2_zeta-jnp.conj(par2ConZetaZ)*jnp.conj(de_z)**2-parZetaConZ*(
+            de2_zetaConj-par2ConZetaZ*de_z**2))/detJ
+        # deXProde2X_test = 1/(2*1j)*(de2_z*jnp.conj(de_z)-de_z*jnp.conj(de2_z))
+        # jax.debug.print('deXProde2X_test error is {}',jnp.nansum(jnp.abs(deXProde2X_test-deXProde2X)))
+        de_deXPro_de2X=1/detJ**2*jnp.imag(
+            detJ*(de2_zeta*par2ConZetaZ*de_z**2+de_zeta*par3ConZetaZ*de_z**3+de_zeta*par2ConZetaZ*2*de_z*de2_z)
+            +(jnp.conj(par2ConZetaZ)*jnp.conj(de_z)*jnp.conj(parZetaConZ)+parZetaConZ*par2ConZetaZ*de_z
+            )*de_zeta*par2ConZetaZ*de_z**2)
+        return de_deXPro_de2X
+    de_deXPro_de2X = jax.lax.cond(caustic_crossing, get_de_deXPro_de2X, lambda x: jnp.zeros_like(deXProde2X), None)
     # deXProde2X = jax.lax.stop_gradient(deXProde2X)
     return deXProde2X,de_z,de_deXPro_de2X
