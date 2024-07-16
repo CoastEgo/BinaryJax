@@ -44,8 +44,8 @@ def point_light_curve(trajectory_l,s,q,rho):
     cond,mag=Quadrupole_test(rho,s,q,zeta_l,z_l,cond)
     return mag,cond
     
-@partial(jax.jit,static_argnames=['return_info','default_strategy'])
-def model(t_0,u_0,t_E,rho,q,s,alpha_deg,times,tol=1e-2,retol=0.001,return_info=False,default_strategy=(60,80,150)):
+@partial(jax.jit,static_argnames=['return_info','default_strategy','analytic'])
+def model(t_0,u_0,t_E,rho,q,s,alpha_deg,times,tol=1e-2,retol=0.001,return_info=False,default_strategy=(60,80,150),analytic=True):
     """
     Compute the microlensing model for a binary lens system using JAX.
 
@@ -62,7 +62,9 @@ def model(t_0,u_0,t_E,rho,q,s,alpha_deg,times,tol=1e-2,retol=0.001,return_info=F
         retol (float, optional): The relative tolerance for the adaptive contour integration. Defaults to 0.001.
         return_info (bool, optional): Whether to return additional information about the computation. Defaults to False.
         default_strategy (tuple, optional): The default strategy for the hierarchical contour integration. Defaults to (60,80,150).
-
+        analytic (bool, optional): Whether to use the analytic chain rule to simplify the computation graph. Set this to True will accelerate 
+        the computation of the gradient and will support the reverse mode differentiation containing the while loop. But set this to True will slow down if only
+        calculate the model without differentiation. Defaults to True.
     Returns:
         array-like: The magnification of the source at the given times.
         tuple: Additional information about the computation if return_info is True.
@@ -71,28 +73,32 @@ def model(t_0,u_0,t_E,rho,q,s,alpha_deg,times,tol=1e-2,retol=0.001,return_info=F
     ### initialize parameters
     alpha_rad=alpha_deg*2*jnp.pi/360
     tau=(times-t_0)/t_E
-    trajectory_n=tau.shape[0]
     ## switch the coordinate system to the lowmass
     trajectory = tau*jnp.exp(1j*alpha_rad)+1j*u_0*jnp.exp(1j*alpha_rad)
     trajectory_l = to_lowmass(s,q,trajectory)
 
     mag,cond=point_light_curve(trajectory_l,s,q,rho)
 
+    if analytic:
+        binary_mag_fun = heriachical_contour_warpper
+    else:
+        binary_mag_fun = heriachical_contour
+    
     if return_info:
         pad_value = [jnp.nan,0.,jnp.nan+1j*jnp.nan,jnp.nan,jnp.nan,0.,True,0]
         shape = [1,1,5,5,1,1,1,5]
         init_fun = lambda x,y : jnp.full((sum(default_strategy),y),x)
         theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,Is_create = jax.tree_map(init_fun,pad_value,shape)
-        sample_n=jnp.array([0]);epsilon=tol;epsilon_rel=retol;mag_no_diff_num=0;outloop=0
-        carry_init = (sample_n,theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,
-        Is_create,trajectory_l[0],rho,s,q,epsilon,epsilon_rel,jnp.array([0.]),mag_no_diff_num,outloop)
-        
-        mag_contour = lambda trajectory_l: heriachical_contour(trajectory_l,tol,retol,rho,s,q,trajectory_n,default_strategy)
-        result = lax.map(lambda x: lax.cond(x[0],lambda _: (x[1],carry_init), jax.jit(mag_contour),x[2]), [cond,mag,trajectory_l])
+        sample_n=jnp.array([0])
+        roots_state = Iterative_State(sample_n,theta,roots,parity,ghost_roots_dis,sort_flag,Is_create)
+        mag_contour = lambda trajectory_l: binary_mag_fun(trajectory_l,tol,retol,rho,s,q,default_strategy)
+        result = lax.map(lambda x: lax.cond(x[0],lambda _: (x[1],(x[2],rho,s,q,
+                                                            roots_state,Error_State(jnp.array([x[1]]),0,0,error_hist,tol,retol))
+                                                            ), jax.jit(mag_contour),x[2]), [cond,mag,trajectory_l])
         mag_final,carry_list = result
         return mag_final,carry_list
     else:
-        mag_contour = lambda trajectory_l: heriachical_contour(trajectory_l,tol,retol,rho,s,q,trajectory_n,default_strategy)[0]
+        mag_contour = lambda trajectory_l: binary_mag_fun(trajectory_l,tol,retol,rho,s,q,default_strategy)[0]
         mag_final = lax.map(lambda x: lax.cond(x[0],lambda _: x[1], 
                                                jax.jit(mag_contour),x[2]), 
                                                [cond,mag,trajectory_l])
@@ -128,7 +134,7 @@ def to_lowmass(s, q, x):
     delta_x = s / (1 + q)
     return -jnp.conj(x) + delta_x 
 @partial(jax.jit,static_argnames=['default_strategy'])
-def heriachical_contour_warpper(trajectory_l,tol,retol,rho,s,q,sample_n,default_strategy=(60,80,150)):
+def heriachical_contour_warpper(trajectory_l,tol,retol,rho,s,q,default_strategy=(60,80,150)):
     """
     Wrapper function for the hierarchical contour integration.
     This function is used for better support of automatic differentiation, which can reduce the computational graph size to accelerate the computation and
@@ -141,8 +147,7 @@ def heriachical_contour_warpper(trajectory_l,tol,retol,rho,s,q,sample_n,default_
         s (float): The separation value.
         q (float): The mass ratio value
     """
-    mag_nograd,info = stop_grad_wrapper(heriachical_contour)(trajectory_l,tol,retol,rho,s,q,sample_n,default_strategy)
-    # mag_nograd,info = heriachical_contour(trajectory_l,tol,retol,rho,s,q,sample_n,default_strategy)
+    mag_nograd,info = stop_grad_wrapper(heriachical_contour)(trajectory_l,tol,retol,rho,s,q,default_strategy)
     roots_State = info[-2]
     sample_n,theta,roots,parity,ghost_roots_dis,sort_flag,Is_create=roots_State
     mask = ~jnp.isnan(roots)
@@ -164,7 +169,7 @@ def heriachical_contour_warpper(trajectory_l,tol,retol,rho,s,q,sample_n,default_
     mag=(mag+magc+parab)/(jnp.pi*rho**2)
     return (mag[0],info)
 @partial(jax.jit,static_argnames=['default_strategy'])
-def heriachical_contour(trajectory_l,tol,retol,rho,s,q,sample_n,default_strategy=(60,80,150)):
+def heriachical_contour(trajectory_l,tol,retol,rho,s,q,default_strategy=(60,80,150)):
     """
     Perform hierarchical sampling for adaptive contour integration. 
     This function is used to reduce the memory usage and improve the performance of the contour integration. The reason is that the optimal fixed array length 
@@ -177,7 +182,6 @@ def heriachical_contour(trajectory_l,tol,retol,rho,s,q,sample_n,default_strategy
         rho (float): The density value.
         s (float): The separation value.
         q (float): The mass ratio value.
-        sample_n (int): The number of samples.
         default_strategy (tuple, optional): The default strategy for array length. Defaults to (60,80,150).
 
     Returns:
