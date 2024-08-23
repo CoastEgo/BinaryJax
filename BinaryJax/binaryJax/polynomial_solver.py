@@ -223,7 +223,7 @@ def AE_roots0(coff):
     roots = Roots0(coff)
     return roots
 @jax.jit
-def Aberth_Ehrlich(coff, roots, MAX_ITER=100):
+def Aberth_Ehrlich(coff, roots, MAX_ITER=50):
     """
     Solves a polynomial equation using the Aberth-Ehrlich method.
     Adopted from https://arxiv.org/abs/2206.00482 Hossein Fatheddin
@@ -240,20 +240,19 @@ def Aberth_Ehrlich(coff, roots, MAX_ITER=100):
     """
     derp = jnp.polyder(coff)
     mask = 1 - jnp.eye(roots.shape[0])
-
+    # alpha = jnp.abs(coff)*((2*jnp.sqrt(2))*1j+1)
     @jax.jit
     def loop_body(carry):
         roots, coff, cond, ratio_old, n_iter = carry
-
-        roots_temp = jnp.where(cond, roots, 0)
-        ratio = jnp.polyval(coff, roots_temp) / jnp.polyval(derp, roots_temp)
-        ratio = jnp.where(cond, ratio, ratio_old)
+        # h = jnp.polyval(coff, roots)
+        # b = jnp.polyval(alpha, jnp.abs(roots))
+        ratio = jnp.polyval(coff, roots) / jnp.polyval(derp, roots)
 
         sum_term = jnp.nansum(mask * 1 / (roots - roots[:, None]), axis=0)
         w = ratio / (1 - (ratio * sum_term))
-        cond = jnp.abs(w) > 2e-10
-        maskw = jnp.where(cond, w, 0)
-        roots -= maskw
+        cond = jnp.abs(w) > 2e-14
+        # cond = jnp.abs(h) > 1e-15*b
+        roots -= w
         return (roots, coff, cond, ratio, n_iter + 1)
 
     def cond_fun(carry):
