@@ -214,7 +214,7 @@ def parity_delete_cond(carry):
     sample_n,theta,real_parity,real_roots,outloop,parity_sum,mask=carry
     n_ite=theta.shape[0]
     delidx=jnp.where((parity_sum!=-1)&mask,size=n_ite,fill_value=n_ite+1)[0]
-    sample_n-=jnp.size(delidx)
+    sample_n-= ((parity_sum!=-1)&mask).sum()
     delete_tree = [theta, real_parity, real_roots]
     theta,real_parity,real_roots=jax.tree_map(lambda x: custom_delete(x,delidx), delete_tree)
     outloop+=1

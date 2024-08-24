@@ -69,7 +69,8 @@ def delete_body(carry, k):
     array, ite2 = carry
     mask = ite2 < k
     array = jnp.where(mask[:,None], array, jnp.roll(array, -1,axis=0))
-    return (array, ite2 + 1), k
+    ite2 -= (~mask).any()
+    return (array, ite2 ), k
 @jax.jit
 def custom_delete(array, idx):
     ite = jnp.arange(array.shape[0])
