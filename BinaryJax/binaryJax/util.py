@@ -19,6 +19,7 @@ class Error_State(NamedTuple):
     error_hist: jax.Array
     epsilon: float
     epsilon_rel: float
+    exceed_flag: bool = False
 
 class Model_Param(NamedTuple):
     rho: float
@@ -66,17 +67,17 @@ def custom_insert(array,idx,add_array,add_number,pad_item):
 #     return (theta,idx,add_number,add_theta_encode),k
 @jax.jit
 def delete_body(carry, k):
-    array, ite2 = carry
-    mask = ite2 < k
+    array, ite2 ,delidx = carry
+    mask = ite2 < delidx[k]
     array = jnp.where(mask[:,None], array, jnp.roll(array, -1,axis=0))
-    ite2 -= (~mask).any()
-    return (array, ite2 ), k
+    delidx -= (~mask).any()
+    return (array, ite2, delidx ), k
 @jax.jit
-def custom_delete(array, idx):
+def custom_delete(array, delidx):
     ite = jnp.arange(array.shape[0])
-    carry, _ = lax.scan(delete_body, (array, ite), idx)
-    array, _ = carry
-    array = jnp.where((ite < ite.size - (idx<array.shape[0]).sum())[:,None], array, jnp.nan)
+    carry, _ = lax.scan(delete_body, (array, ite, delidx), jnp.arange(delidx.shape[0]))
+    array, _, _ = carry
+    array = jnp.where((ite < ite.size - (delidx<array.shape[0]).sum())[:,None], array, jnp.nan)
     return array
 
 def stop_grad_wrapper(func):

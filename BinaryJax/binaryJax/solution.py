@@ -11,9 +11,12 @@ jax.config.update("jax_enable_x64", True)
 @jax.jit
 def add_points(idx,add_zeta,add_theta,roots_State,s,m1,m2,add_number):
     sample_n,theta,roots,parity,ghost_roots_dis,sort_flag,Is_create=roots_State
-    sample_n +=jnp.sum(add_number)
     add_coff = get_poly_coff(add_zeta,s,m2)
-    add_roots,add_parity,add_ghost_roots,outloop,add_coff,add_zeta,add_theta=get_real_roots(add_coff,add_zeta,add_theta,s,m1,m2)#可能删掉不合适的根
+    add_roots,add_parity,add_ghost_roots,outloop,add_coff,add_zeta,add_theta,add_number=get_real_roots(add_coff,add_zeta,add_theta,s,m1,m2,add_number)#可能删掉不合适的根
+
+    idx = jnp.where((add_number==0)[:,0],0,idx) ## if the add_number is deleted, then the idx is 0
+    sample_n +=jnp.sum(add_number)
+
     insert_fun = lambda x,y,z: custom_insert(x,idx,y,add_number,z)
     theta,ghost_roots_dis = jax.tree_map(insert_fun, (theta,ghost_roots_dis), (add_theta,add_ghost_roots),(jnp.nan,)*2)
 
@@ -65,7 +68,7 @@ def get_sorted_roots(roots,parity,sort_flag):
     parity.at[-2:].set(jnp.nan)
     return roots,parity,sort_flag
 @jax.jit
-def get_real_roots(coff,zeta_l,theta,s,m1,m2):
+def get_real_roots(coff,zeta_l,theta,s,m1,m2,add_number):
     n_ite=zeta_l.shape[0]
     sample_n=(~jnp.isnan(zeta_l)).any(axis=1).sum()
     mask=(jnp.arange(n_ite)<sample_n)
@@ -88,15 +91,15 @@ def get_real_roots(coff,zeta_l,theta,s,m1,m2):
     real_parity=lax.cond((idx_parity_wrong!=-1).any(),update_parity,lambda x:x[-1],(zeta_l,real_roots,nan_num,sample_n,idx_parity_wrong,cond,s,m1,m2,real_parity))
     parity_sum=jnp.nansum(real_parity,axis=1)
     outloop=0
-    carry=lax.cond(((parity_sum!=-1)&mask).any(),parity_delete_cond,lambda x:x,(sample_n,theta,real_parity,real_roots,outloop,parity_sum,mask))
-    sample_n,theta,real_parity,real_roots,outloop,parity_sum,_=carry
+    carry=lax.cond(((parity_sum!=-1)&mask).any(),parity_delete_cond,lambda x:x,(sample_n,theta,real_parity,real_roots,outloop,parity_sum,mask,add_number))
+    sample_n,theta,real_parity,real_roots,outloop,parity_sum,_,add_number=carry
     ###计算得到最终的
     cond=(jnp.isnan(real_roots))&(jnp.arange(n_ite)<sample_n)[:,None]
     ghost_roots=jnp.where(cond,roots,jnp.inf)
     ghost_roots=jnp.sort(ghost_roots,axis=1)[:,0:2]
     ghost_roots=jnp.where(jnp.isinf(ghost_roots),jnp.nan,ghost_roots)
     ghost_roots_dis=jnp.abs(jnp.diff(ghost_roots,axis=1))
-    return real_roots,real_parity,ghost_roots_dis,outloop,coff,zeta_l,theta
+    return real_roots,real_parity,ghost_roots_dis,outloop,coff,zeta_l,theta,add_number
 @jax.jit
 def update_cond(carry):
     idx_verify_wrong,error,cond=carry
@@ -219,12 +222,27 @@ def sort_body2(carry,i):
     return (roots,parity),i
 @jax.jit
 def parity_delete_cond(carry):
-    sample_n,theta,real_parity,real_roots,outloop,parity_sum,mask=carry
+    sample_n,theta,real_parity,real_roots,outloop,parity_sum,mask,add_number=carry
     n_ite=theta.shape[0]
-    delidx=jnp.where((parity_sum!=-1)&mask,size=n_ite,fill_value=n_ite+1)[0]
-    sample_n-= ((parity_sum!=-1)&mask).sum()
+    cond = (parity_sum!=-1)& mask
+    delidx=jnp.where(cond,size=n_ite,fill_value=10000)[0]
+
+    sample_n-= cond.sum()
+    ones_array = jnp.ones_like(delidx)
+    ones_array = jnp.where(cond,0,ones_array)
+    def fix_add_number_fun(carry,k):
+        add_number,ones_array=carry
+        old_number = add_number[k]
+        add_number = add_number.at[k].set(
+            jnp.where(jnp.arange(ones_array.shape[0])<add_number[k],ones_array,0).sum())
+        ones_array = jnp.roll(ones_array,-old_number,axis=0)
+        return (add_number,ones_array),k
+    carry,_ = lax.scan(fix_add_number_fun,(add_number,ones_array),jnp.arange(add_number.shape[0]))
+    add_number,_=carry
+
     delete_tree = [theta, real_parity, real_roots]
     theta,real_parity,real_roots=jax.tree_map(lambda x: custom_delete(x,delidx), delete_tree)
-    outloop+=1
+    
+    outloop+=cond.sum()
     # if the parity is still wrong, then delete the point
-    return (sample_n,theta,real_parity,real_roots,outloop,parity_sum,mask)
+    return (sample_n,theta,real_parity,real_roots,outloop,parity_sum,mask,add_number)

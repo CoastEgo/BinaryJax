@@ -291,7 +291,7 @@ def contour_integrate(rho,s,q,trajectory_l,epsilon,epsilon_rel=0,inite=30,n_ite=
     error_hist=jnp.ones(n_ite)
     zeta_l=get_zeta_l(rho,trajectory_l,theta)
     coff=get_poly_coff(zeta_l,s,q/(1+q))
-    roots,parity,ghost_roots_dis,outloop,coff,zeta_l,theta=get_real_roots(coff,zeta_l,theta,s,m1,m2)
+    roots,parity,ghost_roots_dis,outloop,coff,zeta_l,theta,_=get_real_roots(coff,zeta_l,theta,s,m1,m2,sample_n)
     buried_error=get_buried_error(ghost_roots_dis,sample_n)
     sort_flag=jnp.where(jnp.arange(n_ite)<inite,False,True)[:,None]#是否需要排序
     ### no need to sort first idx
