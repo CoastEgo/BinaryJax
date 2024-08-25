@@ -30,18 +30,26 @@ def add_points(idx,add_zeta,add_theta,roots_State,s,m1,m2,add_number):
 def get_buried_error(ghost_roots_dis,sample_n):
     n_ite=ghost_roots_dis.shape[0]
     error_buried=jnp.zeros((n_ite,1))
-    idx1=jnp.where(ghost_roots_dis[0:-2]>2*ghost_roots_dis[1:-1],size=20,fill_value=-3)[0]+1#i-(i+1)>(i+1)对应的i+1
-    idx1=jnp.where(idx1<sample_n-1,idx1,-2)
-    idx1=jnp.where(~jnp.isnan(ghost_roots_dis[idx1+1]),idx1,-2)#i+2对应的不是nan，说明存在buried image
-    error_buried=error_buried.at[idx1+1].add((ghost_roots_dis[idx1]-ghost_roots_dis[idx1-1])**2)#在i+2处加入误差项，因为应该在i+1，i+2处加点
-    error_buried=error_buried.at[idx1].add((ghost_roots_dis[idx1]-ghost_roots_dis[idx1-1])**2)#在i+1处加入误差项，防止buried误差不收敛
-    idx1=jnp.where(2*ghost_roots_dis[1:-1]<ghost_roots_dis[2:],size=20,fill_value=-3)[0]+1#i<i+1-i对应的i
-    idx1=jnp.where(~jnp.isnan(ghost_roots_dis[idx1-1]),idx1,-2)#i-1处不是nan
-    idx1=jnp.where(idx1<sample_n-1,idx1,-2)
-    error_buried=error_buried.at[idx1].add((ghost_roots_dis[idx1+1]-ghost_roots_dis[idx1])**2)#在i处加入误差，也就是在i,i+1处加点
-    error_buried=error_buried.at[idx1+1].add((ghost_roots_dis[idx1+1]-ghost_roots_dis[idx1])**2)#在i+1处加入误差项，防止buried误差不收敛
-    error_buried.at[-2:].set(0.)
-    error_buried=jnp.where(jnp.isnan(error_buried),0,error_buried)
+
+    idx_j = jnp.arange(1,n_ite)
+    idx_i = jnp.roll(idx_j,shift=1)
+    idx_k = jnp.roll(idx_j,shift=-1)
+
+    idx_k = jnp.where(idx_k==sample_n,1,idx_k) # because the last point is the same as the first point 0=2pi
+    idx_i = jnp.where(idx_i==n_ite-1,sample_n-1,idx_i)
+
+    Ghost_i = ghost_roots_dis[idx_i]
+    Ghost_j = ghost_roots_dis[idx_j]
+    Ghost_k = ghost_roots_dis[idx_k]
+    KInCaustic = (jnp.isnan(Ghost_k))
+    IInCaustic = (jnp.isnan(Ghost_i))
+
+    add_item = jnp.where((Ghost_i>2*Ghost_j)&(~KInCaustic),(Ghost_i-Ghost_j)**2,0)
+    error_buried=error_buried.at[idx_k].add(add_item)
+
+    add_item = jnp.where((2*Ghost_j<Ghost_k)&(~IInCaustic),(Ghost_k-Ghost_j)**2,0)
+    error_buried=error_buried.at[idx_j].add(add_item)
+    
     return error_buried
 @jax.jit
 def get_sorted_roots(roots,parity,sort_flag):
