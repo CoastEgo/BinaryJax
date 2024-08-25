@@ -264,7 +264,14 @@ def heriachical_contour(trajectory_l,tol,retol,rho,s,q,default_strategy=(60,80,1
     maglast = resultlast[-1].mag
     condition = (roots_State.sample_num<Max_array_length-5)[0]
     mag=lax.cond(condition,lambda x:x[0],lambda x:x[1],(mag,maglast))
-    result = lax.cond(condition,lambda x:x[0],lambda x:x[1],(result,resultlast))
+    def update_result_fun(carry):
+        # update the exceed flag to True in the mag_State
+        result_last=carry[1]
+        trajectory_l,rho,s,q,roots_State,mag_State=result_last
+        mag_State_new = mag_State._replace(exceed_flag=True)
+        result_last_update = (trajectory_l,rho,s,q,roots_State,mag_State_new)
+        return result_last_update
+    result = lax.cond(condition,lambda x:x[0],update_result_fun,(result,resultlast))
     return (mag[0],result)
 
 @partial(jax.jit,static_argnames=('inite','n_ite'))
