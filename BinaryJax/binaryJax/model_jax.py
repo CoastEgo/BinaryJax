@@ -341,13 +341,16 @@ def cond_fun(carry):
     mag = mag_State.mag
     mag_no_diff_num = mag_State.mag_no_diff
     outloop = mag_State.outloop
-
+    K = 2
     Max_array_length=jnp.shape(theta)[0]
     mini_interval=jnp.nanmin(jnp.abs(jnp.diff(theta,axis=0)))
     abs_mag_cond=(jnp.nansum(error_hist)>epsilon)
 
-    abs_mag_cond2=(error_hist>epsilon/jnp.sqrt(sample_n/2)).any()
-    rel_mag_cond=(error_hist/jnp.abs(mag)>epsilon_rel/jnp.sqrt(sample_n/2)).any() # this factor 1/2 is a tunable parameter to adjust the stopping condition, the larger the value, the more strict the stopping condition
+    # abs_mag_cond2=(error_hist>epsilon/jnp.sqrt(sample_n/2)).any()
+    rel_mag_cond=(
+        (error_hist/jnp.abs(mag))> 
+                  (epsilon_rel/jnp.sqrt(sample_n/K))
+                  ).any() # this factor 1/2 is a tunable parameter to adjust the stopping condition, the larger the value, the more strict the stopping condition
 
     # rel_mag_cond=(jnp.nansum(error_hist)>epsilon_rel*mag)[0]
     # relmag_diff_cond=(jnp.abs((mag-maglast)/maglast)>1/2*epsilon_rel)[0]
@@ -378,7 +381,7 @@ def while_body_fun(carry):
     sample_n = roots_State.sample_num
     Max_array_length=jnp.shape(theta)[0]
     add_total_num = theta.shape[0]
-
+    K = 2
     #一次多个区间加点:
     
     ### absolute error adding mode
@@ -398,9 +401,13 @@ def while_body_fun(carry):
     # zerot_counts = jnp.sum(idx==0)
     # idx = jnp.roll(idx,-zerot_counts)
 
-    idx = jnp.where(error_hist/jnp.abs(mag)>epsilon_rel/jnp.sqrt(sample_n/2),size=int(Max_array_length/5),fill_value=0)[0]
+    idx = jnp.where((error_hist/jnp.abs(mag))
+                    > (epsilon_rel/jnp.sqrt(sample_n/K)),
+                    size=int(Max_array_length/5),fill_value=0)[0]
 
-    add_number=jnp.ceil((error_hist[idx]/jnp.abs(mag)/epsilon_rel*jnp.sqrt(sample_n/2))**0.2).astype(int)#至少要插入一个点，不包括相同的第一个
+    add_number=jnp.ceil(
+        (error_hist[idx]/jnp.abs(mag)/epsilon_rel*jnp.sqrt(sample_n/K))**0.2
+        ).astype(int)#至少要插入一个点，不包括相同的第一个
     
     add_number=jnp.where((idx==0)[:,None],0,add_number)
     add_number=jnp.where(add_number>add_max,add_max,add_number)
