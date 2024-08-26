@@ -10,3 +10,4 @@ dataFit/*.log
 *.pdf
 *.egg-info
 *.ipynb
+test/test_result
