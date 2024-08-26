@@ -11,8 +11,8 @@ from .polynomial_solver import get_roots_vmap
 jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
 
-@jax.jit
-def point_light_curve(trajectory_l,s,q,rho):
+@partial(jax.jit,static_argnames=['return_num'])
+def point_light_curve(trajectory_l,s,q,rho,return_num=False):
     """
     Calculate the point source light curve.
 
@@ -21,10 +21,11 @@ def point_light_curve(trajectory_l,s,q,rho):
         s (float): The projected separation between the lens and the source.
         q (float): The mass ratio between the lens and the source.
         rho (float): The source radius in units of the Einstein radius.
+        return_num (bool, optional): Whether to return the number of real roots. Defaults to False.
 
     Returns:
         tuple: A tuple containing the magnitude of the light curve and a boolean array indicating the validity of the calculation.
-        if the quadrupole test is passed, the corresponding element in the boolean array is True.
+        if the quadrupole test is passed, the corresponding element in the boolean array is True. If the return_num is True, the tuple will also contain the number of real roots.
     """
     m1=1/(1+q);m2=q/(1+q)
     zeta_l = trajectory_l[:,None]
@@ -39,10 +40,13 @@ def point_light_curve(trajectory_l,s,q,rho):
         cond=cond.at[index].set(False)
         cond=cond.at[index[:,None],sortidx[:,0:3]].set(True)
         return cond
-    cond=lax.cond((index!=-1).any(),ambigious_deal,lambda x : x[-1],(error,index,cond)) #某些情况下出现的根不是5或者3个#'''
+    mask=lax.cond((index!=-1).any(),ambigious_deal,lambda x : x[-1],(error,index,cond)) #某些情况下出现的根不是5或者3个#'''
 
-    cond,mag=Quadrupole_test(rho,s,q,zeta_l,z_l,cond)
-    return mag,cond
+    cond,mag=Quadrupole_test(rho,s,q,zeta_l,z_l,mask)
+    if return_num:
+        return mag,cond,mask.sum(axis=1)
+    else:
+        return mag,cond
     
 @partial(jax.jit,static_argnames=['return_info','default_strategy','analytic'])
 def model(t_0,u_0,t_E,rho,q,s,alpha_deg,times,tol=1e-2,retol=0.001,return_info=False,default_strategy=(60,80,150),analytic=True):
