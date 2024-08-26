@@ -56,16 +56,12 @@ def get_buried_error(ghost_roots_dis,sample_n):
     return error_buried
 @jax.jit
 def get_sorted_roots(roots,parity,sort_flag):
-    roots.at[-2:].set(0.)
-    parity.at[-2:].set(0.)
     flase_i=jnp.where(~sort_flag,size=roots.shape[0],fill_value=-1)[0]
     carry,_=lax.scan(sort_body1,(roots, parity),flase_i)
     resort_i=jnp.where((~sort_flag[0:-1])&(sort_flag[1:]),size=roots.shape[0]-1,fill_value=-2)[0]
     carry,_=lax.scan(sort_body2,carry,resort_i)
     roots,parity=carry
     sort_flag=sort_flag.at[:].set(True)
-    roots.at[-2:].set(jnp.nan)
-    parity.at[-2:].set(jnp.nan)
     return roots,parity,sort_flag
 @jax.jit
 def get_real_roots(coff,zeta_l,theta,s,m1,m2,add_number):
