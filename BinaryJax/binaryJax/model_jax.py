@@ -89,12 +89,12 @@ def model(t_0,u_0,t_E,rho,q,s,alpha_deg,times,tol=1e-2,retol=0.001,return_info=F
         binary_mag_fun = heriachical_contour
     
     if return_info:
-        pad_value = [jnp.nan,0.,jnp.nan+1j*jnp.nan,jnp.nan,jnp.nan,0.,True,0]
-        shape = [1,1,5,5,1,1,1,5]
+        pad_value = [jnp.nan,0.,jnp.nan+1j*jnp.nan,jnp.nan,jnp.nan,0.,True]
+        shape = [1,1,5,5,1,1,1]
         init_fun = lambda x,y : jnp.full((sum(default_strategy),y),x)
-        theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag,Is_create = jax.tree_map(init_fun,pad_value,shape)
+        theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag = jax.tree_map(init_fun,pad_value,shape)
         sample_n=jnp.array([0])
-        roots_state = Iterative_State(sample_n,theta,roots,parity,ghost_roots_dis,sort_flag,Is_create)
+        roots_state = Iterative_State(sample_n,theta,roots,parity,ghost_roots_dis,sort_flag)
         mag_contour = lambda trajectory_l: binary_mag_fun(trajectory_l,tol,retol,rho,s,q,default_strategy)
         result = lax.map(lambda x: lax.cond(x[0],lambda _: (x[1],(x[2],rho,s,q,
                                                             roots_state,Error_State(jnp.array([x[1]]),0,0,error_hist,tol,retol))
@@ -215,11 +215,11 @@ def heriachical_contour(trajectory_l,tol,retol,rho,s,q,default_strategy=(60,80,1
 
         error_hist = mag_State.error_hist
         ## reshape the array and fill the new array with nan
-        pad_list = [theta,error_hist,roots,parity,ghost_roots_dis,sort_flag,Is_create]
-        pad_value = [jnp.nan,0.,jnp.nan,jnp.nan,jnp.nan,True,0]
+        pad_list = [theta,error_hist,roots,parity,ghost_roots_dis,sort_flag]
+        pad_value = [jnp.nan,0.,jnp.nan,jnp.nan,jnp.nan,True]
         padded_list =jax.tree_map(lambda x,y: jnp.pad(x,((0,arraylength),(0,0)),'constant',constant_values=y),pad_list,pad_value)
 
-        theta,error_hist,roots,parity,ghost_roots_dis,sort_flag,Is_create=padded_list
+        theta,error_hist,roots,parity,ghost_roots_dis,sort_flag=padded_list
         carry=(trajectory_l,rho,s,q,
                Iterative_State(sample_n,theta,roots,parity,ghost_roots_dis,sort_flag,Is_create),
                 Error_State(mag_State.mag,mag_State.mag_no_diff,mag_State.outloop,error_hist,mag_State.epsilon,mag_State.epsilon_rel))
@@ -308,7 +308,7 @@ def contour_integrate(rho,s,q,trajectory_l,epsilon,epsilon_rel=0,inite=30,n_ite=
     ### no need to sort first idx
     sort_flag=sort_flag.at[0].set(True)
     roots,parity,sort_flag=get_sorted_roots(roots,parity,sort_flag)
-    Is_create=find_create_points(roots,sample_n)
+    Is_create=find_create_points(roots,parity,sample_n)
     roots_State = Iterative_State(sample_n,theta,roots,parity,ghost_roots_dis,sort_flag,Is_create)
     #####计算第一次的误差，放大率
     mag_no_diff_num = 0

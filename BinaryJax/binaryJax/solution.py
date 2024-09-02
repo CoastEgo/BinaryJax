@@ -27,7 +27,7 @@ def add_points(idx,add_zeta,add_theta,roots_State,s,m1,m2,add_number):
     unsorted_roots,unsorted_parity =jax.tree_map(insert_fun, (roots,parity),(add_roots,add_parity),(jnp.nan,)*2)
 
     roots,parity,sort_flag=get_sorted_roots(unsorted_roots,unsorted_parity,sort_flag)
-    Is_create=find_create_points(roots,sample_n)
+    Is_create=find_create_points(roots,parity,sample_n)
     return Iterative_State(sample_n,theta,roots,parity,ghost_roots_dis,sort_flag,Is_create),buried_error,outloop
 @jax.jit
 def get_buried_error(ghost_roots_dis,sample_n):
@@ -143,52 +143,52 @@ def loop_parity_body(carry,i):##循环体
     # real_parity=lax.cond((nan_num[i]==0)&(i<sample_n),parity_true1_fun,parity_false1_fun,(temp,zeta_l,real_parity,i,cond,nan_num,s,m1,m2))
     return (zeta_l,real_roots,real_parity,nan_num,sample_n,cond,s,m1,m2),i
 @jax.jit    
-def find_create_points(roots, sample_n):
+def find_create_points(roots, parity ,sample_n):
     """
-    find the image are created or destroyed
+    find the image are created or destroyed and return the index of the created or destroyed points, 
+    this index is used to determine the order for trapzoidal integration: 
+        for image creation, the integration should be  (z.imag_- + z.imag_+)*(z.real_-  - z.real_+)
+        for image destruction, the integration should be (z.imag_- + z.imag_+)*(z.real_+  - z.real_-)
+    the create represents the flag for image creation or destruction : 
+        if create=1, it means image creation, if create=-1, it means image destruction
+        and for image creation, the error should be added to the previous row, for image destruction, the error should be added to the next row
 
     Parameters
     ----------
     roots : jnp.ndarray
         the roots of the polynomial
+    parity : jnp.ndarray
+        the parity of the roots
     sample_n : int
         the number of the sample points
-
+    
     Returns
     -------
-    jnp.ndarray
-        the image are created or destroyed, if the image is created, the value is 1 and if the image is destroyed, the value is -1;
-        if the create or destroy are on the same row, the connection is 10
-        [ 1 , 1 , 1 , nan , nan ]
-        [ 1 , 1 , 1 , 1 , 1 ] # create
-         [ 1 , 1 , 1 , 1 , 1 ]  # destroy
-        [ 1 , nan , nan , 1 , 1 ]
+    Is_create : jnp.ndarray
+        the row and column index of the created or destroyed points
+
     """
     cond=jnp.isnan(roots)
-    Is_create=jnp.zeros_like(roots,dtype=int)
-    idx_x,idx_y=jnp.where(jnp.diff(cond,axis=0)&(~cond[0:-1].all(axis=1))[:,None]&(jnp.arange(roots.shape[0]-1)!=sample_n-1)[:,None],size=20,fill_value=-2)
-    ## the roots at i is nan but the roots at i+1 is not nan/ the roots at i is not nan but the roots at i+1 is nan
-    ## the index i can't be the last index
-    idx_x+=1
-    @jax.jit
-    def update_is_create(carry, inputs):
-        x, y = inputs
-        cond, Is_create = carry
-        def create_value_true(_):
-            return 1
-        def create_value_false(_):
-            return lax.cond(cond[x, y] & (Is_create[x - 1, y] != 1),
-                            lambda _: -1,
-                            lambda _: 10,
-                            None)
-        create_value = lax.cond(~cond[x, y], create_value_true, create_value_false, None) ## if the root is not nan, then it is created
-        Is_create = Is_create.at[lax.cond(~cond[x, y], lambda _: x, lambda _: x - 1, None), y].set(create_value)
-        return (cond, Is_create), (x, y)
-    initial_carry = (cond, Is_create)
-    final_carry, _ = lax.scan(update_is_create, initial_carry, (idx_x, idx_y))
-    Is_create = final_carry[1]
-    Is_create=Is_create.at[-3:].set(0)
-    return Is_create
+    Num_change_cond = jnp.diff(cond,axis=0) # the roots at i is nan but the roots at i+1 is not nan/ the roots at i is not nan but the roots at i+1 is nan
+    idx_x,idx_y=jnp.where(Num_change_cond&(jnp.arange(roots.shape[0]-1)<(sample_n-1))[:,None],size=20,fill_value=-2) ## the index i can't be the last index
+    shift = jnp.where(cond[idx_x, idx_y], 1, 0)
+    idx_x_create = idx_x + shift
+    Create_Destory = jnp.where(cond[idx_x, idx_y], 1, -1)
+    Create_Destory = jnp.where(idx_x < 0, 0 , Create_Destory)
+    critical_idx = idx_x_create[0::2]
+    critical_idy1 = idx_y[0::2]
+    critical_idy2 = idx_y[1::2]
+
+    critical_idx = jnp.where(critical_idx < 0, 0, critical_idx)
+    critical_idy1 = jnp.where(critical_idy1 < 0, 0, critical_idy1)
+    critical_idy2 = jnp.where(critical_idy2 < 0, 0, critical_idy2)
+
+    critical_pos_idy = jnp.where(Create_Destory[0::2] == -1*parity[critical_idx, critical_idy1]
+                                 , critical_idy1, critical_idy2)
+    critical_neg_idy = jnp.where(Create_Destory[0::2] == 1*parity[critical_idx, critical_idy1]
+                                    , critical_idy1, critical_idy2)
+
+    return jnp.stack([critical_idx, critical_pos_idy, critical_neg_idy, Create_Destory[0::2]], axis=0)
 @jax.jit
 def sort_body1(values,k):
     roots, parity = values

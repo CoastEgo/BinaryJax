@@ -10,7 +10,7 @@ class Iterative_State(NamedTuple):
     parity: jax.Array
     ghost_roots_distant: jax.Array
     sort_flag: Union[bool,jax.Array]
-    Is_create: jax.Array
+    Is_create: jax.Array = jnp.zeros([4,10],dtype=int)
 
 class Error_State(NamedTuple):
     mag: jax.Array

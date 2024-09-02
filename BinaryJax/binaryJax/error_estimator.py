@@ -37,7 +37,7 @@ def error_sum(Roots_State,rho,q,s,mask=None):
     theta = Roots_State.theta
     if mask is None:
         mask = ~jnp.isnan(z)
-    caustic_crossing = (Is_create!=0).any()
+    caustic_crossing = (Is_create[3,:]!=0).any()
     deXProde2X,de_z,de_deXPro_de2X=basic_partial(z,theta,rho,q,s,caustic_crossing)
     deXProde2X = jnp.where(mask,deXProde2X,0.)
     de_z = jnp.where(mask,de_z,0.)
@@ -63,24 +63,14 @@ def error_sum(Roots_State,rho,q,s,mask=None):
         ## if there is image create or destroy, we need to calculate the error
 
         mag,parab,error_hist=carry
-        critial_idx_row=jnp.where((Is_create!=0).any(axis=1),size=20,fill_value=-2)[0]
-        result_row_idx = jnp.zeros_like(critial_idx_row)
-        critial_pos_idx=jnp.zeros_like(critial_idx_row)
-        critial_neg_idx=jnp.zeros_like(critial_idx_row)
-        create_array = jnp.zeros_like(critial_idx_row)
-        total_num = 0
-        # carry,_=jax.lax.scan(error_scan,(Is_create,parity,
-        #                                  result_row_idx,critial_pos_idx,critial_neg_idx,create_array,total_num),critial_idx_row)
-        carry_input = (Is_create,parity,result_row_idx,critial_pos_idx,critial_neg_idx,create_array,total_num)
-        scan_fun = lambda x : jax.lax.scan(error_scan,x,critial_idx_row)[0]
-        carry_output = stop_grad_wrapper(scan_fun)(carry_input)
-        Is_create_temp,parity_temp,result_row_idx,critial_pos_idx,critial_neg_idx,create_array,total_num=carry_output
+        critial_row_idx,critial_pos_idx,critial_neg_idx ,create_array = Is_create
+        total_num = (create_array!=0).sum()
+        result_row_idx = critial_row_idx
         critical_error,dApc,magc = jax.vmap(error_critial,in_axes=(0,0,0,0,None,None,None,None))(
             critial_pos_idx,critial_neg_idx,result_row_idx,create_array,parity,deXProde2X,z,de_z)
         critical_error = jnp.where(jnp.arange(len(critical_error))<total_num,critical_error,0.)
         magc = jnp.where(jnp.arange(len(magc))<total_num,magc,0.)
         dApc = jnp.where(jnp.arange(len(dApc))<total_num,dApc,0.)
-
         error_hist=error_hist.at[(result_row_idx-(create_array-1)//2),0].add(critical_error)
         mag+=jnp.sum(magc)
         parab+=jnp.sum(dApc)
@@ -93,69 +83,3 @@ def error_sum(Roots_State,rho,q,s,mask=None):
     error_hist+=error_hist_c
 
     return error_hist/(np.pi*rho**2),mag,parab
-@stop_grad_wrapper
-@jax.jit
-def error_scan(carry,i):
-    Is_create,parity,result_row_idx,critial_pos_idx,critial_neg_idx,create_array,total_num=carry
-    @jax.jit
-    def create_in_diff_row(carry):
-        # if the creation and destruction of the image are in different rows 3-5-5-3
-        result_row_idx,critial_pos_idx,critial_neg_idx,create_array,total_num,i=carry
-        create=(Is_create[i].sum()//2)
-        # e_crit,dacp,magc=error_critial(i,create,Is_create,parity,deXProde2X,z,de_z)
-        pos_idx_i,neg_idx_i = find_pos_idx(i,create,Is_create,parity)
-        result_row_idx= result_row_idx.at[total_num].set(i)
-        critial_pos_idx= critial_pos_idx.at[total_num].set(pos_idx_i[0])
-        critial_neg_idx= critial_neg_idx.at[total_num].set(neg_idx_i[0])
-        create_array= create_array.at[total_num].set(create)
-
-        total_num+=1
-        # error_hist=error_hist.at[(i-(create-1)/2).astype(int)].add(e_crit)
-        # magc=jnp.where(jnp.isnan(magc),0.,magc)
-        # mag+=magc
-        # parab+=dacp
-        return (result_row_idx,critial_pos_idx,critial_neg_idx,create_array,total_num,i)
-    @jax.jit
-    def create_in_same_row(carry):
-        # if the creation and destruction of the image are in the same row 3-5-3
-        result_row_idx,critial_pos_idx,critial_neg_idx,create_array,total_num,i=carry
-        # e_crit,dacp,magc=error_critial(i,create,Is_create,parity,deXProde2X,z,de_z)
-        # error_hist=error_hist.at[(i-(create-1)/2).astype(int)].add(e_crit)
-        create = 1
-        pos_idx_i,neg_idx_i = find_pos_idx(i,create,Is_create,parity)
-        result_row_idx= result_row_idx.at[total_num].set(i)
-        critial_pos_idx= critial_pos_idx.at[total_num].set(pos_idx_i[0])
-        critial_neg_idx= critial_neg_idx.at[total_num].set(neg_idx_i[0])
-        create_array= create_array.at[total_num].set(create)
-        total_num+=1
-        
-        create = -1
-        pos_idx_i,neg_idx_i = find_pos_idx(i,create,Is_create,parity)
-        result_row_idx= result_row_idx.at[total_num].set(i)
-        critial_pos_idx= critial_pos_idx.at[total_num].set(pos_idx_i[0])
-        critial_neg_idx= critial_neg_idx.at[total_num].set(neg_idx_i[0])
-        create_array= create_array.at[total_num].set(create)
-        total_num+=1
-        return  (result_row_idx,critial_pos_idx,critial_neg_idx,create_array,total_num,i)
-    not_nan_function = lambda x: jax.lax.cond(jnp.abs(Is_create[i].sum())/2==1,create_in_diff_row,create_in_same_row,x)
-    carry = jax.lax.cond(Is_create[i].sum()!=0,not_nan_function,lambda x:x,(result_row_idx,critial_pos_idx,critial_neg_idx,create_array,total_num,i))
-    (result_row_idx,critial_pos_idx,critial_neg_idx,create_array,total_num,i)=carry
-
-    carry = (Is_create,parity,result_row_idx,critial_pos_idx,critial_neg_idx,create_array,total_num)
-    # carry=jax.lax.cond(jnp.abs(Is_create[i].sum())/2==1,create_in_diff_row,create_in_same_row,(mag,parab,Is_create,error_hist,parity,deXProde2X,z,de_z,i))
-    return carry,i
-@jax.jit
-def find_pos_idx(i,create,Is_create,parity):
-    """
-    find the positive and negative index for image creation and destruction
-    this index is used to determine the order for trapzoidal integration: 
-        for image creation, the integration should be  (z.imag_- + z.imag_+)*(z.real_-  - z.real_+)
-        for image destruction, the integration should be (z.imag_- + z.imag_+)*(z.real_+  - z.real_-)
-    the create represents the flag for image creation or destruction : 
-        if create=1, it means image creation, if create=-1, it means image destruction
-        and for image creation, the error should be added to the previous row, for image destruction, the error should be added to the next row
-    
-    """
-    pos_idx=jnp.where(((Is_create[i]==create)|(Is_create[i]==10))&(parity[i]==-1*create),size=1)[0]
-    neg_idx=jnp.where(((Is_create[i]==create)|(Is_create[i]==10))&(parity[i]==1*create),size=1)[0]
-    return pos_idx,neg_idx
