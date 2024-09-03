@@ -261,12 +261,12 @@ def heriachical_contour(trajectory_l,tol,retol,rho,s,q,default_strategy=(60,80,1
         resultlast = reshape_fun(resultlast,add_length)
         result = reshape_fun(result,add_length)
 
-        result,resultlast,Max_array_length=lax.cond((result[-2].sample_num<Max_array_length-5)[0],lambda x:(x[0],x[1],x[-1]),secondary_contour,(result,resultlast,add_length,Max_array_length))
+        result,resultlast,Max_array_length=lax.cond((result[-2].sample_num<Max_array_length-2)[0],lambda x:(x[0],x[1],x[-1]),secondary_contour,(result,resultlast,add_length,Max_array_length))
 
     (trajectory_l,rho,s,q,roots_State,mag_State)=result
     mag = mag_State.mag
     maglast = resultlast[-1].mag
-    condition = (roots_State.sample_num<Max_array_length-5)[0]
+    condition = (roots_State.sample_num<Max_array_length-2)[0]
     mag=lax.cond(condition,lambda x:x[0],lambda x:x[1],(mag,maglast))
     def update_result_fun(carry):
         # update the exceed flag to True in the mag_State
@@ -361,7 +361,7 @@ def cond_fun(carry):
     # outloop is the number of loop whose add points have ambiguous parity or roots, in this situation we will delete this points and add outloop by 1,
     # if outloop is larger than the threshold we stop the while loop
 
-    loop= (rel_mag_cond& (mini_interval>1e-14)& (outloop<=2)& abs_mag_cond & (mag_no_diff_num<3) & (sample_n<Max_array_length-5)[0])
+    loop= (rel_mag_cond& (mini_interval>1e-14)& (outloop<=2)& abs_mag_cond & (mag_no_diff_num<3) & (sample_n<Max_array_length-2)[0])
     # jax.debug.print('{}',mag)
     # jax.debug.breakpoint()
     #loop= ((rel_mag_cond ) & (mini_interval>1e-14)& (~outloop)& abs_mag_cond  & (sample_n<Max_array_length-5)[0])
@@ -423,18 +423,23 @@ def while_body_fun(carry):
         carry2,_=insert_body((add_theta_encode,add_theta,jnp.where(jnp.isnan(add_theta_encode),size=1)[0],add_number[k][None]),0)
         add_theta_encode=carry2[0]
         return (theta,idx,add_number,add_theta_encode),k
-    carry,_=lax.scan(theta_encode,(theta,idx,add_number,
-                               jnp.full((add_total_num,1),jnp.nan)),jnp.arange(idx.shape[0]))
-    add_theta=carry[-1] 
-    ####
-    add_zeta_l=get_zeta_l(rho,trajectory_l,add_theta)
-    roots_State,buried_error,add_outloop=add_points(idx,add_zeta_l,add_theta,roots_State,s,1/(1+q),q/(1+q),add_number)
-    ## refine gradient of roots respect to zeta_l
-    # zeta_l=get_zeta_l(rho,trajectory_l,theta)
-    # roots = refine_gradient(zeta_l,q,s,roots)
-    mag_State = update_mag(roots_State,mag_State,rho,q,s,buried_error,add_outloop)
-
-    carry=(trajectory_l,rho,s,q,roots_State,mag_State)
+    @jax.jit
+    def update_carry(carrylast):
+        carry,_=lax.scan(theta_encode,(theta,idx,add_number,
+                                jnp.full((add_total_num,1),jnp.nan)),jnp.arange(idx.shape[0]))
+        add_theta=carry[-1] 
+        ####
+        add_zeta_l=get_zeta_l(rho,trajectory_l,add_theta)
+        roots_State_new,buried_error,add_outloop=add_points(idx,add_zeta_l,add_theta,roots_State,s,1/(1+q),q/(1+q),add_number)
+        mag_State_new = update_mag(roots_State_new,mag_State,rho,q,s,buried_error,add_outloop)
+        carry=(trajectory_l,rho,s,q,roots_State_new,mag_State_new)
+        return carry
+    def no_update_carry(carrylast):
+        trajectory_l,rho,s,q,roots_State,mag_State = carrylast
+        roots_State_new = roots_State._replace(sample_num=(sample_n+add_number.sum()))
+        return (trajectory_l,rho,s,q,roots_State_new,mag_State)
+    carry = lax.cond((sample_n[0]+add_number.sum())
+                     <(Max_array_length-2),update_carry,no_update_carry,carrylast)
     return (carry,carrylast)
 @jax.custom_jvp
 def refine_gradient(zeta_l,q,s,z):
