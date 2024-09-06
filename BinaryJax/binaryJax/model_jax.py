@@ -304,7 +304,7 @@ def contour_integrate(rho,s,q,trajectory_l,epsilon,epsilon_rel=0,inite=30,n_ite=
     zeta_l=get_zeta_l(rho,trajectory_l,theta)
     coff=get_poly_coff(zeta_l,s,q/(1+q))
     roots,parity,ghost_roots_dis,outloop,coff,zeta_l,theta,_=get_real_roots(coff,zeta_l,theta,s,m1,m2,sample_n)
-    buried_error=get_buried_error(ghost_roots_dis,sample_n)
+    buried_error=get_buried_error(ghost_roots_dis,sample_n)/jnp.pi/rho**2
     sort_flag=jnp.where(jnp.arange(n_ite)<inite,False,True)[:,None]#是否需要排序
     ### no need to sort first idx
     sort_flag=sort_flag.at[0].set(True)
@@ -432,6 +432,7 @@ def while_body_fun(carry):
         ####
         add_zeta_l=get_zeta_l(rho,trajectory_l,add_theta)
         roots_State_new,buried_error,add_outloop=add_points(idx,add_zeta_l,add_theta,roots_State,s,1/(1+q),q/(1+q),add_number)
+        buried_error = buried_error/jnp.pi/rho**2
         mag_State_new = update_mag(roots_State_new,mag_State,rho,q,s,buried_error,add_outloop)
         carry=(trajectory_l,rho,s,q,roots_State_new,mag_State_new)
         return carry
