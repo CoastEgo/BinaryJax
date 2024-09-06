@@ -5,13 +5,23 @@ from .basic_function_jax import dot_product,basic_partial
 from .util import stop_grad_wrapper
 @jax.jit
 def error_ordinary(deXProde2X,de_z,delta_theta,z,parity,de_deXPro_de2X):
-    e1=jnp.abs(1/48*jnp.abs(jnp.abs(deXProde2X[0:-1]-jnp.abs(deXProde2X[1:])))*delta_theta**3)
     dAp_1=1/24*((deXProde2X[0:-1]+deXProde2X[1:]))*delta_theta
-    dAp=dAp_1*delta_theta**2*parity[0:-1]
     delta_theta_wave=jnp.abs(z[0:-1]-z[1:])**2/jnp.abs(dot_product(de_z[0:-1],de_z[1:]))
+
+    dAp_v1=dAp_1*delta_theta**2*parity[0:-1] # old version of parabolic correction term
+    dAp_v2 = 1/12*(
+        (z.real[1:]-z.real[0:-1])*(de_z.imag[1:]-de_z.imag[0:-1])
+        -(z.imag[1:]-z.imag[0:-1])*(de_z.real[1:]-de_z.real[0:-1])
+        )*delta_theta*parity[0:-1] # new version of parabolic correction term
+    dAp = 0.5*(dAp_v1+dAp_v2)
+    # dAp = dAp_v1
+    
+    # e1=jnp.abs(1/48*jnp.abs(jnp.abs(deXProde2X[0:-1]-jnp.abs(deXProde2X[1:])))*delta_theta**3) # old version
+    e1 = jnp.abs(dAp_v1-dAp_v2)*0.5
     e2=3/2*jnp.abs(dAp_1*(delta_theta_wave-delta_theta**2))
     e3=1/10*jnp.abs(dAp)*delta_theta**2
-    de_dAp=1/24*(de_deXPro_de2X[0:-1]-de_deXPro_de2X[1:])*delta_theta**3*parity[0:-1]
+
+    de_dAp=1/24*(de_deXPro_de2X[0:-1]-de_deXPro_de2X[1:])*delta_theta**3*parity[0:-1] # the gradient of the parabolic correction term
     e4 = 1/10*jnp.abs(de_dAp) ## e4 is the error item to estimate the gradient error of the parabolic correction term
     # jax.debug.print('{}',jnp.nansum(e4)))
     e_tot=e1+e2+e3+e4
@@ -22,12 +32,22 @@ def error_critial(pos_idx,neg_idx,i,create,parity,deXProde2X,z,de_z):
     # neg_idx=jnp.where(((Is_create[i]==create)|(Is_create[i]==10))&(parity[i]==1*create),size=1)[0]
     z_pos=z[i,pos_idx]
     z_neg=z[i,neg_idx]
+
     theta_wave=jnp.abs(z_pos-z_neg)/jnp.sqrt(jnp.abs(dot_product(de_z[i,pos_idx],de_z[i,neg_idx])))
-    ce1=1/48*jnp.abs(deXProde2X[i,pos_idx]+deXProde2X[i,neg_idx])*theta_wave**3
+    
+    dAcP_v1=parity[i,pos_idx]*1/24*(deXProde2X[i,pos_idx]-deXProde2X[i,neg_idx])*theta_wave**3 # old version of parabolic correction term at the critical point
+    dAcP_v2 = -1/12*(
+        (z[i,neg_idx].real-z[i,pos_idx].real)*(de_z[i,pos_idx].imag+de_z[i,neg_idx].imag)-
+        (z[i,neg_idx].imag-z[i,pos_idx].imag)*(de_z[i,pos_idx].real+de_z[i,neg_idx].real)
+        )*theta_wave*parity[i,pos_idx] # new version of parabolic correction term at the critical point
+    dAcP = 0.5*(dAcP_v1+dAcP_v2)
+
+    # ce1=1/48*jnp.abs(deXProde2X[i,pos_idx]+deXProde2X[i,neg_idx])*theta_wave**3 # old version
+    ce1 = 0.5*jnp.abs(dAcP-dAcP_v2) # new version of error term 1
     ce2=3/2*jnp.abs(dot_product(z_pos-z_neg,de_z[i,pos_idx]-de_z[i,neg_idx])-create*2*jnp.abs(z_pos-z_neg)*jnp.sqrt(jnp.abs(dot_product(de_z[i,pos_idx],de_z[i,neg_idx]))))*theta_wave
-    dAcP=parity[i,pos_idx]*1/24*(deXProde2X[i,pos_idx]-deXProde2X[i,neg_idx])*theta_wave**3
     ce3=1/10*jnp.abs(dAcP)*theta_wave**2
     ce_tot=ce1+ce2+ce3
+
     return ce_tot,jnp.sum(dAcP),1/2*(z[i,pos_idx].imag+z[i,neg_idx].imag)*(z[i,pos_idx].real-z[i,neg_idx].real)#critial 附近的抛物线近似'''
 @jax.jit
 def error_sum(Roots_State,rho,q,s,mask=None):
