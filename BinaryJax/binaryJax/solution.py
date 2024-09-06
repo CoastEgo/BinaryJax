@@ -2,7 +2,7 @@ import numpy as np
 import jax.numpy as jnp
 import jax
 from jax import lax
-from .util import Iterative_State,custom_insert,custom_delete
+from .util import Iterative_State,custom_insert,custom_delete,MAX_CAUSTIC_INTERSECT_NUM
 from .basic_function_jax import *
 from .linear_sum_assignment_jax import find_nearest
 from .polynomial_solver import get_roots
@@ -170,7 +170,7 @@ def find_create_points(roots, parity ,sample_n):
     """
     cond=jnp.isnan(roots)
     Num_change_cond = jnp.diff(cond,axis=0) # the roots at i is nan but the roots at i+1 is not nan/ the roots at i is not nan but the roots at i+1 is nan
-    idx_x,idx_y=jnp.where(Num_change_cond&(jnp.arange(roots.shape[0]-1)<(sample_n-1))[:,None],size=20,fill_value=-2) ## the index i can't be the last index
+    idx_x,idx_y=jnp.where(Num_change_cond&(jnp.arange(roots.shape[0]-1)<(sample_n-1))[:,None],size=MAX_CAUSTIC_INTERSECT_NUM*2,fill_value=-2) ## the index i can't be the last index
     shift = jnp.where(cond[idx_x, idx_y], 1, 0)
     idx_x_create = idx_x + shift
     Create_Destory = jnp.where(cond[idx_x, idx_y], 1, -1)

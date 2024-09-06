@@ -2,7 +2,7 @@ import jax
 import jax.numpy as jnp
 from jax import lax
 from typing import NamedTuple,Union,Any,Optional
-
+MAX_CAUSTIC_INTERSECT_NUM = 15
 class Iterative_State(NamedTuple):
     sample_num: int
     theta: jax.Array
@@ -10,7 +10,7 @@ class Iterative_State(NamedTuple):
     parity: jax.Array
     ghost_roots_distant: jax.Array
     sort_flag: Union[bool,jax.Array]
-    Is_create: jax.Array = jnp.zeros([4,10],dtype=int)
+    Is_create: jax.Array = jnp.zeros([4,MAX_CAUSTIC_INTERSECT_NUM],dtype=int)
 
 class Error_State(NamedTuple):
     mag: jax.Array
