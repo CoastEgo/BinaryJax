@@ -12,7 +12,7 @@ jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
 
 @partial(jax.jit,static_argnames=['return_num'])
-def point_light_curve(trajectory_l,s,q,rho,return_num=False):
+def point_light_curve(trajectory_l,s,q,rho,tol,return_num=False):
     """
     Calculate the point source light curve.
 
@@ -21,6 +21,7 @@ def point_light_curve(trajectory_l,s,q,rho,return_num=False):
         s (float): The projected separation between the lens and the source.
         q (float): The mass ratio between the lens and the source.
         rho (float): The source radius in units of the Einstein radius.
+        tol (float): The absolute tolerance for the quadrupole test.
         return_num (bool, optional): Whether to return the number of real roots. Defaults to False.
 
     Returns:
@@ -42,7 +43,7 @@ def point_light_curve(trajectory_l,s,q,rho,return_num=False):
         return cond
     mask=lax.cond((index!=-1).any(),ambigious_deal,lambda x : x[-1],(error,index,cond)) #某些情况下出现的根不是5或者3个#'''
 
-    cond,mag=Quadrupole_test(rho,s,q,zeta_l,z_l,mask)
+    cond,mag=Quadrupole_test(rho,s,q,zeta_l,z_l,mask,tol)
     if return_num:
         return mag,cond,mask.sum(axis=1)
     else:
@@ -81,7 +82,7 @@ def model(t_0,u_0,t_E,rho,q,s,alpha_deg,times,tol=1e-2,retol=0.001,return_info=F
     trajectory = tau*jnp.exp(1j*alpha_rad)+1j*u_0*jnp.exp(1j*alpha_rad)
     trajectory_l = to_lowmass(s,q,trajectory)
 
-    mag,cond=point_light_curve(trajectory_l,s,q,rho)
+    mag,cond=point_light_curve(trajectory_l,s,q,rho,tol)
 
     if analytic:
         binary_mag_fun = heriachical_contour_warpper
