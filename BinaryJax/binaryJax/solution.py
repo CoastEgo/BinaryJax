@@ -47,10 +47,24 @@ def get_buried_error(ghost_roots_dis,sample_n):
     KInCaustic = (jnp.isnan(Ghost_k))
     IInCaustic = (jnp.isnan(Ghost_i))
 
-    add_item = jnp.where((Ghost_i>2*Ghost_j)&(~KInCaustic),(Ghost_i-Ghost_j)**2,0)
+    # only add points in one side same as the VBBL
+    add_item = jnp.where(
+        (
+        ((Ghost_i>2*Ghost_j)
+         |((Ghost_i>1.5*Ghost_j)&(Ghost_k>Ghost_j)) # supplementary condition to avoid the burried images, 1.5 is a tunable parameter
+        )&(~KInCaustic) 
+        )
+                         ,(Ghost_i-Ghost_j)**2,0)
+    
     error_buried=error_buried.at[idx_k].add(add_item)
 
-    add_item = jnp.where((2*Ghost_j<Ghost_k)&(~IInCaustic),(Ghost_k-Ghost_j)**2,0)
+    add_item = jnp.where(
+        (
+        ((2*Ghost_j<Ghost_k)
+         |((1.5*Ghost_j<Ghost_k)&(Ghost_i>Ghost_j)) # same as above
+         )&(~IInCaustic)
+         )
+                         ,(Ghost_k-Ghost_j)**2,0)
     error_buried=error_buried.at[idx_j].add(add_item)
     
     return error_buried
