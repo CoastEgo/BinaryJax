@@ -127,8 +127,18 @@ def get_real_roots(coff,zeta_l,theta,s,m1,m2,add_number):
 #     cond=cond.at[-1].set(False)
 #     return cond
     ##对于parity计算错误的点，分为fifth principal left center right，其中left center right 的parity为-1，1，-1
+@jax.jit
 def update_parity(carry):
     zeta_l,real_roots,nan_num,sample_n,idx_parity_wrong,cond,s,m1,m2,real_parity=carry
+    @jax.jit
+    def loop_parity_body(carry,i):##循环体
+        zeta_l,real_roots,real_parity,nan_num,sample_n,cond,s,m1,m2=carry
+        temp=real_roots[i]
+        parity_process_fun=lambda x: lax.cond((nan_num[i]==0)&(i<sample_n),parity_5_roots_fun,parity_3_roots_fun,x)
+        real_parity= lax.cond(i<sample_n,parity_process_fun,lambda x:x[2],(temp,zeta_l,real_parity,i,cond,nan_num,s,m1,m2))
+        # real_parity=lax.cond((nan_num[i]==0)&(i<sample_n),parity_true1_fun,parity_false1_fun,(temp,zeta_l,real_parity,i,cond,nan_num,s,m1,m2))
+        return (zeta_l,real_roots,real_parity,nan_num,sample_n,cond,s,m1,m2),i
+    
     carry,_=lax.scan(loop_parity_body,(zeta_l,real_roots,real_parity,nan_num,sample_n,cond,s,m1,m2),idx_parity_wrong)
     zeta_l,real_roots,real_parity,nan_num,sample_n,cond,s,m1,m2=carry
     real_parity = real_parity.at[-1].set(jnp.nan)
@@ -147,22 +157,14 @@ def parity_5_roots_fun(carry):##对于5个根怎么判断其parity更加合理
 @jax.jit
 def parity_3_roots_fun(carry):##对于3个根怎么判断其parity更加合理
     temp,zeta_l,real_parity,i,cond,nan_num,s,m1,m2=carry
-    real_parity=lax.cond((nan_num[i]!=0)&((jnp.abs(zeta_l.imag[i])>1e-5)[0]),parity_true2_fun,lambda x:x[-2],(temp,zeta_l,cond,real_parity,i))
+    @jax.jit
+    def parity_true_fun(carry):##通过主图像判断，与zeta位于y轴同一侧的为1
+        real_parity=carry
+        real_parity=real_parity.at[i,jnp.where(~cond[i],size=3)].set(-1)
+        real_parity=real_parity.at[i,jnp.where(jnp.sign(temp.imag)==jnp.sign(zeta_l.imag[i]),size=1)[0]].set(1)
+        return real_parity
+    real_parity=lax.cond((nan_num[i]!=0)&((jnp.abs(zeta_l.imag[i])>1e-5)[0]),parity_true_fun,lambda x:x,real_parity)
     return real_parity
-@jax.jit
-def parity_true2_fun(carry):##通过主图像判断，与zeta位于y轴同一侧的为1
-    temp,zeta_l,cond,real_parity,i=carry
-    real_parity=real_parity.at[i,jnp.where(~cond[i],size=3)].set(-1)
-    real_parity=real_parity.at[i,jnp.where(jnp.sign(temp.imag)==jnp.sign(zeta_l.imag[i]),size=1)[0]].set(1)
-    return real_parity
-@jax.jit
-def loop_parity_body(carry,i):##循环体
-    zeta_l,real_roots,real_parity,nan_num,sample_n,cond,s,m1,m2=carry
-    temp=real_roots[i]
-    parity_process_fun=lambda x: lax.cond((nan_num[i]==0)&(i<sample_n),parity_5_roots_fun,parity_3_roots_fun,x)
-    real_parity= lax.cond(i<sample_n,parity_process_fun,lambda x:x[2],(temp,zeta_l,real_parity,i,cond,nan_num,s,m1,m2))
-    # real_parity=lax.cond((nan_num[i]==0)&(i<sample_n),parity_true1_fun,parity_false1_fun,(temp,zeta_l,real_parity,i,cond,nan_num,s,m1,m2))
-    return (zeta_l,real_roots,real_parity,nan_num,sample_n,cond,s,m1,m2),i
 @jax.jit    
 def find_create_points(roots, parity ,sample_n):
     """
@@ -211,7 +213,7 @@ def find_create_points(roots, parity ,sample_n):
 
     return jnp.stack([critical_idx, critical_pos_idy, critical_neg_idy, Create_Destory[0::2]], axis=0)
 @jax.jit
-def sort_body1(values,k):
+def sort_body1(values,k): # sort the roots and parity for adjacent points
     roots, parity = values
     @jax.jit
     def False_fun_sort1(carry):
@@ -224,7 +226,7 @@ def sort_body1(values,k):
     roots,parity=carry
     return (roots,parity),k
 @jax.jit
-def sort_body2(carry,i):
+def sort_body2(carry,i): # sort the roots and parity to conect the old and new points
     @jax.jit
     def False_fun(carry):
         roots,parity,i=carry
