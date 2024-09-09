@@ -65,6 +65,7 @@ def get_sorted_roots(roots,parity,sort_flag):
     return roots,parity,sort_flag
 @jax.jit
 def get_real_roots(coff,zeta_l,theta,s,m1,m2,add_number):
+    
     n_ite=zeta_l.shape[0]
     sample_n=(~jnp.isnan(zeta_l)).any(axis=1).sum()
     mask=(jnp.arange(n_ite)<sample_n)
@@ -72,13 +73,28 @@ def get_real_roots(coff,zeta_l,theta,s,m1,m2,add_number):
     roots=jnp.where(mask[:,None],roots,jnp.nan)
     parity=get_parity(roots,s,m1,m2)
     error=verify(zeta_l,roots,s,m1,m2)
-    cond=error>1e-6
-    nan_num=cond.sum(axis=1)
+
+    iterator = jnp.arange(n_ite) # new criterion to select the roots, same as the VBBL
+    dlmin = 1.0e-4; dlmax = 1.0e-3
+    sort_idx=jnp.argsort(error,axis=1)
+    third_error = error[iterator,sort_idx[:,2]]
+    forth_error = error[iterator,sort_idx[:,3]]
+    three_roots_cond = (forth_error*dlmin) > (third_error+1e-12) # three roots criterion
+    bad_roots_cond = (~three_roots_cond) & ((forth_error*dlmax) > (third_error+1e-12)) # bad roots criterion
+    cond = jnp.zeros_like(roots,dtype=bool)
+    full_value = jnp.where(three_roots_cond,True,False)
+    cond = cond.at[iterator[:,None],sort_idx[:,3:]].set(full_value[:,None])
+
+    ghost_roots_dis = jnp.abs(roots[iterator,sort_idx[:,3]]-roots[iterator,sort_idx[:,4]])
+    ghost_roots_dis = jnp.where(three_roots_cond,ghost_roots_dis,jnp.nan)[:,None]
+
+    # nan_num=cond.sum(axis=1)
     ####计算verify,如果parity出现错误或者nan个数错误，则重新规定error最大的为nan
     #idx_verify_wrong=jnp.where(((nan_num!=0)&(nan_num!=2)),jnp.arange(n_ite),jnp.nan)#verify出现错误的根的索引
-    idx_verify_wrong=jnp.where((nan_num!=0)&(nan_num!=2),size=n_ite,fill_value=-1)[0]#verify出现错误的根的索引,填充-1以保持数组形状，最后对-1单独处理即可
-    cond=lax.cond((idx_verify_wrong!=-1).any(),update_cond,lambda x:x[-1],(idx_verify_wrong,error,cond))
+    # idx_verify_wrong=jnp.where((nan_num!=0)&(nan_num!=2),size=n_ite,fill_value=-1)[0]#verify出现错误的根的索引,填充-1以保持数组形状，最后对-1单独处理即可
+    # cond=lax.cond((idx_verify_wrong!=-1).any(),update_cond,lambda x:x[-1],(idx_verify_wrong,error,cond))
     ####根的处理
+
     nan_num=cond.sum(axis=1)##对于没有采样到的位置也是0
     real_roots=jnp.where(cond,jnp.nan+jnp.nan*1j,roots)
     real_parity=jnp.where(cond,jnp.nan,parity)
@@ -86,25 +102,30 @@ def get_real_roots(coff,zeta_l,theta,s,m1,m2,add_number):
     idx_parity_wrong=jnp.where((parity_sum!=-1)&mask,size=n_ite,fill_value=-1)[0]#parity计算出现错误的根的索引
     real_parity=lax.cond((idx_parity_wrong!=-1).any(),update_parity,lambda x:x[-1],(zeta_l,real_roots,nan_num,sample_n,idx_parity_wrong,cond,s,m1,m2,real_parity))
     parity_sum=jnp.nansum(real_parity,axis=1)
+    bad_parities_cond = (parity_sum!=-1)
     outloop=0
-    carry=lax.cond(((parity_sum!=-1)&mask).any(),parity_delete_cond,lambda x:x,(sample_n,theta,real_parity,real_roots,outloop,parity_sum,mask,add_number))
-    sample_n,theta,real_parity,real_roots,outloop,parity_sum,_,add_number=carry
+
+    carry=lax.cond((bad_parities_cond&bad_roots_cond&mask).any(),theta_remove_fun,
+                   lambda x:x,(sample_n,theta,real_parity,real_roots,ghost_roots_dis,outloop,parity_sum,mask,add_number))
+    sample_n,theta,real_parity,real_roots,ghost_roots_dis,outloop,parity_sum,_,add_number=carry
+
     ###计算得到最终的
-    cond=(jnp.isnan(real_roots))&(jnp.arange(n_ite)<sample_n)[:,None]
-    ghost_roots=jnp.where(cond,roots,jnp.inf)
-    ghost_roots=jnp.sort(ghost_roots,axis=1)[:,0:2]
-    ghost_roots=jnp.where(jnp.isinf(ghost_roots),jnp.nan,ghost_roots)
-    ghost_roots_dis=jnp.abs(jnp.diff(ghost_roots,axis=1))
+    # cond=(jnp.isnan(real_roots))&(jnp.arange(n_ite)<sample_n)[:,None]
+    # ghost_roots=jnp.where(cond,roots,jnp.inf)
+    # ghost_roots=jnp.sort(ghost_roots,axis=1)[:,0:2]
+    # ghost_roots=jnp.where(jnp.isinf(ghost_roots),jnp.nan,ghost_roots)
+    # ghost_roots_dis=jnp.abs(jnp.diff(ghost_roots,axis=1))
+
     return real_roots,real_parity,ghost_roots_dis,outloop,coff,zeta_l,theta,add_number
-@jax.jit
-def update_cond(carry):
-    idx_verify_wrong,error,cond=carry
-    sorted=jnp.argsort(error[idx_verify_wrong],axis=1)[:,-2:]
-    cond=cond.at[idx_verify_wrong].set(False)
-    cond=cond.at[idx_verify_wrong,sorted[:,0]].set(True)
-    cond=cond.at[idx_verify_wrong,sorted[:,1]].set(True)
-    cond=cond.at[-1].set(False)
-    return cond
+# @jax.jit
+# def update_cond(carry):
+#     idx_verify_wrong,error,cond=carry
+#     sorted=jnp.argsort(error[idx_verify_wrong],axis=1)[:,-2:]
+#     cond=cond.at[idx_verify_wrong].set(False)
+#     cond=cond.at[idx_verify_wrong,sorted[:,0]].set(True)
+#     cond=cond.at[idx_verify_wrong,sorted[:,1]].set(True)
+#     cond=cond.at[-1].set(False)
+#     return cond
     ##对于parity计算错误的点，分为fifth principal left center right，其中left center right 的parity为-1，1，-1
 def update_parity(carry):
     zeta_l,real_roots,nan_num,sample_n,idx_parity_wrong,cond,s,m1,m2,real_parity=carry
@@ -113,7 +134,7 @@ def update_parity(carry):
     real_parity = real_parity.at[-1].set(jnp.nan)
     return real_parity
 @jax.jit
-def parity_true1_fun(carry):##对于5个根怎么判断其parity更加合理
+def parity_5_roots_fun(carry):##对于5个根怎么判断其parity更加合理
     temp,zeta_l,real_parity,i,cond,nan_num,s,m1,m2=carry
     prin_idx=jnp.where(jnp.sign(temp.imag)==jnp.sign(zeta_l.imag[i]),size=1,fill_value=0)[0]#主图像的索引
     prin_root=temp[prin_idx][jnp.newaxis][0]
@@ -124,7 +145,7 @@ def parity_true1_fun(carry):##对于5个根怎么判断其parity更加合理
     real_parity=real_parity.at[i,jnp.where((temp==other[x_sort[1]]),size=1)[0]].set(1)
     return real_parity
 @jax.jit
-def parity_false1_fun(carry):##对于3个根怎么判断其parity更加合理
+def parity_3_roots_fun(carry):##对于3个根怎么判断其parity更加合理
     temp,zeta_l,real_parity,i,cond,nan_num,s,m1,m2=carry
     real_parity=lax.cond((nan_num[i]!=0)&((jnp.abs(zeta_l.imag[i])>1e-5)[0]),parity_true2_fun,lambda x:x[-2],(temp,zeta_l,cond,real_parity,i))
     return real_parity
@@ -138,7 +159,7 @@ def parity_true2_fun(carry):##通过主图像判断，与zeta位于y轴同一侧
 def loop_parity_body(carry,i):##循环体
     zeta_l,real_roots,real_parity,nan_num,sample_n,cond,s,m1,m2=carry
     temp=real_roots[i]
-    parity_process_fun=lambda x: lax.cond((nan_num[i]==0)&(i<sample_n),parity_true1_fun,parity_false1_fun,x)
+    parity_process_fun=lambda x: lax.cond((nan_num[i]==0)&(i<sample_n),parity_5_roots_fun,parity_3_roots_fun,x)
     real_parity= lax.cond(i<sample_n,parity_process_fun,lambda x:x[2],(temp,zeta_l,real_parity,i,cond,nan_num,s,m1,m2))
     # real_parity=lax.cond((nan_num[i]==0)&(i<sample_n),parity_true1_fun,parity_false1_fun,(temp,zeta_l,real_parity,i,cond,nan_num,s,m1,m2))
     return (zeta_l,real_roots,real_parity,nan_num,sample_n,cond,s,m1,m2),i
@@ -217,8 +238,8 @@ def sort_body2(carry,i):
     roots,parity=carry
     return (roots,parity),i
 @jax.jit
-def parity_delete_cond(carry):
-    sample_n,theta,real_parity,real_roots,outloop,parity_sum,mask,add_number=carry
+def theta_remove_fun(carry):
+    sample_n,theta,real_parity,real_roots,ghost_roots_dis,outloop,parity_sum,mask,add_number=carry
     n_ite=theta.shape[0]
     cond = (parity_sum!=-1)& mask
     delidx=jnp.where(cond,size=n_ite,fill_value=10000)[0]
@@ -236,9 +257,9 @@ def parity_delete_cond(carry):
     carry,_ = lax.scan(fix_add_number_fun,(add_number,ones_array),jnp.arange(add_number.shape[0]))
     add_number,_=carry
 
-    delete_tree = [theta, real_parity, real_roots]
-    theta,real_parity,real_roots=jax.tree_map(lambda x: custom_delete(x,delidx), delete_tree)
+    delete_tree = [theta, real_parity, real_roots, ghost_roots_dis]
+    theta,real_parity,real_roots,ghost_roots_dis=jax.tree_map(lambda x: custom_delete(x,delidx), delete_tree)
     
     outloop+=cond.sum()
     # if the parity is still wrong, then delete the point
-    return (sample_n,theta,real_parity,real_roots,outloop,parity_sum,mask,add_number)
+    return (sample_n,theta,real_parity,real_roots,ghost_roots_dis,outloop,parity_sum,mask,add_number)
