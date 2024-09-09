@@ -33,15 +33,17 @@ def point_light_curve(trajectory_l,s,q,rho,tol,return_num=False):
     coff=get_poly_coff(zeta_l,s,m2)
     z_l=get_roots_vmap(trajectory_l.shape[0],coff)
     error=verify(zeta_l,z_l,s,m1,m2)
-    cond=error<1e-6
-    index=jnp.where((cond.sum(axis=1)!=3) & (cond.sum(axis=1)!=5),size=5,fill_value=-1)[0]
-    def ambigious_deal(carry):
-        error,index,cond=carry
-        sortidx=jnp.argsort(error[index],axis=1)
-        cond=cond.at[index].set(False)
-        cond=cond.at[index[:,None],sortidx[:,0:3]].set(True)
-        return cond
-    mask=lax.cond((index!=-1).any(),ambigious_deal,lambda x : x[-1],(error,index,cond)) #某些情况下出现的根不是5或者3个#'''
+
+    iterator = jnp.arange(zeta_l.shape[0]) # criterion to select the roots, same as the VBBL
+    dlmin = 1.0e-4; dlmax = 1.0e-3
+    sort_idx=jnp.argsort(error,axis=1)
+    third_error = error[iterator,sort_idx[:,2]]
+    forth_error = error[iterator,sort_idx[:,3]]
+    three_roots_cond = (forth_error*dlmin) > (third_error+1e-12) # three roots criterion
+    # bad_roots_cond = (~three_roots_cond) & ((forth_error*dlmax) > (third_error+1e-12)) # bad roots criterion
+    mask = jnp.ones_like(z_l,dtype=bool)
+    full_value = jnp.where(three_roots_cond,False,True)
+    mask = mask.at[iterator[:,None],sort_idx[:,3:]].set(full_value[:,None])
 
     cond,mag=Quadrupole_test(rho,s,q,zeta_l,z_l,mask,tol)
     if return_num:
