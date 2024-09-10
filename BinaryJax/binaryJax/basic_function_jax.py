@@ -1,13 +1,38 @@
-import numpy as np
 import jax.numpy as jnp
-from .polynomial_solver import Aberth_Ehrlich,AE_roots0
 import jax
-from functools import partial
-from jax import lax
-from jax import custom_jvp
-from .linear_sum_assignment_jax import solve
 jax.config.update("jax_platform_name", "cpu")
 jax.config.update("jax_enable_x64", True)
+
+def to_centroid(s, q, x):
+    """
+    Transforms the coordinate system to the centroid.
+
+    Parameters:
+    s (float): The projected separation between the two objects.
+    q (float): The planet to host mass ratio.
+    x (complex): The original coordinate.
+
+    Returns:
+    complex: The transformed coordinate in the centroid system.
+    """
+    delta_x = s / (1 + q)
+    return -(jnp.conj(x) - delta_x)
+
+def to_lowmass(s, q, x):
+    """
+    Transforms the coordinate system to the system where the lower mass object is at the origin.
+
+    Parameters:
+    s (float): The separation between the two components.
+    q (float): The mass ratio of the two components.
+    x (complex): The original centroid coordinate.
+
+    Returns:
+    complex: The transformed coordinate in the low mass component coordinate system.
+    """
+    delta_x = s / (1 + q)
+    return -jnp.conj(x) + delta_x 
+
 @jax.jit
 def Quadrupole_test(rho,s,q,zeta,z,cond,tol=1e-2):
     m1=1/(1+q)
@@ -91,3 +116,30 @@ def basic_partial(z,theta,rho,q,s,caustic_crossing):
     de_deXPro_de2X = jax.lax.cond(caustic_crossing, get_de_deXPro_de2X, lambda x: jnp.zeros_like(deXProde2X), None)
     # deXProde2X = jax.lax.stop_gradient(deXProde2X)
     return deXProde2X,de_z,de_deXPro_de2X
+
+@jax.custom_jvp
+def refine_gradient(zeta_l,q,s,z):
+    return z
+@refine_gradient.defjvp
+def refine_gradient_jvp(primals,tangents):
+    '''
+    use the custom jvp to refine the gradient of roots respect to zeta_l, based on the equation on V.Bozza 2010 eq 20.
+    The necessity of this function is still under investigation.
+    '''
+    zeta,q,s,z=primals
+    tangent_zeta,tangent_q,tangent_s,tangent_z=tangents
+
+    z_c=jnp.conj(z)
+    parZetaConZ=1/(1+q)*(1/(z_c-s)**2+q/z_c**2)
+    detJ = 1-jnp.abs(parZetaConZ)**2
+
+    parZetaq =  1/(1+q)**2*(1/(z_c-s)-1/z_c)
+    add_item_q = tangent_q*(parZetaq-jnp.conj(parZetaq)*parZetaConZ)
+
+    parZetas = -1/(1+q)/(z_c-s)**2
+    add_item_s = tangent_s*(parZetas-jnp.conj(parZetas)*parZetaConZ)
+
+    tangent_z2 =  (tangent_zeta-parZetaConZ * jnp.conj(tangent_zeta)-add_item_q-add_item_s)/detJ
+    # tangent_z2 = jnp.where(jnp.isnan(tangent_z2),0.,tangent_z2)
+    # jax.debug.print('{}',(tangent_z2-tangent_z).sum())
+    return z,tangent_z2

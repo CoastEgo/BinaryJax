@@ -4,7 +4,7 @@ import jax
 from jax import lax
 from .error_estimator import *
 from .solution import *
-from .basic_function_jax import Quadrupole_test
+from .basic_function_jax import Quadrupole_test,to_centroid,to_lowmass,refine_gradient
 from functools import partial
 from .util import Iterative_State,Error_State,Model_Param,insert_body,stop_grad_wrapper
 from .polynomial_solver import get_roots_vmap
@@ -52,7 +52,7 @@ def point_light_curve(trajectory_l,s,q,rho,tol,return_num=False):
         return mag,cond
     
 @partial(jax.jit,static_argnames=['return_info','default_strategy','analytic'])
-def model(t_0,u_0,t_E,rho,q,s,alpha_deg,times,tol=1e-2,retol=0.001,return_info=False,default_strategy=(60,80,150),analytic=True):
+def model(t_0,u_0,t_E,rho,q,s,alpha_deg,times,tol=1e-2,retol=0.001,return_info=False,default_strategy=(35,30,60,120,240,480),analytic=True):
     """
     Compute the microlensing model for a binary lens system using JAX.
 
@@ -86,11 +86,6 @@ def model(t_0,u_0,t_E,rho,q,s,alpha_deg,times,tol=1e-2,retol=0.001,return_info=F
 
     mag,cond=point_light_curve(trajectory_l,s,q,rho,tol)
 
-    if analytic:
-        binary_mag_fun = heriachical_contour_warpper
-    else:
-        binary_mag_fun = heriachical_contour
-    
     if return_info:
         pad_value = [jnp.nan,0.,jnp.nan+1j*jnp.nan,jnp.nan,jnp.nan,0.,True]
         shape = [1,1,5,5,1,1,1]
@@ -98,50 +93,21 @@ def model(t_0,u_0,t_E,rho,q,s,alpha_deg,times,tol=1e-2,retol=0.001,return_info=F
         theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag = jax.tree_map(init_fun,pad_value,shape)
         sample_n=jnp.array([0])
         roots_state = Iterative_State(sample_n,theta,roots,parity,ghost_roots_dis,sort_flag)
-        mag_contour = lambda trajectory_l: binary_mag_fun(trajectory_l,tol,retol,rho,s,q,default_strategy)
+        mag_contour = lambda trajectory_l: contour_integral(trajectory_l,tol,retol,rho,s,q,default_strategy,analytic)
         result = lax.map(lambda x: lax.cond(x[0],lambda _: (x[1],(x[2],rho,s,q,
                                                             roots_state,Error_State(jnp.array([x[1]]),0,0,error_hist,tol,retol))
                                                             ), jax.jit(mag_contour),x[2]), [cond,mag,trajectory_l])
         mag_final,carry_list = result
         return mag_final,carry_list
     else:
-        mag_contour = lambda trajectory_l: binary_mag_fun(trajectory_l,tol,retol,rho,s,q,default_strategy)[0]
+        mag_contour = lambda trajectory_l: contour_integral(trajectory_l,tol,retol,rho,s,q,default_strategy,analytic)[0]
         mag_final = lax.map(lambda x: lax.cond(x[0],lambda _: x[1], 
                                                jax.jit(mag_contour),x[2]), 
                                                [cond,mag,trajectory_l])
 
         return mag_final
 
-def to_centroid(s, q, x):
-    """
-    Transforms the coordinate system to the centroid.
-
-    Parameters:
-    s (float): The projected separation between the two objects.
-    q (float): The planet to host mass ratio.
-    x (complex): The original coordinate.
-
-    Returns:
-    complex: The transformed coordinate in the centroid system.
-    """
-    delta_x = s / (1 + q)
-    return -(jnp.conj(x) - delta_x)
-def to_lowmass(s, q, x):
-    """
-    Transforms the coordinate system to the system where the lower mass object is at the origin.
-
-    Parameters:
-    s (float): The separation between the two components.
-    q (float): The mass ratio of the two components.
-    x (complex): The original centroid coordinate.
-
-    Returns:
-    complex: The transformed coordinate in the low mass component coordinate system.
-    """
-    delta_x = s / (1 + q)
-    return -jnp.conj(x) + delta_x 
-@partial(jax.jit,static_argnames=['default_strategy'])
-def heriachical_contour_warpper(trajectory_l,tol,retol,rho,s,q,default_strategy=(60,80,150)):
+def anayltic_warpper(trajectory_l,rho,s,q,roots_State,mag_State):
     """
     Wrapper function for the hierarchical contour integration.
     This function is used for better support of automatic differentiation, which can reduce the computational graph size to accelerate the computation and
@@ -154,8 +120,7 @@ def heriachical_contour_warpper(trajectory_l,tol,retol,rho,s,q,default_strategy=
         s (float): The separation value.
         q (float): The mass ratio value
     """
-    mag_nograd,info = stop_grad_wrapper(heriachical_contour)(trajectory_l,tol,retol,rho,s,q,default_strategy)
-    roots_State = info[-2]
+
     sample_n,theta,roots,parity,ghost_roots_dis,sort_flag,Is_create=roots_State
     mask = ~jnp.isnan(roots)
     roots_100fill = jnp.where(mask,roots,100.)
@@ -174,9 +139,11 @@ def heriachical_contour_warpper(trajectory_l,tol,retol,rho,s,q,default_strategy=
     _,magc,parab=error_sum(roots_State_refine_grad,rho,q,s,mask)
     # parab = jax.lax.stop_gradient(parab)
     mag=(mag+magc+parab)/(jnp.pi*rho**2)
-    return (mag[0],info)
-@partial(jax.jit,static_argnames=['default_strategy'])
-def heriachical_contour(trajectory_l,tol,retol,rho,s,q,default_strategy=(60,80,150)):
+
+    mag_State = mag_State._replace(mag=mag)
+    return (trajectory_l,rho,s,q,roots_State,mag_State)
+@partial(jax.jit,static_argnames=['default_strategy','analytic'])
+def contour_integral(trajectory_l,tol,retol,rho,s,q,default_strategy=(60,80,150),analytic=True):
     """
     Perform hierarchical sampling for adaptive contour integration. 
     This function is used to reduce the memory usage and improve the performance of the contour integration. The reason is that the optimal fixed array length 
@@ -220,8 +187,14 @@ def heriachical_contour(trajectory_l,tol,retol,rho,s,q,default_strategy=(60,80,1
         ## reshape the array and fill the new array with nan
         pad_list = [theta,error_hist,roots,parity,ghost_roots_dis,sort_flag]
         pad_value = [jnp.nan,0.,jnp.nan,jnp.nan,jnp.nan,True]
-        padded_list =jax.tree_map(lambda x,y: jnp.pad(x,((0,arraylength),(0,0)),'constant',constant_values=y),pad_list,pad_value)
-
+        pad_fun = lambda x,y: jnp.pad(x,((0,arraylength),(0,0)),'constant',constant_values=y)
+        if analytic:
+            pad_fun = stop_grad_wrapper(pad_fun)
+            padded_list = jax.tree_map(pad_fun,pad_list,pad_value)
+            padded_list = jax.lax.stop_gradient(padded_list)
+        else:
+            padded_list =jax.tree_map(pad_fun,pad_list,pad_value)
+        
         theta,error_hist,roots,parity,ghost_roots_dis,sort_flag=padded_list
         carry=(trajectory_l,rho,s,q,
                Iterative_State(sample_n,theta,roots,parity,ghost_roots_dis,sort_flag,Is_create),
@@ -245,20 +218,33 @@ def heriachical_contour(trajectory_l,tol,retol,rho,s,q,default_strategy=(60,80,1
         ## while loop don't support the reverse mode differentiation and shard_map in current jax version
 
         ## while loop 
-        resultnew,resultlast=lax.while_loop(cond_fun,while_body_fun,(resultlast,resultlast))
-        ## scan
-        '''resultnew,_=lax.scan(scan_body,(resultlast,resultlast),jnp.arange(5))
-        resultnew=resultnew[0]'''
-        
+
+        # resultnew,resultlast=lax.while_loop(cond_fun,while_body_fun,(resultlast,resultlast))
+        if analytic:
+            stop_grad_loop = stop_grad_wrapper(lambda x:lax.while_loop(cond_fun,while_body_fun,x))
+            resultnew,resultlast = stop_grad_loop((resultlast,resultlast))
+            resultnew = anayltic_warpper(trajectory_l,rho,s,q,resultnew[-2],resultnew[-1])
+        else:
+            resultnew,resultlast=lax.while_loop(cond_fun,while_body_fun,(resultlast,resultlast))
+
         Max_array_length+=add_length
         return resultnew,resultlast,Max_array_length
     
     # first add
-    result=contour_integrate(rho,s,q,trajectory_l,tol,epsilon_rel=retol,inite=30,n_ite=default_strategy[0])
-    result,resultlast=result
+    
+    if analytic:
+        carry=stop_grad_wrapper(contour_init)(rho,s,q,trajectory_l,tol,epsilon_rel=retol,inite=30,n_ite=default_strategy[0])
+        stop_grad_loop = lambda x:lax.while_loop(cond_fun,while_body_fun,x)
+        result_no_grad,resultlast = stop_grad_wrapper(stop_grad_loop)((carry,carry))
+        result = anayltic_warpper(trajectory_l,rho,s,q,result_no_grad[-2],result_no_grad[-1])
+
+    else:
+        carry=contour_init(rho,s,q,trajectory_l,tol,epsilon_rel=retol,inite=30,n_ite=default_strategy[0])
+        result,resultlast=lax.while_loop(cond_fun,while_body_fun,(carry,carry))
+
     Max_array_length=default_strategy[0]
     for i in range(len(default_strategy)-1):
-        sample_n = result[0]
+
         add_length = default_strategy[i+1]
 
         resultlast = reshape_fun(resultlast,add_length)
@@ -267,22 +253,25 @@ def heriachical_contour(trajectory_l,tol,retol,rho,s,q,default_strategy=(60,80,1
         result,resultlast,Max_array_length=lax.cond((result[-2].sample_num<Max_array_length-2)[0],lambda x:(x[0],x[1],x[-1]),secondary_contour,(result,resultlast,add_length,Max_array_length))
 
     (trajectory_l,rho,s,q,roots_State,mag_State)=result
-    mag = mag_State.mag
-    maglast = resultlast[-1].mag
+
     condition = (roots_State.sample_num<Max_array_length-2)[0]
-    mag=lax.cond(condition,lambda x:x[0],lambda x:x[1],(mag,maglast))
+    @jax.jit
     def update_result_fun(carry):
         # update the exceed flag to True in the mag_State
         result_last=carry[1]
-        trajectory_l,rho,s,q,roots_State,mag_State=result_last
+        mag_State=result_last[-1]
         mag_State_new = mag_State._replace(exceed_flag=True)
-        result_last_update = (trajectory_l,rho,s,q,roots_State,mag_State_new)
+        if analytic:
+            result_last,mag_State_new = jax.lax.stop_gradient(result_last),jax.lax.stop_gradient(mag_State_new)
+            result_last_update = anayltic_warpper(trajectory_l,rho,s,q,result_last[-2],mag_State_new)
+        else:
+            result_last_update = (trajectory_l,rho,s,q,result_last[-2],mag_State_new)
         return result_last_update
     result = lax.cond(condition,lambda x:x[0],update_result_fun,(result,resultlast))
-    return (mag[0],result)
+    return (result[-1].mag[0],result)
 
 @partial(jax.jit,static_argnames=('inite','n_ite'))
-def contour_integrate(rho,s,q,trajectory_l,epsilon,epsilon_rel=0,inite=30,n_ite=60):
+def contour_init(rho,s,q,trajectory_l,epsilon,epsilon_rel=0,inite=30,n_ite=60):
     """
     Perform contour integration to calculate the result of the binary lens model.
 
@@ -321,15 +310,8 @@ def contour_integrate(rho,s,q,trajectory_l,epsilon,epsilon_rel=0,inite=30,n_ite=
     error_hist+=buried_error
     mag_State = Error_State(mag,mag_no_diff_num,outloop,error_hist,epsilon,epsilon_rel)
     carry=(trajectory_l,rho,s,q,roots_State,mag_State)
-    carrylast=carry
 
-    ## switch the different method to add points while loop or scan
-
-    result=lax.while_loop(cond_fun,while_body_fun,(carry,carrylast))
-
-    #result,_=lax.scan(scan_body,(carry,carrylast),jnp.arange(10))
-
-    return result
+    return carry
 
 @jax.jit
 def cond_fun(carry):
@@ -447,32 +429,7 @@ def while_body_fun(carry):
     carry = lax.cond((sample_n[0]+add_number.sum())
                      <(Max_array_length-2),update_carry,no_update_carry,carrylast)
     return (carry,carrylast)
-@jax.custom_jvp
-def refine_gradient(zeta_l,q,s,z):
-    return z
-@refine_gradient.defjvp
-def refine_gradient_jvp(primals,tangents):
-    '''
-    use the custom jvp to refine the gradient of roots respect to zeta_l, based on the equation on V.Bozza 2010 eq 20.
-    The necessity of this function is still under investigation.
-    '''
-    zeta,q,s,z=primals
-    tangent_zeta,tangent_q,tangent_s,tangent_z=tangents
 
-    z_c=jnp.conj(z)
-    parZetaConZ=1/(1+q)*(1/(z_c-s)**2+q/z_c**2)
-    detJ = 1-jnp.abs(parZetaConZ)**2
-
-    parZetaq =  1/(1+q)**2*(1/(z_c-s)-1/z_c)
-    add_item_q = tangent_q*(parZetaq-jnp.conj(parZetaq)*parZetaConZ)
-
-    parZetas = -1/(1+q)/(z_c-s)**2
-    add_item_s = tangent_s*(parZetas-jnp.conj(parZetas)*parZetaConZ)
-
-    tangent_z2 =  (tangent_zeta-parZetaConZ * jnp.conj(tangent_zeta)-add_item_q-add_item_s)/detJ
-    # tangent_z2 = jnp.where(jnp.isnan(tangent_z2),0.,tangent_z2)
-    # jax.debug.print('{}',(tangent_z2-tangent_z).sum())
-    return z,tangent_z2
 @jax.jit
 def update_mag(roots_State,mag_State_last,rho,q,s,buried_error,add_outloop):
     maglast=mag_State_last.mag
