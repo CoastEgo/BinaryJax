@@ -26,9 +26,11 @@ def get_roots(sample_n, coff):
     carry,_=lax.scan(loop_body,(coff,roots),jnp.arange(1,sample_n))#scan循环，但是没有浪费
     coff,roots=carry
     return roots
+@partial(jax.jit,static_argnums=0)
 def get_roots_vmap(sample_n, coff):
     ## used when solving the coff without zero coffes
-    roots_solver= lambda x: Aberth_Ehrlich(x,AE_roots0(x))
+    roots0 = Aberth_Ehrlich(coff[0],AE_roots0(coff[0]))
+    roots_solver= lambda x: Aberth_Ehrlich(x,roots0)
     roots = jax.vmap(jax.jit(roots_solver), in_axes=(0))(coff)
     return roots
 # @jax.jit
