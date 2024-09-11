@@ -2,6 +2,7 @@ import jax
 import jax.numpy as jnp
 from jax import lax
 from typing import NamedTuple,Union,Any,Optional
+import warnings
 MAX_CAUSTIC_INTERSECT_NUM = 15
 class Iterative_State(NamedTuple):
     sample_num: int
@@ -86,3 +87,6 @@ def stop_grad_wrapper(func):
         kwargs = jax.lax.stop_gradient(kwargs)
         return jax.lax.stop_gradient(func(*args, **kwargs))
     return wrapper
+def warn_length_not_enough(required_length, Max_length):
+    warnings.warn(
+        "No enough space to insert new samplings, which may cause the error larger than the tolerance. Current length vs max length: {} vs {}. Consider incresing default_strategy parameters.".format(required_length, Max_length-2))

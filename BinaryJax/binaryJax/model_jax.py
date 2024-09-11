@@ -6,7 +6,7 @@ from .error_estimator import *
 from .solution import *
 from .basic_function_jax import Quadrupole_test,to_centroid,to_lowmass,refine_gradient
 from functools import partial
-from .util import Iterative_State,Error_State,Model_Param,insert_body,stop_grad_wrapper
+from .util import Iterative_State,Error_State,Model_Param,insert_body,stop_grad_wrapper,warn_length_not_enough
 from .polynomial_solver import get_roots_vmap
 jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
@@ -260,6 +260,7 @@ def contour_integral(trajectory_l,tol,retol,rho,s,q,default_strategy=(60,80,150)
         # update the exceed flag to True in the mag_State
         result_last=carry[1]
         mag_State=result_last[-1]
+        jax.debug.callback(warn_length_not_enough,carry[0][-2].sample_num,Max_array_length)
         mag_State_new = mag_State._replace(exceed_flag=True)
         if analytic:
             result_last,mag_State_new = jax.lax.stop_gradient(result_last),jax.lax.stop_gradient(mag_State_new)
