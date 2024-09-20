@@ -50,6 +50,8 @@ def get_buried_error(ghost_roots_dis,sample_n):
     # only add points in one side same as the VBBL
     add_item = jnp.where(
         (
+        # ( (Ghost_i>Ghost_j)&(Ghost_k>Ghost_j)
+        # ((((Ghost_i-Ghost_j)/(theta[idx_i]-theta[idx_j])*(theta[idx_j]-theta[idx_k]))>Ghost_j)
         ((Ghost_i>2*Ghost_j)
          |((Ghost_i>1.5*Ghost_j)&(Ghost_k>Ghost_j)) # supplementary condition to avoid the burried images, 1.5 is a tunable parameter
         )&(~KInCaustic) 
@@ -60,6 +62,8 @@ def get_buried_error(ghost_roots_dis,sample_n):
 
     add_item = jnp.where(
         (
+        # ( (Ghost_i>Ghost_j)&(Ghost_k>Ghost_j)
+        # ((Ghost_j<((Ghost_k-Ghost_j)/(theta[idx_k]-theta[idx_j])*(theta[idx_j]-theta[idx_i])))
         ((2*Ghost_j<Ghost_k)
          |((1.5*Ghost_j<Ghost_k)&(Ghost_i>Ghost_j)) # same as above
          )&(~IInCaustic)
