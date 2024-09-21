@@ -6,6 +6,7 @@ from .util import Iterative_State,custom_insert,custom_delete,MAX_CAUSTIC_INTERS
 from .basic_function_jax import *
 from .linear_sum_assignment_jax import find_nearest
 from .polynomial_solver import get_roots
+from functools import partial
 jax.config.update("jax_platform_name", "cpu")
 jax.config.update("jax_enable_x64", True)
 @jax.jit
@@ -22,7 +23,7 @@ def add_points(add_idx,add_zeta,add_theta,roots_State,s,m1,m2):
     theta,unsorted_roots,unsorted_parity,ghost_roots_dis,sort_flag = jax.tree_map(insert_fun, original_list, add_list)
 
     buried_error=get_buried_error(ghost_roots_dis,sample_n)
-    roots,parity,sort_flag=get_sorted_roots(unsorted_roots,unsorted_parity,sort_flag)
+    roots,parity,sort_flag=get_sorted_roots(unsorted_roots,unsorted_parity,sort_flag,add_theta.shape[0])
     Is_create=find_create_points(roots,parity,sample_n)
     return Iterative_State(sample_n,theta,roots,parity,ghost_roots_dis,sort_flag,Is_create),buried_error,outloop
 @jax.jit
@@ -68,11 +69,11 @@ def get_buried_error(ghost_roots_dis,sample_n):
     error_buried=error_buried.at[idx_j].add(add_item)
     
     return error_buried
-@jax.jit
-def get_sorted_roots(roots,parity,sort_flag):
-    flase_i=jnp.where(~sort_flag,size=roots.shape[0],fill_value=-1)[0]
+@partial(jax.jit, static_argnames=('max_unsorted_num',))
+def get_sorted_roots(roots,parity,sort_flag,max_unsorted_num):
+    flase_i=jnp.where(~sort_flag,size=max_unsorted_num,fill_value=-1)[0]
     carry,_=lax.scan(sort_body1,(roots, parity),flase_i)
-    resort_i=jnp.where((~sort_flag[0:-1])&(sort_flag[1:]),size=roots.shape[0]-1,fill_value=-2)[0]
+    resort_i=jnp.where((~sort_flag[0:-1])&(sort_flag[1:]),size=max_unsorted_num,fill_value=-2)[0]
     carry,_=lax.scan(sort_body2,carry,resort_i)
     roots,parity=carry
     sort_flag=sort_flag.at[:].set(True)

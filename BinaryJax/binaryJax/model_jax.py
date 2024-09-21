@@ -300,7 +300,7 @@ def contour_init(rho,s,q,trajectory_l,epsilon,epsilon_rel=0,inite=30,n_ite=60):
     sort_flag=jnp.where(jnp.arange(n_ite)<inite,False,True)[:,None]#是否需要排序
     ### no need to sort first idx
     sort_flag=sort_flag.at[0].set(True)
-    roots,parity,sort_flag=get_sorted_roots(roots,parity,sort_flag)
+    roots,parity,sort_flag=get_sorted_roots(roots,parity,sort_flag,n_ite)
     Is_create=find_create_points(roots,parity,sample_n)
     roots_State = Iterative_State(sample_n,theta,roots,parity,ghost_roots_dis,sort_flag,Is_create)
     #####计算第一次的误差，放大率
