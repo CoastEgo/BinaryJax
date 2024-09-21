@@ -119,16 +119,7 @@ def get_real_roots(coff,zeta_l,theta,s,m1,m2,add_idx):
     sample_n,theta,real_parity,real_roots,ghost_roots_dis,outloop,parity_sum,_,add_idx=carry
 
     return real_roots,real_parity,ghost_roots_dis,outloop,coff,zeta_l,theta,add_idx
-# @jax.jit
-# def update_cond(carry):
-#     idx_verify_wrong,error,cond=carry
-#     sorted=jnp.argsort(error[idx_verify_wrong],axis=1)[:,-2:]
-#     cond=cond.at[idx_verify_wrong].set(False)
-#     cond=cond.at[idx_verify_wrong,sorted[:,0]].set(True)
-#     cond=cond.at[idx_verify_wrong,sorted[:,1]].set(True)
-#     cond=cond.at[-1].set(False)
-#     return cond
-    ##对于parity计算错误的点，分为fifth principal left center right，其中left center right 的parity为-1，1，-1
+
 @jax.jit
 def update_parity(carry):
     zeta_l,real_roots,nan_num,sample_n,idx_parity_wrong,cond,s,m1,m2,real_parity=carry
@@ -147,6 +138,7 @@ def update_parity(carry):
     return real_parity
 @jax.jit
 def parity_5_roots_fun(carry):##对于5个根怎么判断其parity更加合理
+    ##对于parity计算错误的点，分为fifth principal left center right，其中left center right 的parity为-1，1，-1
     temp,zeta_l,real_parity,i,cond,nan_num,s,m1,m2=carry
     prin_idx=jnp.where(jnp.sign(temp.imag)==jnp.sign(zeta_l.imag[i]),size=1,fill_value=0)[0]#主图像的索引
     prin_root=temp[prin_idx][jnp.newaxis][0]
