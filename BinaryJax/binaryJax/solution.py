@@ -102,13 +102,7 @@ def get_real_roots(coff,zeta_l,theta,s,m1,m2,add_idx):
     ghost_roots_dis = jnp.abs(roots[iterator,sort_idx[:,3]]-roots[iterator,sort_idx[:,4]])
     ghost_roots_dis = jnp.where(three_roots_cond,ghost_roots_dis,jnp.nan)[:,None]
 
-    # nan_num=cond.sum(axis=1)
-    ####计算verify,如果parity出现错误或者nan个数错误，则重新规定error最大的为nan
-    #idx_verify_wrong=jnp.where(((nan_num!=0)&(nan_num!=2)),jnp.arange(n_ite),jnp.nan)#verify出现错误的根的索引
-    # idx_verify_wrong=jnp.where((nan_num!=0)&(nan_num!=2),size=n_ite,fill_value=-1)[0]#verify出现错误的根的索引,填充-1以保持数组形状，最后对-1单独处理即可
-    # cond=lax.cond((idx_verify_wrong!=-1).any(),update_cond,lambda x:x[-1],(idx_verify_wrong,error,cond))
-    ####根的处理
-
+    # find the wrong parity and fix it
     nan_num=cond.sum(axis=1)##对于没有采样到的位置也是0
     real_roots=jnp.where(cond,jnp.nan+jnp.nan*1j,roots)
     real_parity=jnp.where(cond,jnp.nan,parity)
@@ -119,16 +113,10 @@ def get_real_roots(coff,zeta_l,theta,s,m1,m2,add_idx):
     bad_parities_cond = (parity_sum!=-1)
     outloop=0
 
+    # delete the remaining wrong roots/parity
     carry=lax.cond((bad_parities_cond&bad_roots_cond&mask).any(),theta_remove_fun,
                    lambda x:x,(sample_n,theta,real_parity,real_roots,ghost_roots_dis,outloop,parity_sum,mask,add_idx))
     sample_n,theta,real_parity,real_roots,ghost_roots_dis,outloop,parity_sum,_,add_idx=carry
-
-    ###计算得到最终的
-    # cond=(jnp.isnan(real_roots))&(jnp.arange(n_ite)<sample_n)[:,None]
-    # ghost_roots=jnp.where(cond,roots,jnp.inf)
-    # ghost_roots=jnp.sort(ghost_roots,axis=1)[:,0:2]
-    # ghost_roots=jnp.where(jnp.isinf(ghost_roots),jnp.nan,ghost_roots)
-    # ghost_roots_dis=jnp.abs(jnp.diff(ghost_roots,axis=1))
 
     return real_roots,real_parity,ghost_roots_dis,outloop,coff,zeta_l,theta,add_idx
 # @jax.jit
@@ -265,7 +253,7 @@ def theta_remove_fun(carry):
     delete_tree = [theta, real_parity, real_roots, ghost_roots_dis, add_idx[:,None]]
     theta,real_parity,real_roots,ghost_roots_dis,add_idx=jax.tree_map(lambda x: custom_delete(x,delidx), delete_tree)
     add_idx = add_idx[:,0]
-    
+
     outloop+=cond.sum()
     # if the parity is still wrong, then delete the point
     return (sample_n,theta,real_parity,real_roots,ghost_roots_dis,outloop,parity_sum,mask,add_idx)
