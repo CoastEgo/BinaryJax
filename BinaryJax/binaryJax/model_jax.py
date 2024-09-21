@@ -295,7 +295,7 @@ def contour_init(rho,s,q,trajectory_l,epsilon,epsilon_rel=0,inite=30,n_ite=60):
     error_hist=jnp.ones(n_ite)
     zeta_l=get_zeta_l(rho,trajectory_l,theta)
     coff=get_poly_coff(zeta_l,s,q/(1+q))
-    roots,parity,ghost_roots_dis,outloop,coff,zeta_l,theta,_=get_real_roots(coff,zeta_l,theta,s,m1,m2,sample_n)
+    roots,parity,ghost_roots_dis,outloop,coff,zeta_l,theta,_=get_real_roots(coff,zeta_l,theta,s,m1,m2,jnp.arange(n_ite))
     buried_error=get_buried_error(ghost_roots_dis,sample_n)/jnp.pi/rho**2
     sort_flag=jnp.where(jnp.arange(n_ite)<inite,False,True)[:,None]#是否需要排序
     ### no need to sort first idx
@@ -391,13 +391,13 @@ def while_body_fun(carry):
 
     idx = jnp.where((error_hist/jnp.abs(mag))
                     > (epsilon_rel/jnp.sqrt(sample_n/K)),
-                    size=Max_index_length,fill_value=0)[0]
+                    size=Max_index_length,fill_value=-1)[0]
 
     add_number=jnp.ceil(
         (error_hist[idx]/jnp.abs(mag)/epsilon_rel*jnp.sqrt(sample_n/K))**0.2
         ).astype(int)#至少要插入一个点，不包括相同的第一个
     
-    add_number=jnp.where((idx==0)[:,None],0,add_number)
+    add_number=jnp.where((idx==-1)[:,None],0,add_number)
     add_number=jnp.where(add_number>Max_add,Max_add,add_number)
     add_number = jax.lax.cond(add_number.sum()>Max_total_num,lambda x : (x*(Max_total_num/x.sum())).astype(int),lambda x:x,add_number)
     # jax.debug.print('add_number {}/{}  idx length {}/{}  sample_n: {}',add_number.sum(),Max_total_num,(idx!=0).sum(),Max_index_length,sample_n[0])
@@ -416,9 +416,12 @@ def while_body_fun(carry):
         carry,_=lax.scan(theta_encode,(theta,idx,add_number,
                                 jnp.full((Max_total_num,1),jnp.nan)),jnp.arange(idx.shape[0]))
         add_theta=carry[-1] 
+        jax_repeat = jax.jit(jnp.repeat,static_argnames=['axis', 'total_repeat_length'])
+        idx_all = jax_repeat(idx, add_number,total_repeat_length=Max_total_num)
+        idx_all = jnp.where(jnp.arange(idx_all.shape[0])<add_number.sum(),idx_all,-1)
         ####
         add_zeta_l=get_zeta_l(rho,trajectory_l,add_theta)
-        roots_State_new,buried_error,add_outloop=add_points(idx,add_zeta_l,add_theta,roots_State,s,1/(1+q),q/(1+q),add_number)
+        roots_State_new,buried_error,add_outloop=add_points(idx_all,add_zeta_l,add_theta,roots_State,s,1/(1+q),q/(1+q))
         buried_error = buried_error/jnp.pi/rho**2
         mag_State_new = update_mag(roots_State_new,mag_State,rho,q,s,buried_error,add_outloop)
         carry=(trajectory_l,rho,s,q,roots_State_new,mag_State_new)

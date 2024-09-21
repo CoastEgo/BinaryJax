@@ -28,16 +28,7 @@ class Model_Param(NamedTuple):
     s: float
     m1: float
     m2: float
-'''@jax.jit
-def custom_insert(array,idx,add_array,add_number):
-    ite=jnp.arange(array.shape[0])
-    mask = ite < idx
-    array=jnp.where(mask[:,None],array,jnp.roll(array,add_number,axis=0))
-    mask2=(ite >=idx)&(ite<idx+add_number)
-    add_array=jnp.resize(add_array,array.shape)
-    add_array=jnp.roll(add_array,idx,axis=0)
-    array=jnp.where(mask2[:,None],add_array,array)
-    return array'''
+
 @jax.jit
 def insert_body(carry,k):
     array,add_array,idx,add_number=carry
@@ -50,22 +41,13 @@ def insert_body(carry,k):
     add_array=jnp.roll(add_array,-1*add_number[k]-idx[k],axis=0)
     idx+=add_number[k]
     return (array,add_array,idx,add_number),k
+
 @jax.jit
-def custom_insert(array,idx,add_array,add_number,pad_item):
-    add_array = jnp.pad(add_array, ((0, array.shape[0]-add_array.shape[0]), (0, 0)), mode='constant', constant_values=pad_item)
-    carry,_=lax.scan(insert_body,(array,add_array,idx,add_number),jnp.arange(idx.shape[0]))
-    array,add_array,idx,add_number=carry
-    return array
-# @jax.jit
-# def theta_encode(carry,k):
-#     (theta,idx,add_number,add_theta_encode)=carry
-#     add_total_num = 30
-#     theta_diff = (theta[idx[k]] - theta[idx[k]-1]) / (add_number[k]+1)
-#     add_theta=jnp.arange(1,add_total_num+1)[:,None]*theta_diff+theta[idx[k]-1]
-#     add_theta=jnp.where((jnp.arange(add_total_num)<add_number[k])[:,None],add_theta,jnp.nan)
-#     carry2,_=insert_body((add_theta_encode,add_theta,jnp.where(jnp.isnan(add_theta_encode),size=1)[0],add_number[k][None]),0)
-#     add_theta_encode=carry2[0]
-#     return (theta,idx,add_number,add_theta_encode),k
+def custom_insert(array,idx,add_array):
+    final_array = jnp.insert(array,idx,add_array,axis=0)
+    final_array = final_array[:array.shape[0]]
+    return final_array
+
 @jax.jit
 def delete_body(carry, k):
     array, ite2 ,delidx = carry
@@ -73,12 +55,14 @@ def delete_body(carry, k):
     array = jnp.where(mask[:,None], array, jnp.roll(array, -1,axis=0))
     delidx -= (~mask).any()
     return (array, ite2, delidx ), k
+
 @jax.jit
 def custom_delete(array, delidx):
+    fill_value = array[-1]
     ite = jnp.arange(array.shape[0])
     carry, _ = lax.scan(delete_body, (array, ite, delidx), jnp.arange(delidx.shape[0]))
     array, _, _ = carry
-    array = jnp.where((ite < ite.size - (delidx<array.shape[0]).sum())[:,None], array, jnp.nan)
+    array = jnp.where((ite < ite.size - (delidx<array.shape[0]).sum())[:,None], array, fill_value)
     return array
 
 def stop_grad_wrapper(func):
@@ -87,6 +71,7 @@ def stop_grad_wrapper(func):
         kwargs = jax.lax.stop_gradient(kwargs)
         return jax.lax.stop_gradient(func(*args, **kwargs))
     return wrapper
+
 def warn_length_not_enough(required_length, Max_length):
     warnings.warn(
         "No enough space to insert new samplings, which may cause the error larger than the tolerance. Current length vs max length: {} vs {}. Consider incresing default_strategy parameters.".format(required_length, Max_length-2))
