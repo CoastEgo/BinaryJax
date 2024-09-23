@@ -17,13 +17,20 @@ def add_points(add_idx,add_zeta,add_theta,roots_State,s,m1,m2):
 
     sample_n +=(add_idx!=-1).sum()
 
+    ## insert the new samplings
     insert_fun = lambda x,y: custom_insert(x,add_idx,y)
     original_list = [theta,roots,parity,ghost_roots_dis,sort_flag]
     add_list = [add_theta,add_roots,add_parity,add_ghost_roots,jnp.full([add_roots.shape[0],1],False)]
     theta,unsorted_roots,unsorted_parity,ghost_roots_dis,sort_flag = jax.tree_map(insert_fun, original_list, add_list)
 
     buried_error=get_buried_error(ghost_roots_dis,sample_n)
-    roots,parity,sort_flag=get_sorted_roots(unsorted_roots,unsorted_parity,sort_flag,add_theta.shape[0])
+
+    # reorder the whole roots and parity
+    indices_update,sort_flag=get_sorted_roots(unsorted_roots,unsorted_parity,sort_flag,add_theta.shape[0])
+
+    roots = unsorted_roots[jnp.arange(unsorted_roots.shape[0])[:,None],indices_update]
+    parity = unsorted_parity[jnp.arange(unsorted_parity.shape[0])[:,None],indices_update]
+
     Is_create=find_create_points(roots,parity,sample_n)
     return Iterative_State(sample_n,theta,roots,parity,ghost_roots_dis,sort_flag,Is_create),buried_error,outloop
 @jax.jit
@@ -71,13 +78,42 @@ def get_buried_error(ghost_roots_dis,sample_n):
     return error_buried
 @partial(jax.jit, static_argnames=('max_unsorted_num',))
 def get_sorted_roots(roots,parity,sort_flag,max_unsorted_num):
+    indices = jnp.tile(jnp.arange(roots.shape[1]),(roots.shape[0],1))
+
+    def sort_body1(indices,k): # sort the roots and parity for adjacent points olde-new and new-new pairs
+
+        def False_fun_sort1(indices):
+            sort_indices = find_nearest(roots[k - 1, indices[k-1]], parity[k - 1, indices[k-1]], roots[k, :], parity[k, :])
+            indices = indices.at[k].set(sort_indices)
+            return indices
+        indices=lax.cond(k==-1,lambda x:x,False_fun_sort1,indices)
+        return indices,k
+    
     flase_i=jnp.where(~sort_flag,size=max_unsorted_num,fill_value=-1)[0]
-    carry,_=lax.scan(sort_body1,(roots, parity),flase_i)
+    indices_update,_=lax.scan(sort_body1,indices,flase_i)
+ 
+    def sort_body2(indices_temp,i): # sort the roots and parity for new-old pairs
+        def False_fun(indices_temp):
+            sort_indices=find_nearest(roots[i,indices_temp[i]],parity[i,indices_temp[i]],
+                                      roots[i+1,indices_temp[i+1]],parity[i+1,indices_temp[i+1]])
+            
+            cond = jnp.arange(roots.shape[0])[:, None] < i+1
+            indices_temp = jnp.where(cond,indices_temp,indices_temp[:,sort_indices])
+
+            return indices_temp
+
+        indices_temp=lax.cond(i==-2,lambda x:x,False_fun,indices_temp)
+
+        return indices_temp,i
+
     resort_i=jnp.where((~sort_flag[0:-1])&(sort_flag[1:]),size=max_unsorted_num,fill_value=-2)[0]
-    carry,_=lax.scan(sort_body2,carry,resort_i)
-    roots,parity=carry
+    indices_update2,_=lax.scan(sort_body2,indices_update,resort_i)
+
+    roots = roots[jnp.arange(roots.shape[0])[:,None],indices_update2]
+    parity = parity[jnp.arange(parity.shape[0])[:,None],indices_update2]
+
     sort_flag=sort_flag.at[:].set(True)
-    return roots,parity,sort_flag
+    return indices_update2,sort_flag
 @jax.jit
 def get_real_roots(coff,zeta_l,theta,s,m1,m2,add_idx):
     
@@ -207,33 +243,7 @@ def find_create_points(roots, parity ,sample_n):
                                     , critical_idy1, critical_idy2)
 
     return jnp.stack([critical_idx, critical_pos_idy, critical_neg_idy, Create_Destory[0::2]], axis=0)
-@jax.jit
-def sort_body1(values,k): # sort the roots and parity for adjacent points
-    roots, parity = values
-    @jax.jit
-    def False_fun_sort1(carry):
-        roots,parity,i=carry
-        sort_indices = find_nearest(roots[k - 1, :], parity[k - 1, :], roots[k, :], parity[k, :])
-        roots = roots.at[k, :].set(roots[k, sort_indices])
-        parity = parity.at[k, :].set(parity[k, sort_indices])
-        return roots,parity
-    carry=lax.cond(jnp.isnan(roots[k]).all(),lambda x:x[0:-1],False_fun_sort1,(roots,parity,k))
-    roots,parity=carry
-    return (roots,parity),k
-@jax.jit
-def sort_body2(carry,i): # sort the roots and parity to conect the old and new points
-    @jax.jit
-    def False_fun(carry):
-        roots,parity,i=carry
-        sort_indices=find_nearest(roots[i],parity[i],roots[i+1],parity[i+1])
-        cond = jnp.tile(jnp.arange(roots.shape[0])[:, None], (1, roots.shape[1])) < i+1
-        roots=jnp.where(cond,roots,roots[:,sort_indices])
-        parity=jnp.where(cond,parity,parity[:,sort_indices])
-        return roots,parity
-    roots,parity=carry
-    carry=lax.cond(jnp.isnan(roots[i]).all(),lambda x:x[0:-1],False_fun,(roots,parity,i))
-    roots,parity=carry
-    return (roots,parity),i
+
 @jax.jit
 def theta_remove_fun(carry):
     sample_n,theta,real_parity,real_roots,ghost_roots_dis,outloop,parity_sum,mask,add_idx=carry

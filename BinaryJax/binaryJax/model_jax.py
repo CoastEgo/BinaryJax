@@ -296,13 +296,19 @@ def contour_init(rho,s,q,trajectory_l,epsilon,epsilon_rel=0,inite=30,n_ite=60):
     zeta_l=get_zeta_l(rho,trajectory_l,theta)
     coff=get_poly_coff(zeta_l,s,q/(1+q))
     roots,parity,ghost_roots_dis,outloop,coff,zeta_l,theta,_=get_real_roots(coff,zeta_l,theta,s,m1,m2,jnp.arange(n_ite))
+    
     buried_error=get_buried_error(ghost_roots_dis,sample_n)/jnp.pi/rho**2
+    
     sort_flag=jnp.where(jnp.arange(n_ite)<inite,False,True)[:,None]#是否需要排序
-    ### no need to sort first idx
-    sort_flag=sort_flag.at[0].set(True)
-    roots,parity,sort_flag=get_sorted_roots(roots,parity,sort_flag,n_ite)
+    sort_flag=sort_flag.at[0].set(True) ### no need to sort first idx
+
+    indices_update,sort_flag=get_sorted_roots(roots,parity,sort_flag,n_ite)
+    roots = roots[jnp.arange(n_ite)[:,None],indices_update]
+    parity = parity[jnp.arange(n_ite)[:,None],indices_update]
+
     Is_create=find_create_points(roots,parity,sample_n)
     roots_State = Iterative_State(sample_n,theta,roots,parity,ghost_roots_dis,sort_flag,Is_create)
+
     #####计算第一次的误差，放大率
     mag_no_diff_num = 0
     mag=1/2*jnp.nansum(jnp.nansum((roots.imag[0:-1]+roots.imag[1:])*(roots.real[0:-1]-roots.real[1:])*parity[0:-1],axis=0))
@@ -310,6 +316,7 @@ def contour_init(rho,s,q,trajectory_l,epsilon,epsilon_rel=0,inite=30,n_ite=60):
     mag=(mag+magc+parab)/(jnp.pi*rho**2)
     error_hist+=buried_error
     mag_State = Error_State(mag,mag_no_diff_num,outloop,error_hist,epsilon,epsilon_rel)
+
     carry=(trajectory_l,rho,s,q,roots_State,mag_State)
 
     return carry
