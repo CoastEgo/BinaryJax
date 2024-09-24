@@ -52,7 +52,7 @@ def point_light_curve(trajectory_l,s,q,rho,tol,return_num=False):
         return mag,cond
     
 @partial(jax.jit,static_argnames=['return_info','default_strategy','analytic'])
-def model(t_0,u_0,t_E,rho,q,s,alpha_deg,times,tol=1e-2,retol=0.001,return_info=False,default_strategy=(35,30,60,120,240,480),analytic=True):
+def model(t_0,u_0,t_E,rho,q,s,alpha_deg,times,tol=1e-2,retol=0.001,return_info=False,default_strategy=(30,30,60,120,240),analytic=True):
     """
     Compute the microlensing model for a binary lens system using JAX.
 
@@ -233,7 +233,7 @@ def contour_integral(trajectory_l,tol,retol,rho,s,q,default_strategy=(60,80,150)
     # first add
     
     if analytic:
-        carry=stop_grad_wrapper(contour_init)(rho,s,q,trajectory_l,tol,epsilon_rel=retol,inite=30,n_ite=default_strategy[0])
+        carry=stop_grad_wrapper(contour_init)(rho,s,q,trajectory_l,tol,epsilon_rel=retol,inite=default_strategy[0]-3,n_ite=default_strategy[0])
         stop_grad_loop = lambda x:lax.while_loop(cond_fun,while_body_fun,x)
         result_no_grad,resultlast = stop_grad_wrapper(stop_grad_loop)((carry,carry))
         result = anayltic_warpper(trajectory_l,rho,s,q,result_no_grad[-2],result_no_grad[-1])
@@ -291,7 +291,7 @@ def contour_init(rho,s,q,trajectory_l,epsilon,epsilon_rel=0,inite=30,n_ite=60):
     """
     m1=1/(1+q);m2=q/(1+q)
     sample_n=jnp.array([inite])
-    theta=jnp.where(jnp.arange(n_ite)<inite,jnp.resize(jnp.linspace(0,2*jnp.pi,inite),n_ite),jnp.nan)[:,None]#shape(500,1)
+    theta=jnp.where(jnp.arange(n_ite)<inite,jnp.resize(jnp.linspace(0,2*jnp.pi,inite),n_ite),jnp.nan)[:,None]
     error_hist=jnp.ones(n_ite)
     zeta_l=get_zeta_l(rho,trajectory_l,theta)
     coff=get_poly_coff(zeta_l,s,q/(1+q))
