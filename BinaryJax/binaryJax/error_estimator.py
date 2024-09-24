@@ -78,7 +78,7 @@ def error_sum(Roots_State,rho,q,s,mask=None):
     error_hist=error_hist.at[1:].set(e_ord[:,None])
 
     de_z = jnp.where(mask,de_z,10.) # avoid the nan value in the theta_wave calculation
-    @jax.jit
+
     def no_create_true_fun(carry):
         ## if there is image create or destroy, we need to calculate the error
 

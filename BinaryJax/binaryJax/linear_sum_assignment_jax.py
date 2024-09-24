@@ -16,7 +16,7 @@ def find_nearest_sort(array1, parity1, array2, parity2):
     cost=jnp.abs(array2-array1[:,None])+jnp.abs(parity2-parity1[:,None])*5
     cost=jnp.where(jnp.isnan(cost),100,cost)
     idx=jnp.argmin(cost,axis=1)
-    @jax.jit
+
     def nan_in_array1(carry):
         array1,array2,cost,idx=carry
         idx=jnp.where(~jnp.isnan(array1),idx,-1)
@@ -29,7 +29,7 @@ def find_nearest_sort(array1, parity1, array2, parity2):
             used=jnp.where(cond,used+1,used)
         return (array1,array2,cost,idx)
     def nan_not_in_array1(carry):
-        @jax.jit
+
         def nan_in_array2(carry):
             array1,array2,cost,idx=carry
             idx=jnp.argmin(cost,axis=0)

@@ -201,7 +201,7 @@ def contour_integral(trajectory_l,tol,retol,rho,s,q,default_strategy=(60,80,150)
                 Error_State(mag_State.mag,mag_State.mag_no_diff,mag_State.outloop,error_hist,mag_State.epsilon,mag_State.epsilon_rel))
         return carry
     
-    @jax.jit
+
     def secondary_contour(carry):
         """
         Perform secondary contour integration with a longer array length.
@@ -255,7 +255,7 @@ def contour_integral(trajectory_l,tol,retol,rho,s,q,default_strategy=(60,80,150)
     (trajectory_l,rho,s,q,roots_State,mag_State)=result
 
     condition = (roots_State.sample_num<Max_array_length-2)[0]
-    @jax.jit
+
     def update_result_fun(carry):
         # update the exceed flag to True in the mag_State
         result_last=carry[1]
@@ -408,7 +408,7 @@ def while_body_fun(carry):
     add_number=jnp.where(add_number>Max_add,Max_add,add_number)
     add_number = jax.lax.cond(add_number.sum()>Max_total_num,lambda x : (x*(Max_total_num/x.sum())).astype(int),lambda x:x,add_number)
     # jax.debug.print('add_number {}/{}  idx length {}/{}  sample_n: {}',add_number.sum(),Max_total_num,(idx!=0).sum(),Max_index_length,sample_n[0])
-    @jax.jit
+
     def theta_encode(carry,k):
         (theta,idx,add_number,add_theta_encode)=carry
 
@@ -418,7 +418,7 @@ def while_body_fun(carry):
         carry2,_=insert_body((add_theta_encode,add_theta,jnp.where(jnp.isnan(add_theta_encode),size=1)[0],add_number[k][None]),0)
         add_theta_encode=carry2[0]
         return (theta,idx,add_number,add_theta_encode),k
-    @jax.jit
+
     def update_carry(carrylast):
         carry,_=lax.scan(theta_encode,(theta,idx,add_number,
                                 jnp.full((Max_total_num,1),jnp.nan)),jnp.arange(idx.shape[0]))

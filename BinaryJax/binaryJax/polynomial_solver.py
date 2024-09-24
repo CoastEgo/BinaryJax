@@ -31,7 +31,7 @@ def get_roots_vmap(sample_n, coff):
     ## used when solving the coff without zero coffes
     roots0 = Aberth_Ehrlich(coff[0],AE_roots0(coff[0]))
     roots_solver= lambda x: Aberth_Ehrlich(x,roots0)
-    roots = jax.vmap(jax.jit(roots_solver), in_axes=(0))(coff)
+    roots = jax.vmap(roots_solver, in_axes=(0))(coff)
     return roots
 # @jax.jit
 # def laguerre_method(coff,x0,n, epsilon= 1e-10):
@@ -243,7 +243,7 @@ def Aberth_Ehrlich(coff, roots, MAX_ITER=50):
     derp = jnp.polyder(coff)
     mask = 1 - jnp.eye(roots.shape[0])
     # alpha = jnp.abs(coff)*((2*jnp.sqrt(2))*1j+1)
-    @jax.jit
+
     def loop_body(carry):
         roots, coff, cond, ratio_old, n_iter = carry
         # h = jnp.polyval(coff, roots)

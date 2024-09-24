@@ -160,7 +160,7 @@ def get_real_roots(coff,zeta_l,theta,s,m1,m2,add_idx):
 @jax.jit
 def update_parity(carry):
     zeta_l,real_roots,nan_num,sample_n,idx_parity_wrong,cond,s,m1,m2,real_parity=carry
-    @jax.jit
+
     def loop_parity_body(carry,i):##循环体
         zeta_l,real_roots,real_parity,nan_num,sample_n,cond,s,m1,m2=carry
         temp=real_roots[i]
@@ -188,7 +188,7 @@ def parity_5_roots_fun(carry):##对于5个根怎么判断其parity更加合理
 @jax.jit
 def parity_3_roots_fun(carry):##对于3个根怎么判断其parity更加合理
     temp,zeta_l,real_parity,i,cond,nan_num,s,m1,m2=carry
-    @jax.jit
+
     def parity_true_fun(carry):##通过主图像判断，与zeta位于y轴同一侧的为1
         real_parity=carry
         real_parity=real_parity.at[i,jnp.where(~cond[i],size=3)].set(-1)

@@ -96,7 +96,7 @@ def basic_partial(z,theta,rho,q,s,caustic_crossing):
     detJ=1-jnp.abs(parZetaConZ)**2
     de_z=(de_zeta-parZetaConZ*jnp.conj(de_zeta))/detJ
     deXProde2X=(rho**2+jnp.imag(de_z**2*de_zeta*par2ConZetaZ))/detJ
-    @jax.jit
+
     def get_de_deXPro_de2X(carry):
         # now only calculate the derivative of x'^x'' with respect to \theta if caustic_crossing is True which is used in e4 calculation
         # still need to test weather this is robust enough for the case that source is very close to the caustic but not crossing it
