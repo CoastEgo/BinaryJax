@@ -37,25 +37,46 @@ def to_lowmass(s, q, x):
 def Quadrupole_test(rho,s,q,zeta,z,cond,tol=1e-2):
     m1=1/(1+q)
     m2=q/(1+q)
-    cQ=6;cG=2;cP=2
+    cQ=2;cG=3;cP=4 # tunable parameters vbbl 2018 + version=3.6.2 choose cQ=3,cG=miu_G (vbbl typo) ,cP=4
+
+    # basic derivatives
     fz0 = lambda z: -m1/(z-s)-m2/z
     fz1 = lambda z: m1/(z-s)**2+m2/z**2
     fz2 = lambda z: -2*m1/(z-s)**3-2*m2/z**3
     fz3 = lambda z: 6*m1/(z-s)**4+6*m2/z**4
     J = lambda z: 1-fz1(z)*jnp.conj(fz1(z))
+
     ####Quadrupole test
-    miu_Q=jnp.abs(-2*jnp.real(3*jnp.conj(fz1(z))**3*fz2(z)**2-(3-3*J(z)+J(z)**2/2)*jnp.abs(fz2(z))**2+J(z)*jnp.conj(fz1(z))**2*fz3(z))/(J(z)**5))
-    miu_C=jnp.abs(6*jnp.imag(3*jnp.conj(fz1(z))**3*fz2(z)**2)/(J(z)**5))
+    miu_Q=jnp.abs(-2*jnp.real(
+        3*jnp.conj(fz1(z))**3*fz2(z)**2
+        -(3-3*J(z)+J(z)**2/2)*jnp.abs(fz2(z))**2
+        +J(z)*jnp.conj(fz1(z))**2*fz3(z))
+        /(J(z)**5))
+    
+    # cusp test
+    miu_C=jnp.abs(
+        jnp.imag(
+            3*jnp.conj(fz1(z))**3*fz2(z)**2
+            )/(J(z)**5))
     mag=jnp.sum(jnp.where(cond, jnp.abs(1/J(z)), 0), axis=1)
-    cond1=jnp.sum(jnp.where(cond, miu_Q+miu_C, 0), axis=1)*cQ*(rho**2+1e-4*tol)<tol
+    cond1=jnp.sum(jnp.where(cond, (miu_Q+miu_C), 0), axis=1)*cQ*(rho**2+1e-4*tol)<tol
+
     ####ghost image test
     zwave=jnp.conj(zeta)-fz0(z)
     J_wave=1-fz1(z)*fz1(zwave)
-    miu_G=1/2*jnp.abs(J(z)*J_wave**2/(J_wave*fz2(jnp.conj(z))*fz1(z)-jnp.conj(J_wave)*fz2(z)*fz1(jnp.conj(z))*fz1(zwave)))
-    miu_G = jnp.where(cond, 100, miu_G)
-    cond2=((cG*(rho+1e-3)<miu_G).all(axis=1))#any更加宽松，因为ghost roots应该是同时消失的，理论上是没问题的
-    #####planet test
-    cond3=((q>1e-2)|(jnp.abs(zeta+1/s)**2>cP*(rho**2+9*q/s**2))|(rho*rho*s*s<q))[:,0]
+    J3 = J_wave*fz2(jnp.conj(z))*fz1(z)
+    miu_G=jnp.abs(
+        (J3-jnp.conj(J3)*fz1(zwave))/
+         (J(z)*J_wave**2))
+    miu_G = jnp.where(cond, 0, miu_G)
+    cond2=(((rho+1e-3)*miu_G*cG<1).all(axis=1))# all() is same with VBBL code 
+
+    #####planet test # in our frame primary is at s, the planet is at 0, so the position of the planetary caustic is 1/s
+    cond3=((q>1e-2)|
+           (jnp.abs(zeta-1/s)**2
+            >cP*(rho**2+9*q/s**2) # rho**2*s**2<q comment out in vbbl 3.6.2
+            ))[:,0]
+    
     return cond1&cond2&cond3,mag
 @jax.jit
 def get_poly_coff(zeta_l,s,m2):
