@@ -91,9 +91,13 @@ def model(t_0,u_0,t_E,rho,q,s,alpha_deg,times,tol=1e-2,retol=0.001,return_info=F
         shape = [1,1,5,5,1,1,1]
         init_fun = lambda x,y : jnp.full((sum(default_strategy),y),x)
         theta,error_hist,roots,parity,ghost_roots_dis,buried_error,sort_flag = jax.tree_map(init_fun,pad_value,shape)
-        sample_n=jnp.array([0])
+        sample_n = 0 
         roots_state = Iterative_State(sample_n,theta,roots,parity,ghost_roots_dis,sort_flag)
         mag_contour = lambda trajectory_l: contour_integral(trajectory_l,tol,retol,rho,s,q,default_strategy,analytic)
+
+        # roots_state2 = roots_state._replace(sample_num=jnp.array([1]))
+        # mag_contour = lambda x: (0.,(x,rho,s,q,roots_state2,Error_State(jnp.array([1.]),0,0,error_hist,tol,retol)))
+
         result = lax.map(lambda x: lax.cond(x[0],lambda _: (x[1],(x[2],rho,s,q,
                                                             roots_state,Error_State(jnp.array([x[1]]),0,0,error_hist,tol,retol))
                                                             ), jax.jit(mag_contour),x[2]), [cond,mag,trajectory_l])
@@ -250,11 +254,11 @@ def contour_integral(trajectory_l,tol,retol,rho,s,q,default_strategy=(60,80,150)
         resultlast = reshape_fun(resultlast,add_length)
         result = reshape_fun(result,add_length)
 
-        result,resultlast,Max_array_length=lax.cond((result[-2].sample_num<Max_array_length-2)[0],lambda x:(x[0],x[1],x[-1]),secondary_contour,(result,resultlast,add_length,Max_array_length))
+        result,resultlast,Max_array_length=lax.cond((result[-2].sample_num<Max_array_length-2),lambda x:(x[0],x[1],x[-1]),secondary_contour,(result,resultlast,add_length,Max_array_length))
 
     (trajectory_l,rho,s,q,roots_State,mag_State)=result
 
-    condition = (roots_State.sample_num<Max_array_length-2)[0]
+    condition = (roots_State.sample_num<Max_array_length-2)
 
     def update_result_fun(carry):
         # update the exceed flag to True in the mag_State
@@ -290,7 +294,7 @@ def contour_init(rho,s,q,trajectory_l,epsilon,epsilon_rel=0,inite=30,n_ite=60):
         tuple: A tuple containing the integration result and other intermediate variables.
     """
     m1=1/(1+q);m2=q/(1+q)
-    sample_n=jnp.array([inite])
+    sample_n= inite
     theta=jnp.where(jnp.arange(n_ite)<inite,jnp.resize(jnp.linspace(0,2*jnp.pi,inite),n_ite),jnp.nan)[:,None]
     error_hist=jnp.ones(n_ite)
     zeta_l=get_zeta_l(rho,trajectory_l,theta)
@@ -354,7 +358,7 @@ def cond_fun(carry):
     # outloop is the number of loop whose add points have ambiguous parity or roots, in this situation we will delete this points and add outloop by 1,
     # if outloop is larger than the threshold we stop the while loop
 
-    loop= (rel_mag_cond& (mini_interval>1e-14)& (outloop<=2)& abs_mag_cond & (mag_no_diff_num<3) & (sample_n<Max_array_length-2)[0])
+    loop= (rel_mag_cond& (mini_interval>1e-14)& (outloop<=2)& abs_mag_cond & (mag_no_diff_num<3) & (sample_n<Max_array_length-2))
     # jax.debug.print('{}',mag)
     # jax.debug.breakpoint()
     #loop= ((rel_mag_cond ) & (mini_interval>1e-14)& (~outloop)& abs_mag_cond  & (sample_n<Max_array_length-5)[0])
@@ -437,7 +441,7 @@ def while_body_fun(carry):
         trajectory_l,rho,s,q,roots_State,mag_State = carrylast
         roots_State_new = roots_State._replace(sample_num=(sample_n+add_number.sum()))
         return (trajectory_l,rho,s,q,roots_State_new,mag_State)
-    carry = lax.cond((sample_n[0]+add_number.sum())
+    carry = lax.cond((sample_n+add_number.sum())
                      <(Max_array_length-2),update_carry,no_update_carry,carrylast)
     return (carry,carrylast)
 
