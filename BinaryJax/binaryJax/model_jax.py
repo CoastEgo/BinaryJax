@@ -11,7 +11,7 @@ from .polynomial_solver import get_roots_vmap
 jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
 
-@partial(jax.jit,static_argnames=['return_num'])
+# @partial(jax.jit,static_argnames=['return_num'])
 def point_light_curve(trajectory_l,s,q,rho,tol,return_num=False):
     """
     Calculate the point source light curve.
@@ -325,7 +325,6 @@ def contour_init(rho,s,q,trajectory_l,epsilon,epsilon_rel=0,inite=30,n_ite=60):
 
     return carry
 
-@jax.jit
 def cond_fun(carry):
     carry,carrylast=carry
     ## function to judge whether to continue the loop use relative error
@@ -364,7 +363,7 @@ def cond_fun(carry):
     #loop= ((rel_mag_cond ) & (mini_interval>1e-14)& (~outloop)& abs_mag_cond  & (sample_n<Max_array_length-5)[0])
     #loop= (abs_mag_cond2&(mini_interval>1e-14)& (~outloop)& abs_mag_cond & (mag_diff_cond|(sample_n<Max_array_length/2)[0]) & (sample_n<Max_array_length-5)[0])
     return loop
-@jax.jit
+
 def while_body_fun(carry):
     carry,carrylast=carry
     carrylast=carry
@@ -445,7 +444,6 @@ def while_body_fun(carry):
                      <(Max_array_length-2),update_carry,no_update_carry,carrylast)
     return (carry,carrylast)
 
-@jax.jit
 def update_mag(roots_State,mag_State_last,rho,q,s,buried_error,add_outloop):
     maglast=mag_State_last.mag
     epsilon = mag_State_last.epsilon

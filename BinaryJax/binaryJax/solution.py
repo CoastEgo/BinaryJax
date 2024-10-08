@@ -9,7 +9,7 @@ from .polynomial_solver import get_roots
 from functools import partial
 jax.config.update("jax_platform_name", "cpu")
 jax.config.update("jax_enable_x64", True)
-@jax.jit
+
 def add_points(add_idx,add_zeta,add_theta,roots_State,s,m1,m2):
     sample_n,theta,roots,parity,ghost_roots_dis,sort_flag,Is_create=roots_State
     add_coff = get_poly_coff(add_zeta,s,m2)
@@ -33,7 +33,7 @@ def add_points(add_idx,add_zeta,add_theta,roots_State,s,m1,m2):
 
     Is_create=find_create_points(roots,parity,sample_n)
     return Iterative_State(sample_n,theta,roots,parity,ghost_roots_dis,sort_flag,Is_create),buried_error,outloop
-@jax.jit
+
 def get_buried_error(ghost_roots_dis,sample_n):
     n_ite=ghost_roots_dis.shape[0]
     error_buried=jnp.zeros((n_ite,1))
@@ -114,7 +114,7 @@ def get_sorted_roots(roots,parity,sort_flag,max_unsorted_num):
 
     sort_flag=sort_flag.at[:].set(True)
     return indices_update2,sort_flag
-@jax.jit
+
 def get_real_roots(coff,zeta_l,theta,s,m1,m2,add_idx):
     
     n_ite=zeta_l.shape[0]
@@ -157,7 +157,7 @@ def get_real_roots(coff,zeta_l,theta,s,m1,m2,add_idx):
 
     return real_roots,real_parity,ghost_roots_dis,outloop,coff,zeta_l,theta,add_idx
 
-@jax.jit
+
 def update_parity(carry):
     zeta_l,real_roots,nan_num,sample_n,idx_parity_wrong,cond,s,m1,m2,real_parity=carry
 
@@ -173,7 +173,7 @@ def update_parity(carry):
     zeta_l,real_roots,real_parity,nan_num,sample_n,cond,s,m1,m2=carry
     real_parity = real_parity.at[-1].set(jnp.nan)
     return real_parity
-@jax.jit
+
 def parity_5_roots_fun(carry):##对于5个根怎么判断其parity更加合理
     ##对于parity计算错误的点，分为fifth principal left center right，其中left center right 的parity为-1，1，-1
     temp,zeta_l,real_parity,i,cond,nan_num,s,m1,m2=carry
@@ -185,7 +185,7 @@ def parity_5_roots_fun(carry):##对于5个根怎么判断其parity更加合理
     real_parity=real_parity.at[i,jnp.where((temp==other[x_sort[0]])|(temp==other[x_sort[-1]]),size=2)[0]].set(-1)
     real_parity=real_parity.at[i,jnp.where((temp==other[x_sort[1]]),size=1)[0]].set(1)
     return real_parity
-@jax.jit
+
 def parity_3_roots_fun(carry):##对于3个根怎么判断其parity更加合理
     temp,zeta_l,real_parity,i,cond,nan_num,s,m1,m2=carry
 
@@ -196,7 +196,7 @@ def parity_3_roots_fun(carry):##对于3个根怎么判断其parity更加合理
         return real_parity
     real_parity=lax.cond((nan_num[i]!=0)&((jnp.abs(zeta_l.imag[i])>1e-5)[0]),parity_true_fun,lambda x:x,real_parity)
     return real_parity
-@jax.jit    
+    
 def find_create_points(roots, parity ,sample_n):
     """
     find the image are created or destroyed and return the index of the created or destroyed points, 
@@ -244,7 +244,7 @@ def find_create_points(roots, parity ,sample_n):
 
     return jnp.stack([critical_idx, critical_pos_idy, critical_neg_idy, Create_Destory[0::2]], axis=0)
 
-@jax.jit
+
 def theta_remove_fun(carry):
     sample_n,theta,real_parity,real_roots,ghost_roots_dis,outloop,parity_sum,mask,add_idx=carry
     n_ite=theta.shape[0]

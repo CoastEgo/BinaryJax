@@ -6,7 +6,7 @@ from jax import lax
 '''from basic_function_jax import get_poly_coff,get_zeta_l
 from model_jax import get_trajectory_l'''
 from functools import partial
-@jax.jit # 定义函数以进行矢量化
+
 def loop_body(carry,k):#采用判断来减少浪费
     coff,roots=carry
     def False_fun(carry):

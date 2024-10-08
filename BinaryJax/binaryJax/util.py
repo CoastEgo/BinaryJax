@@ -29,7 +29,6 @@ class Model_Param(NamedTuple):
     m1: float
     m2: float
 
-@jax.jit
 def insert_body(carry,k):
     array,add_array,idx,add_number=carry
     ite=jnp.arange(array.shape[0])
@@ -42,13 +41,11 @@ def insert_body(carry,k):
     idx+=add_number[k]
     return (array,add_array,idx,add_number),k
 
-@jax.jit
 def custom_insert(array,idx,add_array):
     final_array = jnp.insert(array,idx,add_array,axis=0)
     final_array = final_array[:array.shape[0]]
     return final_array
 
-@jax.jit
 def delete_body(carry, k):
     array, ite2 ,delidx = carry
     mask = ite2 < delidx[k]
@@ -56,7 +53,6 @@ def delete_body(carry, k):
     delidx -= (~mask).any()
     return (array, ite2, delidx ), k
 
-@jax.jit
 def custom_delete(array, delidx):
     fill_value = array[-1]
     ite = jnp.arange(array.shape[0])

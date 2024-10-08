@@ -3,7 +3,7 @@ import jax.numpy as jnp
 import jax
 from .basic_function_jax import dot_product,basic_partial
 from .util import stop_grad_wrapper
-@jax.jit
+
 def error_ordinary(deXProde2X,de_z,delta_theta,z,parity,de_deXPro_de2X):
     dAp_1=1/24*((deXProde2X[0:-1]+deXProde2X[1:]))*delta_theta
     delta_theta_wave=jnp.abs(z[0:-1]-z[1:])**2/jnp.abs(dot_product(de_z[0:-1],de_z[1:]))
@@ -26,7 +26,7 @@ def error_ordinary(deXProde2X,de_z,delta_theta,z,parity,de_deXPro_de2X):
     # jax.debug.print('{}',jnp.nansum(e4)))
     e_tot=e1+e2+e3+e4
     return e_tot,dAp#抛物线近似的补偿项
-@jax.jit
+
 def error_critial(pos_idx,neg_idx,i,create,parity,deXProde2X,z,de_z):
     # pos_idx=jnp.where(((Is_create[i]==create)|(Is_create[i]==10))&(parity[i]==-1*create),size=1)[0]
     # neg_idx=jnp.where(((Is_create[i]==create)|(Is_create[i]==10))&(parity[i]==1*create),size=1)[0]
@@ -49,7 +49,7 @@ def error_critial(pos_idx,neg_idx,i,create,parity,deXProde2X,z,de_z):
     ce_tot=ce1+ce2+ce3
 
     return ce_tot,jnp.sum(dAcP),1/2*(z[i,pos_idx].imag+z[i,neg_idx].imag)*(z[i,pos_idx].real-z[i,neg_idx].real)#critial 附近的抛物线近似'''
-@jax.jit
+
 def error_sum(Roots_State,rho,q,s,mask=None):
     Is_create = Roots_State.Is_create
     z = Roots_State.roots

@@ -6,7 +6,7 @@ from scipy.optimize import linear_sum_assignment
 import time
 jax.config.update("jax_platform_name", "cpu")
 jax.config.update("jax_enable_x64", True)
-@jax.jit
+
 def find_nearest_sort(array1, parity1, array2, parity2):
     # sort the image using a navie method, and don't promise the minimum distance,
     # but may be sufficient for binary lens. VBBL use the similar method.
@@ -51,7 +51,7 @@ def find_nearest_sort(array1, parity1, array2, parity2):
     array1,array2,cost,idx=carry
     return idx
 
-@jax.jit
+
 def find_nearest(array1, parity1, array2, parity2):
     # linear sum assignment, the theoritical complexity is O(n^3) but our relization turns out to be much fast
     # for small cost matrix. adopted from https://github.com/google/jax/issues/10403 and I make it jit-able

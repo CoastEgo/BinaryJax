@@ -33,7 +33,6 @@ def to_lowmass(s, q, x):
     delta_x = s / (1 + q)
     return -jnp.conj(x) + delta_x 
 
-@jax.jit
 def Quadrupole_test(rho,s,q,zeta,z,cond,tol=1e-2):
     m1=1/(1+q)
     m2=q/(1+q)
@@ -78,7 +77,7 @@ def Quadrupole_test(rho,s,q,zeta,z,cond,tol=1e-2):
             ))[:,0]
     
     return cond1&cond2&cond3,mag
-@jax.jit
+
 def get_poly_coff(zeta_l,s,m2):
     zeta_conj=jnp.conj(zeta_l)
     c0=s**2*zeta_l*m2**2
@@ -89,26 +88,25 @@ def get_poly_coff(zeta_l,s,m2):
     c5=(s-zeta_conj)*zeta_conj
     coff=jnp.concatenate((c5,c4,c3,c2,c1,c0),axis=1)
     return coff
-@jax.jit
+
 def get_zeta_l(rho,trajectory_centroid_l,theta):#获得等高线采样的zeta
     zeta_l=trajectory_centroid_l+rho*jnp.exp(1j*theta)
     return zeta_l
-@jax.jit
+
 def verify(zeta_l,z_l,s,m1,m2):#verify whether the root is right
     return  jnp.abs(z_l-m1/(jnp.conj(z_l)-s)-m2/jnp.conj(z_l)-zeta_l)
-@jax.jit
+
 def get_parity(z,s,m1,m2):#get the parity of roots
     de_conjzeta_z1=m1/(jnp.conj(z)-s)**2+m2/jnp.conj(z)**2
     return jnp.sign((1-jnp.abs(de_conjzeta_z1)**2))
-@jax.jit
+
 def get_parity_error(z,s,m1,m2):
     de_conjzeta_z1=m1/(jnp.conj(z)-s)**2+m2/jnp.conj(z)**2
     return jnp.abs((1-jnp.abs(de_conjzeta_z1)**2))
-@jax.jit
+
 def dot_product(a,b):
     return jnp.real(a)*jnp.real(b)+jnp.imag(a)*jnp.imag(b)
 
-@jax.jit
 def basic_partial(z,theta,rho,q,s,caustic_crossing):
     z_c=jnp.conj(z)
     parZetaConZ=1/(1+q)*(1/(z_c-s)**2+q/z_c**2)
