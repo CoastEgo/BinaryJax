@@ -7,18 +7,21 @@ You can install this package from the source by cloning the repository and runni
 
 ``` bash 
 
-git clone https://github.com/CoastEgo/microlensing.git
+git clone https://github.com/CoastEgo/BinaryJax.git
 
-cd microlensing
+cd BinaryJax
 
 pip install -e .
 
 ```
 ## Usage
 
-There are examples in the ```test``` folder which show the light curve and gradient calculation. You can run them directly and change the input parameters by yourself.
-The Jax version can calculate the gradient of the light curve for machine learning or other optimization methods using <a href='https://jax.readthedocs.io/en/latest/notebooks/autodiff_cookbook.html'>automatic differentiation</a>. For example, we can combine it with <a href='https://github.com/pyro-ppl/numpyro'>Numpyro</a> for Hamiltonian Monte Carlo (HMC) sampling. There is a Jupyter notebook showing the application of HMC in modeling real microlensing events KMT-2019-BLG-0371 in the `example` folder.
+The Jax version can calculate the gradient of the light curve using <a href='https://jax.readthedocs.io/en/latest/notebooks/autodiff_cookbook.html'>automatic differentiation</a>.
+There are examples in the ```test``` folder which show the light curve and gradient calculation.
 
+## Applications
+
+We can combine the Jax code with <a href='https://github.com/pyro-ppl/numpyro'>Numpyro</a> for Hamiltonian Monte Carlo (HMC) sampling. There is a Jupyter notebook showing the application of HMC in modeling real microlensing events KMT-2019-BLG-0371 in the `example` folder.
 ## Features
 
 - [x] Optimal sampling and contour integration with error control to calculate the binary lens microlensing light curve with finite source effect.
