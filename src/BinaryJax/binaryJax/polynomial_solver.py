@@ -29,8 +29,7 @@ def get_roots(sample_n, coff):
 @partial(jax.jit,static_argnums=0)
 def get_roots_vmap(sample_n, coff):
     ## used when solving the coff without zero coffes
-    roots0 = Aberth_Ehrlich(coff[0],AE_roots0(coff[0]))
-    roots_solver= lambda x: Aberth_Ehrlich(x,roots0)
+    roots_solver= lambda x: Aberth_Ehrlich(x,AE_roots0(x))
     roots = jax.vmap(roots_solver, in_axes=(0))(coff)
     return roots
 # @jax.jit

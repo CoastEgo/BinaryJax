@@ -31,7 +31,7 @@ def point_light_curve(trajectory_l,s,q,rho,tol,return_num=False):
     m1=1/(1+q);m2=q/(1+q)
     zeta_l = trajectory_l[:,None]
     coff=get_poly_coff(zeta_l,s,m2)
-    z_l=get_roots_vmap(trajectory_l.shape[0],coff)
+    z_l=get_roots(trajectory_l.shape[0],coff)
     error=verify(zeta_l,z_l,s,m1,m2)
 
     iterator = jnp.arange(zeta_l.shape[0]) # criterion to select the roots, same as the VBBL
@@ -95,7 +95,7 @@ def model(t_0,u_0,t_E,rho,q,s,alpha_deg,times,tol=1e-2,retol=0.001,return_info=F
         roots_state = Iterative_State(sample_n,theta,roots,parity,ghost_roots_dis,sort_flag)
         mag_contour = lambda trajectory_l: contour_integral(trajectory_l,tol,retol,rho,s,q,default_strategy,analytic)
 
-        # roots_state2 = roots_state._replace(sample_num=jnp.array([1]))
+        # roots_state2 = roots_state._replace(sample_num=1)
         # mag_contour = lambda x: (0.,(x,rho,s,q,roots_state2,Error_State(jnp.array([1.]),0,0,error_hist,tol,retol)))
 
         result = lax.map(lambda x: lax.cond(x[0],lambda _: (x[1],(x[2],rho,s,q,
