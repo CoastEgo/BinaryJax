@@ -37,6 +37,24 @@ def timeit(f,iters=10,verbose=True):
     return timed
 
 def VBBL_light_curve(t_0,u_0,t_E,rho,q,s,alpha_deg,times,retol,tol=1e-2):
+    """
+    Calculate the light curve of a binary lensing event using the VBBL model. Modified to the same coordinate system as the JAX model.
+
+    Args:
+        t_0 (float): The closest approach time. 
+        u_0 (float): The impact parameter of the event.
+        t_E (float): The Einstein crossing time.
+        rho (float): The angular source size in the unit of the Einstein radius.
+        q (float): The mass ratio of the binary lens.
+        s (float): The separation of the binary lens in the unit of the Einstein radius.
+        alpha_deg (float): The angle of the source trajectory in degrees.
+        times (array): The times at which to calculate the light curve.
+        retol (float): The relative tolerance. 
+        tol (float, optional): The tolerance. Default is 1e-2.
+    
+    Returns:
+        array: The magnification of this parameter set. 
+    """
     VBBL = VBBinaryLensing.VBBinaryLensing()
     alpha_VBBL=np.pi+alpha_deg/180*np.pi
     VBBL.Tol=tol
