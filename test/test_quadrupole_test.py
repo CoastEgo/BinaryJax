@@ -53,6 +53,11 @@ for i in range(sample_n):
     VBBL_mag_map[i,:]=uniform
 print(f'vbbl time took: {time.perf_counter() - start:.4f}')
 
+# compile time
+start = time.perf_counter()
+jax.block_until_ready(mag_gen_jax(0))
+print(f'compile time took: {time.perf_counter() - start:.4f}')
+
 # jax time
 start = time.perf_counter()
 for i in range(sample_n):
