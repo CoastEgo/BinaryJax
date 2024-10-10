@@ -3,28 +3,19 @@ jax.config.update("jax_platform_name", "cpu")
 jax.config.update("jax_enable_x64", True)
 from jax import numpy as jnp
 from jax import lax
-'''from basic_function_jax import get_poly_coff,get_zeta_l
-from model_jax import get_trajectory_l'''
 from functools import partial
 
-def loop_body(carry,k):#采用判断来减少浪费
-    coff,roots=carry
+def loop_body(roots0,coff):#采用判断来减少浪费
     def False_fun(carry):
-        coff,roots,k=carry
-        #roots=roots.at[k].set(jnp.roots(coff,strip_zeros=False))
-        #roots=roots.at[k].set(halfanalytical(coff))
-        #roots=roots.at[k].set(implict_zroots(coff,roots[k-1]))
-        roots = roots.at[k].set(Aberth_Ehrlich(coff,roots[k-1]))
-        return roots
-    roots=lax.cond((coff[k]==0).all(),lambda x:x[1],False_fun,(coff[k],roots,k))
-    return (coff,roots),k#'''
+        coff,roots0=carry
+        roots_new = Aberth_Ehrlich(coff,roots0)
+        return roots_new
+    roots_new=lax.cond((coff==0).all(),lambda x:x[1],False_fun,(coff,roots0))
+    return roots_new,roots_new
 @partial(jax.jit,static_argnums=0)
 def get_roots(sample_n, coff):
-
-    roots = jnp.zeros((sample_n,5),dtype=jnp.complex128)
-    roots = roots.at[0].set(Aberth_Ehrlich(coff[0],AE_roots0(coff[0])))
-    carry,_=lax.scan(loop_body,(coff,roots),jnp.arange(1,sample_n))#scan循环，但是没有浪费
-    coff,roots=carry
+    roots0 = AE_roots0(coff[0])
+    _,roots=lax.scan(loop_body,roots0,coff)#scan循环，但是没有浪费
     return roots
 @partial(jax.jit,static_argnums=0)
 def get_roots_vmap(sample_n, coff):
