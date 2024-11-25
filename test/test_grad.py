@@ -81,7 +81,7 @@ def grad_test(t_0,u_0,t_E,rho,q,s,alpha_deg,times,retol,tol):
     plt.savefig('test_grad.png')
 if __name__ == '__main__':
     b=0.1 
-    t_0 = 8280; t_E=40; alphadeg = 60.
+    t_0 = 8280.; t_E=40.; alphadeg = 60.
     q = 0.2; s = 0.9; rho = 10**(-2)
     tol=1e-3
     retol = 1e-3
