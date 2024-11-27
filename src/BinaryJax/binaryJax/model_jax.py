@@ -454,10 +454,14 @@ def update_mag(roots_State,mag_State_last,rho,q,s,buried_error,add_outloop):
     error_hist,magc,parab=error_sum(roots_State,rho,q,s)
     mag=(mag+magc+parab)/(jnp.pi*rho**2)
     add_mag_no_diff_num = (jnp.abs(mag-maglast)<1/2*epsilon).sum()
-    # check the change of the mag, if the mag is not changed at least 2 iteration, we stop the loop
+
+    # if the consecutive mag is not changed, we add the mag_no_diff by 1, otherwise we reset the mag_no_diff,
+    # if the mag_no_diff is larger than 3, we stop the loop
+    mag_no_diff = jnp.where(add_mag_no_diff_num>0,mag_State_last.mag_no_diff+1,0)
+    
     error_hist+=buried_error
     mag_State = Error_State(mag,
-                            add_mag_no_diff_num+mag_State_last.mag_no_diff,
+                            mag_no_diff,
                             add_outloop+mag_State_last.outloop,
                             error_hist,epsilon,epsilon_rel)
     return mag_State
