@@ -357,7 +357,7 @@ def cond_fun(carry):
     # outloop is the number of loop whose add points have ambiguous parity or roots, in this situation we will delete this points and add outloop by 1,
     # if outloop is larger than the threshold we stop the while loop
 
-    loop= (rel_mag_cond& (mini_interval>1e-14)& (outloop<=2)& abs_mag_cond & (mag_no_diff_num<3) & (sample_n<Max_array_length-2))
+    loop= (rel_mag_cond& (mini_interval>1e-14)& (outloop<=2)& abs_mag_cond & (mag_no_diff_num<4) & (sample_n<Max_array_length-2))
     # jax.debug.print('{}',mag)
     # jax.debug.breakpoint()
     #loop= ((rel_mag_cond ) & (mini_interval>1e-14)& (~outloop)& abs_mag_cond  & (sample_n<Max_array_length-5)[0])
