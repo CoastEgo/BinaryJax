@@ -4,9 +4,7 @@
 *.code-workspace
 .vscode/
 *.pyc
-dataFit/nocaustic
-dataFit/caustic
-dataFit/*.log
+*.cpp
 *.pdf
 *.egg-info
 *.ipynb
