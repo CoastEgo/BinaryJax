@@ -19,7 +19,7 @@ def mag_map_vbbl(i,all_params,fix_params):
     rho,q,s= all_params[i]
     t_0,b_map,t_E,alphadeg,times,tol=fix_params
     VBBL_mag_map=np.zeros((sample_n,trajectory_n))
-    mag_vbbl = lambda i : VBBL_light_curve(t_0,b_map[i],t_E,rho,q,s,alphadeg,times,1e-3,1e-3)
+    mag_vbbl = lambda i : VBBL_light_curve(t_0,b_map[i],t_E,rho,q,s,alphadeg,times,1e-4,1e-3)
     for i in range(sample_n):
         VBBL_mag_map[i,:]=mag_vbbl(i)
     return VBBL_mag_map,i
