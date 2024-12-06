@@ -243,7 +243,7 @@ def contour_integral(trajectory_l,tol,retol,rho,s,q,default_strategy=(60,80,150)
         result = anayltic_warpper(trajectory_l,rho,s,q,result_no_grad[-2],result_no_grad[-1])
 
     else:
-        carry=contour_init(rho,s,q,trajectory_l,tol,epsilon_rel=retol,inite=30,n_ite=default_strategy[0])
+        carry=contour_init(rho,s,q,trajectory_l,tol,epsilon_rel=retol,inite=default_strategy[0]-3,n_ite=default_strategy[0])
         result,resultlast=lax.while_loop(cond_fun,while_body_fun,(carry,carry))
 
     Max_array_length=default_strategy[0]
