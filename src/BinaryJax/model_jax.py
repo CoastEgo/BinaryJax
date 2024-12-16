@@ -4,7 +4,7 @@ import jax
 import jax.numpy as jnp
 from jax import lax
 
-from .basic_function_jax import Quadrupole_test, refine_gradient, to_lowmass, verify
+from .basic_function_jax import Quadrupole_test, refine_gradient, to_lowmass, verify, get_zeta_l
 from .error_estimator import error_sum
 from .solution import (
     add_points,
@@ -14,7 +14,6 @@ from .solution import (
     get_real_roots,
     get_roots,
     get_sorted_roots,
-    get_zeta_l,
 )
 from .util import (
     Error_State,
@@ -72,7 +71,7 @@ def point_light_curve(trajectory_l,s,q,rho,tol,return_num=False):
 def model(t_0,u_0,t_E,rho,q,s,alpha_deg,times,tol=1e-2,retol=0.001,return_info=False,default_strategy=(30,30,60,120,240),analytic=True):
     """
     Compute the microlensing model for a binary lens system using JAX.
-
+    
     Args:
         t_0 (float): The time of the peak of the microlensing event.
         u_0 (float): The impact parameter of the source trajectory.
