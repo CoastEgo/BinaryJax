@@ -1,0 +1,36 @@
+[tool.poetry]
+name = "BinaryJax"
+version = "0.1.0"
+description = "A JAX-based package for microlensing binary lens"
+authors = ["Haibin Ren <rhb23@mails.tsinghua.edu.cn>"]
+license = "MIT"
+readme = "README.md"
+homepage = "https://github.com/CoastEgo/BinaryJax"
+repository = "https://github.com/CoastEgo/BinaryJax"
+keywords = ["jax", "microlensing", "binary lensing"]
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+]
+
+[tool.poetry.dependencies]
+python = ">=3.8"
+jax = ">=0.4.13"
+jaxlib = ">=0.4.13"
+numpy = "*"
+scipy = "*"
+matplotlib = "*"
+
+[tool.poetry.dev-dependencies]
+# Add any development dependencies here, if needed
+
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.ruff]
+extend-include = ["*.ipynb"]
+src = []
+
+[tool.ruff.lint]
+fixable = ["I001", "F401"]
