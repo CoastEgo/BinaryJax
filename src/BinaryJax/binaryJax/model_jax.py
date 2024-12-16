@@ -1,13 +1,20 @@
-import numpy as np
-import jax.numpy as jnp
+from functools import partial
+
 import jax
+import jax.numpy as jnp
 from jax import lax
+
+from .basic_function_jax import Quadrupole_test, refine_gradient, to_lowmass
 from .error_estimator import *
 from .solution import *
-from .basic_function_jax import Quadrupole_test,to_centroid,to_lowmass,refine_gradient
-from functools import partial
-from .util import Iterative_State,Error_State,Model_Param,insert_body,stop_grad_wrapper,warn_length_not_enough
-from .polynomial_solver import get_roots_vmap
+from .util import (
+    Error_State,
+    Iterative_State,
+    insert_body,
+    stop_grad_wrapper,
+    warn_length_not_enough,
+)
+
 jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
 

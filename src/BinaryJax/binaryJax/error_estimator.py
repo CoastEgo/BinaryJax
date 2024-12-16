@@ -1,8 +1,9 @@
-import numpy as np
-import jax.numpy as jnp
 import jax
-from .basic_function_jax import dot_product,basic_partial
-from .util import stop_grad_wrapper
+import jax.numpy as jnp
+import numpy as np
+
+from .basic_function_jax import basic_partial, dot_product
+
 
 def error_ordinary(deXProde2X,de_z,delta_theta,z,parity,de_deXPro_de2X):
     dAp_1=1/24*((deXProde2X[0:-1]+deXProde2X[1:]))*delta_theta

@@ -1,9 +1,11 @@
-from itertools import count
-from jax import numpy as jnp, random, jit
-from jax import lax
-import jax
-from scipy.optimize import linear_sum_assignment
 import time
+from itertools import count
+
+import jax
+from jax import lax, random
+from jax import numpy as jnp
+from scipy.optimize import linear_sum_assignment
+
 jax.config.update("jax_platform_name", "cpu")
 jax.config.update("jax_enable_x64", True)
 

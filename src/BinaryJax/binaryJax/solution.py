@@ -1,12 +1,19 @@
-import numpy as np
-import jax.numpy as jnp
+from functools import partial
+
 import jax
+import jax.numpy as jnp
 from jax import lax
-from .util import Iterative_State,custom_insert,custom_delete,MAX_CAUSTIC_INTERSECT_NUM
+
 from .basic_function_jax import *
 from .linear_sum_assignment_jax import find_nearest
 from .polynomial_solver import get_roots
-from functools import partial
+from .util import (
+    MAX_CAUSTIC_INTERSECT_NUM,
+    Iterative_State,
+    custom_delete,
+    custom_insert,
+)
+
 jax.config.update("jax_platform_name", "cpu")
 jax.config.update("jax_enable_x64", True)
 

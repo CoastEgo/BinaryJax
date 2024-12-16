@@ -1,8 +1,10 @@
+import warnings
+from typing import NamedTuple, Union
+
 import jax
 import jax.numpy as jnp
 from jax import lax
-from typing import NamedTuple,Union,Any,Optional
-import warnings
+
 MAX_CAUSTIC_INTERSECT_NUM = 15
 class Iterative_State(NamedTuple):
     sample_num: int
