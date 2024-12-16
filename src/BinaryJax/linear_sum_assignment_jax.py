@@ -134,12 +134,13 @@ def solve(cost):
     '''
     Solves the linear sum assignment problem using the Hungarian algorithm.
     adapted from https://github.com/google/jax/issues/10403
+
     Parameters:
-    - cost (ndarray): The cost matrix representing the assignment problem.
+        cost (ndarray): The cost matrix representing the assignment problem.
 
     Returns:
-    - row_ind (ndarray): The row indices of the assigned elements.
-    - col_ind (ndarray): The column indices of the assigned elements.
+        row_ind (ndarray): The row indices of the assigned elements.
+        col_ind (ndarray): The column indices of the assigned elements.
     '''
 
     # transpose = cost.shape[1] < cost.shape[0]

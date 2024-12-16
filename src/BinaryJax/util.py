@@ -8,15 +8,41 @@ from jax import lax
 
 MAX_CAUSTIC_INTERSECT_NUM = 15
 class Iterative_State(NamedTuple):
+    """
+    A NamedTuple representing the state of an iterative process in the BinaryJax module.
+
+    Attributes:
+        sample_num (int): The number of samples.
+        theta (jax.Array): The sampling angles.
+        roots (jax.Array): The roots array.
+        parity (jax.Array): The parity array.
+        ghost_roots_distant (jax.Array): The ghost roots distant array, used to detect the buried images (hidden cusps)
+        sort_flag (Union[bool, jax.Array]): A boolean flag indicating whether the roots are sorted and matched.
+        Is_create (jax.Array): The Is_create array. A boolean flag indicating whether the image is created or destroyed.
+    """
+
     sample_num: int
     theta: jax.Array
     roots: jax.Array
     parity: jax.Array
     ghost_roots_distant: jax.Array
     sort_flag: Union[bool,jax.Array]
-    Is_create: jax.Array = jnp.zeros([4,MAX_CAUSTIC_INTERSECT_NUM],dtype=int)
+    Is_create: jax.Array = jax.tree_util.Partial(jnp.zeros, [4, MAX_CAUSTIC_INTERSECT_NUM], dtype=int)
 
 class Error_State(NamedTuple):
+    """
+    Error_State is a NamedTuple that holds various attributes related to the error state in the adaptive sampling.
+
+    Attributes:
+        mag (jax.Array): Current magnification values.
+        mag_no_diff (int): The number of magnification values without sufficient difference.
+        outloop (int): A integer flag indicating whether the iteration should be terminated.
+        error_hist (jax.Array): The current error estimated in each sampling interval.
+        epsilon (float): The absolute tolerance value.
+        epsilon_rel (float): The relative tolerance value.
+        exceed_flag (bool): The flag indicating whether the current sampling number exceeds the length of the array.
+    """
+
     mag: jax.Array
     mag_no_diff: int
     outloop: int
@@ -25,12 +51,6 @@ class Error_State(NamedTuple):
     epsilon_rel: float
     exceed_flag: bool = False
 
-class Model_Param(NamedTuple):
-    rho: float
-    q: float
-    s: float
-    m1: float
-    m2: float
 
 def insert_body(carry,k):
     array,add_array,idx,add_number=carry

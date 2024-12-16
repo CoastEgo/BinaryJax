@@ -31,7 +31,7 @@ jax.config.update("jax_platform_name", "cpu")
 def point_light_curve(trajectory_l,s,q,rho,tol,return_num=False):
     """
     Calculate the point source light curve.
-
+    
     Args:
         trajectory_l (ndarray): The trajectory of the lensing event.
         s (float): The projected separation between the lens and the source.
@@ -39,10 +39,15 @@ def point_light_curve(trajectory_l,s,q,rho,tol,return_num=False):
         rho (float): The source radius in units of the Einstein radius.
         tol (float): The absolute tolerance for the quadrupole test.
         return_num (bool, optional): Whether to return the number of real roots. Defaults to False.
-
+    
     Returns:
-        tuple: A tuple containing the magnitude of the light curve and a boolean array indicating the validity of the calculation.
-        if the quadrupole test is passed, the corresponding element in the boolean array is True. If the return_num is True, the tuple will also contain the number of real roots.
+        result (tuple): 
+            A tuple containing the magnitude of the light curve and a boolean array indicating the validity of the calculation.
+            if the quadrupole test is passed, the corresponding element in the boolean array is True. If the return_num is True, the tuple will also contain the number of real roots.
+        cond (array):
+            A boolean array indicating whether the quadrupole test is passed. True means the quadrupole test is passed. 
+        mask (optional, array):
+            A integer array indicating the number of real roots.
     """
     m1=1/(1+q);m2=q/(1+q)
     zeta_l = trajectory_l[:,None]
@@ -73,24 +78,40 @@ def model(t_0,u_0,t_E,rho,q,s,alpha_deg,times,tol=1e-2,retol=0.001,return_info=F
     Compute the microlensing model for a binary lens system using JAX.
     
     Args:
-        t_0 (float): The time of the peak of the microlensing event.
-        u_0 (float): The impact parameter of the source trajectory.
-        t_E (float): The Einstein crossing time.
-        rho (float): The source radius normalized to the Einstein radius.
-        q (float): The planet to host mass ratio of the binary lens system.
-        s (float): The projected separation of the binary lens system normalized to the Einstein radius.
-        alpha_deg (float): The angle between the source trajectory and the binary axis in degrees.
-        times (array-like): The times at which to compute the model.
-        tol (float, optional): The tolerance for the adaptive contour integration. Defaults to 1e-2.
-        retol (float, optional): The relative tolerance for the adaptive contour integration. Defaults to 0.001.
-        return_info (bool, optional): Whether to return additional information about the computation. Defaults to False.
-        default_strategy (tuple, optional): The default strategy for the hierarchical contour integration. Defaults to (60,80,150).
-        analytic (bool, optional): Whether to use the analytic chain rule to simplify the computation graph. Set this to True will accelerate 
-        the computation of the gradient and will support the reverse mode differentiation containing the while loop. But set this to True will slow down if only
-        calculate the model without differentiation. Defaults to True.
+        t_0 (float): 
+            The time of the peak of the microlensing event.
+        u_0 (float): 
+            The impact parameter of the source trajectory.
+        t_E (float): 
+            The Einstein crossing time.
+        rho (float): 
+            The source radius normalized to the Einstein radius.
+        q (float): 
+            The planet to host mass ratio of the binary lens system.
+        s (float): 
+            The projected separation of the binary lens system normalized to the Einstein radius.
+        alpha_deg (float): 
+            The angle between the source trajectory and the binary axis in degrees.
+        times (array-like): 
+            The times at which to compute the model.
+        tol (float, optional): 
+            The tolerance for the adaptive contour integration. Defaults to 1e-2.
+        retol (float, optional): 
+            The relative tolerance for the adaptive contour integration. Defaults to 0.001.
+        return_info (bool, optional): 
+            Whether to return additional information about the computation. Defaults to False.
+        default_strategy (tuple, optional): 
+            The default strategy for the hierarchical contour integration. Defaults to (60,80,150).
+        analytic (bool, optional): 
+            Whether to use the analytic chain rule to simplify the computation graph. 
+            Set this to True will accelerate the computation of the gradient and will support the reverse mode differentiation containing the while loop. 
+            But set this to True will slow down if only calculate the model without differentiation. Defaults to True.
+    
     Returns:
-        array-like: The magnification of the source at the given times.
-        tuple: Additional information about the computation if return_info is True.
+        magnification (array):
+            The magnification of the source at the given times.
+        info (tuple): 
+            Additional information about the computation if return_info is True.
     """
     # Here the parameterization is consistent with Mulensmodel and VBBinaryLensing
     ### initialize parameters
@@ -173,13 +194,14 @@ def contour_integral(trajectory_l,tol,retol,rho,s,q,default_strategy=(60,80,150)
         trajectory_l (complex): The trajectory of the lensing event at the low mass coordinate system.
         tol (float): The tolerance value.
         retol (float): The relative tolerance value.
-        rho (float): The density value.
-        s (float): The separation value.
-        q (float): The mass ratio value.
+        rho (float): The source radius normalized to the Einstein radius.
+        s (float): The projected separation of the binary lens system normalized to the Einstein radius.
+        q (float): The planet to host mass ratio of the binary lens system.
         default_strategy (tuple, optional): The default strategy for array length. Defaults to (60,80,150).
-
+        analytic (bool, optional): Whether to use the analytic chain rule to simplify the computation graph.
+    
     Returns:
-        tuple: A tuple containing the magnitude and the result of the contour integration.
+        result (tuple): A tuple containing the magnitude and the result of the contour integration.
     """
     # JIT compile operation needs shape of the array to be determined.
     # But for optimial sampling, It is hard to know the array length before the code runs so we need to assign large enough array length
@@ -307,7 +329,7 @@ def contour_init(rho,s,q,trajectory_l,epsilon,epsilon_rel=0,inite=30,n_ite=60):
         n_ite (int, optional): The total number of integration points. Defaults to 60.
 
     Returns:
-        tuple: A tuple containing the integration result and other intermediate variables.
+        result (tuple): A tuple containing the integration result and other intermediate variables.
     """
     m1=1/(1+q);m2=q/(1+q)
     sample_n= inite

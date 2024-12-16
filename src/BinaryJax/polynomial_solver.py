@@ -230,7 +230,7 @@ def Aberth_Ehrlich(coff, roots, MAX_ITER=50):
         MAX_ITER (int, optional): Maximum number of iterations. Defaults to 100.
 
     Returns:
-        ndarray: The roots of the polynomial equation.
+        roots (ndarray): The roots of the polynomial equation.
 
     """
     derp = jnp.polyder(coff)
