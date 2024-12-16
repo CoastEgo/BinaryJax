@@ -5,6 +5,7 @@ import jax
 import jax.numpy as jnp
 from jax import lax
 
+
 MAX_CAUSTIC_INTERSECT_NUM = 15
 class Iterative_State(NamedTuple):
     sample_num: int
