@@ -1,4 +1,4 @@
-*.txt
+test/*.txt
 *.mp4
 *.png
 *.code-workspace
