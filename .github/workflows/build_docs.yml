@@ -33,8 +33,10 @@ jobs:
           mkdocs build  # twice, see https://github.com/patrick-kidger/pytkdocs_tweaks
 
       # Deploy to GitHub Pages
-      - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v4
+      - name: Publish the documentation
+        uses: JamesIves/github-pages-deploy-action@3.6.2
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./site  # mkdocs 构建后的输出目录
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH: gh-pages
+          FOLDER: site  # mkdocs 构建后的输出目录
+          CLEAN: true
