@@ -1,0 +1,18 @@
+# Latest versions at time of writing.
+mkdocs==1.6.1            # Main documentation generator.
+mkdocs-material==9.5.48   # Theme
+pymdown-extensions==10.12  # Markdown extensions e.g. to handle LaTeX.
+mkdocstrings==0.27.0     # Autogenerate documentation from docstrings.
+mkdocstrings[python]
+mknotebooks==0.8.0       # Turn Jupyter Lab notebooks into webpages.
+pytkdocs_tweaks==0.0.8   # Tweaks mkdocstrings to improve various aspects
+mkdocs_include_exclude_files==0.0.1  # Allow for customising which files get included
+jinja2==3.0.3            # Older version. After 3.1.0 seems to be incompatible with current versions of mkdocstrings.
+nbconvert==6.5.0         # | Older verson to avoid error
+nbformat==5.4.0          # |
+
+mkdocs-autorefs==1.2.0
+mkdocs-material-extensions==1.3.1
+
+# Install latest version of our dependencies
+jax[cpu]
