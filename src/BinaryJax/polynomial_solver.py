@@ -8,24 +8,31 @@ from functools import partial
 from jax import lax, numpy as jnp
 
 
-def loop_body(roots0,coff):#采用判断来减少浪费
+def loop_body(roots0, coff):  # 采用判断来减少浪费
     def False_fun(carry):
-        coff,roots0=carry
-        roots_new = Aberth_Ehrlich(coff,roots0)
+        coff, roots0 = carry
+        roots_new = Aberth_Ehrlich(coff, roots0)
         return roots_new
-    roots_new=lax.cond((coff==0).all(),lambda x:x[1],False_fun,(coff,roots0))
-    return roots_new,roots_new
-@partial(jax.jit,static_argnums=0)
+
+    roots_new = lax.cond((coff == 0).all(), lambda x: x[1], False_fun, (coff, roots0))
+    return roots_new, roots_new
+
+
+@partial(jax.jit, static_argnums=0)
 def get_roots(sample_n, coff):
     roots0 = AE_roots0(coff[0])
-    _,roots=lax.scan(loop_body,roots0,coff)#scan循环，但是没有浪费
+    _, roots = lax.scan(loop_body, roots0, coff)  # scan循环，但是没有浪费
     return roots
-@partial(jax.jit,static_argnums=0)
+
+
+@partial(jax.jit, static_argnums=0)
 def get_roots_vmap(sample_n, coff):
     ## used when solving the coff without zero coffes
-    roots_solver= lambda x: Aberth_Ehrlich(x,AE_roots0(x))
+    roots_solver = lambda x: Aberth_Ehrlich(x, AE_roots0(x))
     roots = jax.vmap(roots_solver, in_axes=(0))(coff)
     return roots
+
+
 # @jax.jit
 # def laguerre_method(coff,x0,n, epsilon= 1e-10):
 #     der1=jnp.polyder(coff,1)
@@ -113,12 +120,12 @@ def get_roots_vmap(sample_n, coff):
 #     d0 = b**2-3*a*c
 #     d1 = 2*b**3-9*a*b*c+27*a**2*d
 #     d2 = jnp.sqrt(d1**2-4*d0**3+0j)
-    
+
 #     d3 = d1-d2
 #     mask = d2 == d1
 #     d3=jnp.where(mask,d3+d2,d3)[0]
 #     #d3[mask] += 2*d2[mask]
-    
+
 #     C = (d3/2)**(1/3)
 #     d4 = d0/C
 #     #d4[(C == 0)*(d0 == 0)] = 0
@@ -206,17 +213,29 @@ def AE_roots0(coff):
     Returns:
         ndarray: Array of initial guesses for the roots of the polynomial.
     """
+
     def UV(coff):
         U = 1 + 1 / jnp.abs(coff[0]) * jnp.max(jnp.abs(coff[:-1]))
         V = jnp.abs(coff[-1]) / (jnp.abs(coff[-1]) + jnp.max(jnp.abs(coff[:-1])))
         return U, V
+
     def Roots0(coff):
-        U , V = UV(coff)
-        r = jax.random.uniform(jax.random.PRNGKey(0),shape=(coff.shape[0]-1,),minval=V,maxval=U)
-        phi = jax.random.uniform(jax.random.PRNGKey(0),shape=(coff.shape[0]-1,),minval=0,maxval=2*jnp.pi)
+        U, V = UV(coff)
+        r = jax.random.uniform(
+            jax.random.PRNGKey(0), shape=(coff.shape[0] - 1,), minval=V, maxval=U
+        )
+        phi = jax.random.uniform(
+            jax.random.PRNGKey(0),
+            shape=(coff.shape[0] - 1,),
+            minval=0,
+            maxval=2 * jnp.pi,
+        )
         return r * jnp.exp(1j * phi)
+
     roots = Roots0(coff)
     return roots
+
+
 @jax.jit
 def Aberth_Ehrlich(coff, roots, MAX_ITER=50):
     """
@@ -255,11 +274,15 @@ def Aberth_Ehrlich(coff, roots, MAX_ITER=50):
         return cond.any() & (n_iter < MAX_ITER)
 
     f = lambda x: jnp.polyval(coff, x)
-    solution = lambda f, x0: lax.while_loop(cond_fun, loop_body, (x0, coff, jnp.ones_like(x0, dtype=bool), x0, 0))[0]
+    solution = lambda f, x0: lax.while_loop(
+        cond_fun, loop_body, (x0, coff, jnp.ones_like(x0, dtype=bool), x0, 0)
+    )[0]
     sclar = lambda g, y: jnp.linalg.solve(jax.jacobian(g, holomorphic=True)(y), y)
 
     return lax.custom_root(f, roots, solve=solution, tangent_solve=sclar)
-'''
+
+
+"""
 if __name__=='__main__':
     inite=30;n_ite=400
     sample_n=120
@@ -291,4 +314,4 @@ if __name__=='__main__':
     print('half error',jnp.abs(jnp.polyval(coff,half)))
     print('laguerre roots',lague_roots)
     print('laguerre der',jax.jacfwd(implict_zroots,holomorphic=True)(coff))
-    print('laguerre error',jnp.abs(jnp.polyval(coff,jnp.sort(lague_roots))))#'''
+    print('laguerre error',jnp.abs(jnp.polyval(coff,jnp.sort(lague_roots))))#"""
