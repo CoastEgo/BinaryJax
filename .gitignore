@@ -6,6 +6,11 @@ test/*.txt
 *.pyc
 *.cpp
 *.pdf
-*.egg-info
 *.ipynb
 test/test_result
+
+# Byte-compiled
+**/__pycache__
+*.egg-info/
+build/
+dist/
