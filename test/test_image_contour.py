@@ -1,8 +1,8 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-# from BinaryJax import model_numpy
-from BinaryJax import model, to_centroid, to_lowmass
+# from microlux import model_numpy
+from microlux import model, to_centroid, to_lowmass
 from MulensModel import caustics
 
 

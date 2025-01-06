@@ -11,7 +11,7 @@ MAX_CAUSTIC_INTERSECT_NUM = 15
 
 class Iterative_State(NamedTuple):
     """
-    A NamedTuple representing the state of an iterative process in the BinaryJax module.
+    A NamedTuple representing the state of an iterative process in the microlux module.
 
     Attributes:
         sample_num (int): The number of samples.

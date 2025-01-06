@@ -2,7 +2,7 @@ import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
-from BinaryJax import model
+from microlux import model
 from test_util import timeit, VBBL_light_curve
 
 
@@ -26,7 +26,7 @@ def time_test(t_0, u_0, t_E, rho, q, s, alpha_deg, times, retol, tol):
 
     plt.figure()
     plt.plot(times, VBBL_mag, label="VBBL")
-    plt.plot(times, uniform_mag, label="binaryJax")
+    plt.plot(times, uniform_mag, label="microlux")
     plt.legend()
     plt.savefig("picture/diff.png")
 

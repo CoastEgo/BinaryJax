@@ -2,8 +2,8 @@ import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
-from BinaryJax import model
 from matplotlib import gridspec
+from microlux import model
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 from scipy.optimize import approx_fprime
 from test_util import VBBL_light_curve
@@ -65,7 +65,7 @@ def grad_test(t_0, u_0, t_E, rho, q, s, alpha_deg, times, retol, tol):
     ax.set_ylabel("A(t)", rotation=0, labelpad=10)
     ax.legend()
     # ax.set_yscale('symlog')
-    print("max error binaryjax=", np.max(np.abs(mag - mag_vbl)))
+    print("max error microlux=", np.max(np.abs(mag - mag_vbl)))
     # print('max error caustic=',np.max(np.abs(mag_vbl-mag_caustic)))
 
     def format_func(value, tick_number):
@@ -98,7 +98,7 @@ def grad_test(t_0, u_0, t_E, rho, q, s, alpha_deg, times, retol, tol):
         # print(f'{name[i]} error caustic and vbbl={res_caustic}')
 
         # res_caustic = np.sqrt(np.sum((jacobian[i,:]-jacobian_caustic[i,:])**2))
-        # print(f'{name[i]} error caustic and binaryjax={res_caustic}')
+        # print(f'{name[i]} error caustic and microlux={res_caustic}')
         ax_i.set_yscale("symlog", base=10)
     plt.savefig("test_grad.png")
 

@@ -9,16 +9,16 @@ all = [
     "to_centroid",
 ]
 
-from .basic_function_jax import (
+from .basic_function import (
     to_centroid as to_centroid,
     to_lowmass as to_lowmass,
 )
-from .model_jax import (
+from .model import (
     contour_integral as contour_integral,
     model as model,
     point_light_curve as point_light_curve,
 )
-from .util import (
+from .utils import (
     Error_State as Error_State,
     Iterative_State as Iterative_State,
 )

@@ -1,4 +1,4 @@
-# BinaryJax
+# microlux
 
 This code is a Jax-based package that is used to calculate the binary lensing light curve with the finite source effect using the contour integration method.  We inherit the novel features in <a href='https://github.com/valboz/VBBinaryLensing'>VBBinaryLensing</a> including parabolic correction and optimal sampling to maximize the performance. This is built on the <a href='https://github.com/google/jax'>JAX</a> library which provides a NumPy-like interface with GPU and automatic differentiation support for high-performance machine learning research. Through automatic differentiation and our package, we get access to the accurate gradient for exploring more advanced algorithms. 
 ## Installation
@@ -7,9 +7,9 @@ You can install this package from the source by cloning the repository and runni
 
 ``` bash 
 
-git clone https://github.com/CoastEgo/BinaryJax.git
+git clone https://github.com/CoastEgo/microlux.git
 
-cd BinaryJax
+cd microlux
 
 pip install -e .
 

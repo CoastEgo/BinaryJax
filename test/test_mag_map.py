@@ -82,7 +82,7 @@ if __name__ == "__main__":
 
     # jax mag map test
 
-    from BinaryJax import model
+    from microlux import model
 
     def mag_jax(i, rho, q, s, parm):
         t_0, b_map, t_E, alphadeg, times_jax, tol = parm

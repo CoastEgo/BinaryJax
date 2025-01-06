@@ -4,7 +4,7 @@ import jax
 import jax.numpy as jnp
 from jax import lax
 
-from .basic_function_jax import (
+from .basic_function import (
     get_zeta_l,
     Quadrupole_test,
     refine_gradient,
@@ -21,7 +21,7 @@ from .solution import (
     get_roots,
     get_sorted_roots,
 )
-from .util import (
+from .utils import (
     Error_State,
     insert_body,
     Iterative_State,
@@ -31,7 +31,6 @@ from .util import (
 
 
 jax.config.update("jax_enable_x64", True)
-jax.config.update("jax_platform_name", "cpu")
 
 
 # @partial(jax.jit,static_argnames=['return_num'])

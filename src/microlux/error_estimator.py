@@ -2,7 +2,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from .basic_function_jax import basic_partial, dot_product
+from .basic_function import basic_partial, dot_product
 
 
 def error_ordinary(deXProde2X, de_z, delta_theta, z, parity, de_deXPro_de2X):

@@ -5,8 +5,8 @@ import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
 import VBBinaryLensing
-from BinaryJax import contour_integral, to_lowmass
 from jax import random
+from microlux import contour_integral, to_lowmass
 from MulensModel import caustics
 
 
@@ -78,7 +78,7 @@ def test_extend_sorce(rho, q, s, retol=1e-3):
     Jaxmag = np.array(Jax_mag)
     print(f"rho={rho},max error={np.max(np.abs(Jaxmag-VBBL_mag)/VBBL_mag)}")
     ax2.plot(np.abs(Jaxmag - VBBL_mag) / VBBL_mag)
-    # ax2.plot(Jax_mag,color='r',label='binaryJax')
+    # ax2.plot(Jax_mag,color='r',label='microlux')
     # ax2.plot(VBBL_mag,color='b',label='VBBL')
     ## set log scale
     ax2.set_yscale("log")

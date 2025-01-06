@@ -23,13 +23,13 @@ theme:
     icon:
         repo: fontawesome/brands/github  # GitHub logo in top right
 
-site_name: BinaryJax
+site_name: microlux
 site_description: A JAX library for microlensing binary lens
 site_author: Haibin Ren
-site_url: https://coastego.github.io/BinaryJax
+site_url: https://coastego.github.io/microlux
 
-repo_url: https://github.com/CoastEgo/BinaryJax
-repo_name: CoastEgo/BinaryJax
+repo_url: https://github.com/CoastEgo/microlux
+repo_name: CoastEgo/microlux
 
 strict: false
 
@@ -91,6 +91,6 @@ nav:
     - Basic API:
         - 'api/model.md'
         - 'api/solver.md'
-        - 'api/util.md'
+        - 'api/utils.md'
     - Real event modeling: 
         - KB-19-0371: 'example/KB0371.ipynb'

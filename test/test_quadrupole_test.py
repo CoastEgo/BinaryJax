@@ -4,9 +4,9 @@ import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
-from BinaryJax import point_light_curve, to_lowmass
 from matplotlib import cm, colors
 from matplotlib.patches import Patch
+from microlux import point_light_curve, to_lowmass
 from test_util import VBBL_light_curve
 
 
