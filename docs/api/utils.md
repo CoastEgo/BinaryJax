@@ -1,8 +1,8 @@
 # Utils
 
-Here are some utility classes that are used in the BinaryJax library.
+Here are some utility classes that are used in the microlux library.
 
 # Classes
-::: BinaryJax.Iterative_State
+::: microlux.Iterative_State
 ---
-::: BinaryJax.Error_State
+::: microlux.Error_State
