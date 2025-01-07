@@ -3,7 +3,7 @@ import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib import gridspec
-from microlux import model
+from microlux import extended_light_curve
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 from scipy.optimize import approx_fprime
 from test_util import VBBL_light_curve
@@ -18,7 +18,7 @@ def grad_test(t_0, u_0, t_E, rho, q, s, alpha_deg, times, retol, tol):
         vbbl_fun,
     )
 
-    grad_fun = jax.jacfwd(model, argnums=(0, 1, 2, 3, 4, 5, 6))
+    grad_fun = jax.jacfwd(extended_light_curve, argnums=(0, 1, 2, 3, 4, 5, 6))
     jacobian = jnp.array(
         grad_fun(t_0, u_0, t_E, rho, q, s, alpha_deg, times, tol, retol)
     )
@@ -31,7 +31,7 @@ def grad_test(t_0, u_0, t_E, rho, q, s, alpha_deg, times, retol, tol):
     plt.figure(figsize=(10, 8))
     # fig = plt.figure(figsize=(8,6))
     # gc = gridspec.GridSpec(2, 1,height_ratios=[1,1])
-    mag = model(t_0, u_0, t_E, rho, q, s, alpha_deg, times, retol, retol)
+    mag = extended_light_curve(t_0, u_0, t_E, rho, q, s, alpha_deg, times, retol, retol)
     mag_vbl = np.array(
         VBBL_light_curve(t_0, u_0, t_E, rho, q, s, alpha_deg, times, retol)
     )
@@ -118,7 +118,7 @@ if __name__ == "__main__":
     # times=jnp.linspace(t_0-1.*t_E,t_0+1*t_E,trajectory_n)
     times = jnp.linspace(8260, 8320, trajectory_n)[250:1000]
 
-    grad_fun = jax.jacfwd(model, argnums=(0, 1, 2, 3, 4, 5, 6))
+    grad_fun = jax.jacfwd(extended_light_curve, argnums=(0, 1, 2, 3, 4, 5, 6))
     grad_fun = jax.jit(grad_fun)
 
     grad_test(t_0, b, t_E, rho, q, s, alphadeg, times, retol, tol)

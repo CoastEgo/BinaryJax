@@ -1,7 +1,7 @@
 # Magnification Model
 
 Light curve for the binary lens with adaptive contour integration and point sorce approximation.
-::: microlux.model
+::: microlux.extended_light_curve
 ---
 Light curve with point source approximation.
 ::: microlux.point_light_curve

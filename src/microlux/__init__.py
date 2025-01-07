@@ -15,7 +15,7 @@ from .basic_function import (
 )
 from .model import (
     contour_integral as contour_integral,
-    model as model,
+    extended_light_curve as extended_light_curve,
     point_light_curve as point_light_curve,
 )
 from .utils import (

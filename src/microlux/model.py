@@ -85,7 +85,7 @@ def point_light_curve(trajectory_l, s, q, rho, tol, return_num=False):
 
 
 @partial(jax.jit, static_argnames=["return_info", "default_strategy", "analytic"])
-def model(
+def extended_light_curve(
     t_0,
     u_0,
     t_E,
@@ -101,7 +101,8 @@ def model(
     analytic=True,
 ):
     """
-    Compute the microlensing model for a binary lens system using JAX.
+    Compute the light curve of a binary lens system with finite source effects.
+    This function will dynamically choose full contour integration or point source approximation based on the quadrupole test.
 
     Args:
         t_0 (float):

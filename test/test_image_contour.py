@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 # from microlux import model_numpy
-from microlux import model, to_centroid, to_lowmass
+from microlux import extended_light_curve, to_centroid, to_lowmass
 from MulensModel import caustics
 
 
@@ -38,7 +38,7 @@ from MulensModel import caustics
 def contour_plot(t_0, b, t_E, rho, q, s, alphadeg, times, retol=1e-3, tol=1e-3):
     alpha = alphadeg * 2 * np.pi / 360
 
-    mag, info = model(
+    mag, info = extended_light_curve(
         t_0,
         b,
         t_E,
