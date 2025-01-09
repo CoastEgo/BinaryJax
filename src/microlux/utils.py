@@ -57,6 +57,26 @@ class Error_State(NamedTuple):
     exceed_flag: bool = False
 
 
+def get_default_state(total_length: int) -> tuple[Iterative_State, Error_State]:
+    """
+    used to get the default state of Iterative_State and Error_State. This acts as the placeholder for point source approximation when user wants to return the state in light curve.
+    """
+
+    pad_value = [jnp.nan, 0.0, jnp.nan + 1j * jnp.nan, jnp.nan, jnp.nan, 0.0, True]
+    shape = [1, 1, 5, 5, 1, 1, 1]
+    init_fun = lambda x, y: jnp.full((total_length, y), x)
+    theta, error_hist, roots, parity, ghost_roots_dis, buried_error, sort_flag = (
+        jax.tree_map(init_fun, pad_value, shape)
+    )
+    sample_n = 0
+    roots_state = Iterative_State(
+        sample_n, theta, roots, parity, ghost_roots_dis, sort_flag
+    )
+    error_state = Error_State(jnp.array([0.0]), 0, 0, error_hist, 1e-3, 1e-3)
+
+    return roots_state, error_state
+
+
 def insert_body(carry, k):
     array, add_array, idx, add_number = carry
     ite = jnp.arange(array.shape[0])
