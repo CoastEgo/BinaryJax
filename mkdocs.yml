@@ -74,7 +74,7 @@ plugins:
                     show_root_heading: true
                     show_root_full_path: true
                     show_if_no_docstring: false
-                    show_signature_annotations: false
+                    show_signature_annotations: true
                     members_order: source
                     heading_level: 2
                 # rendering:
