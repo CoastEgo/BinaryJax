@@ -148,6 +148,11 @@ def dot_product(a, b):
 
 
 def basic_partial(z, theta, rho, q, s, caustic_crossing):
+    """
+
+    basic partial derivatives of the lens equation with respect to zeta, z, and theta used in the error estimation.
+
+    """
     z_c = jnp.conj(z)
     parZetaConZ = 1 / (1 + q) * (1 / (z_c - s) ** 2 + q / z_c**2)
     par2ConZetaZ = -2 / (1 + q) * (1 / (z - s) ** 3 + q / (z) ** 3)
@@ -206,8 +211,8 @@ def refine_gradient(zeta_l, q, s, z):
 @refine_gradient.defjvp
 def refine_gradient_jvp(primals, tangents):
     """
-    use the custom jvp to refine the gradient of roots respect to zeta_l, based on the equation on V.Bozza 2010 eq 20.
-    The necessity of this function is still under investigation.
+    use the custom jvp to refine the gradient of roots respect to zeta_l, based on the equation on V.Bozza 2010 eq 20 and also see our paper for the details
+    This will simplify the computational graph and accelerate the gradient calculation
     """
     zeta, q, s, z = primals
     tangent_zeta, tangent_q, tangent_s, tangent_z = tangents

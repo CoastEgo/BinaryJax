@@ -4,6 +4,13 @@ from jax import numpy as jnp
 
 
 class AbstractLimbDarkening:
+    """
+
+    Abstract class for limb darkening model. The limb darkening model should have two methods:
+    - profile: the limb darkening profile at a given radius. This should be normalized with the average intensity = 1
+    - cumulative_profile: the cumulative limb darkening profile at a given radius integrated from the center to the r
+    """
+
     @abc.abstractmethod
     def profile(self, r: jnp.ndarray) -> jnp.ndarray:
         pass
