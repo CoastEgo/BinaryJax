@@ -197,7 +197,13 @@ def extended_light_curve(
     mag, cond = point_light_curve(trajectory_l, s, q, rho, tol)
 
     if limb_darkening is not None:
-        rho_frac = jnp.arange(1, n_annuli + 1) / n_annuli  # 1/n, 2/n, ..., 1
+        # uniform in radius
+        # rho_frac = jnp.arange(1, n_annuli + 1) / n_annuli  # 1/n, 2/n, ..., 1
+        # uniform in area
+        rho_frac = jnp.sqrt(
+            jnp.arange(1, n_annuli + 1) / n_annuli
+        )  # sqrt(1/n), sqrt(2/n), ..., 1
+
         rho_frac2 = rho_frac**2
         cumulative_profile = limb_darkening.cumulative_profile(rho_frac)
 
