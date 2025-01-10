@@ -122,10 +122,10 @@ def contour_integral(
         )
         if analytic:
             pad_fun = stop_grad_wrapper(pad_fun)
-            padded_list = jax.tree_map(pad_fun, pad_list, pad_value)
+            padded_list = jax.tree.map(pad_fun, pad_list, pad_value)
             padded_list = jax.lax.stop_gradient(padded_list)
         else:
-            padded_list = jax.tree_map(pad_fun, pad_list, pad_value)
+            padded_list = jax.tree.map(pad_fun, pad_list, pad_value)
 
         theta, error_hist, roots, parity, ghost_roots_dis, sort_flag = padded_list
         carry = (

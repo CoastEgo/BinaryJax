@@ -446,7 +446,7 @@ def theta_remove_fun(carry):
     sample_n -= cond.sum()
 
     delete_tree = [theta, real_parity, real_roots, ghost_roots_dis, add_idx[:, None]]
-    theta, real_parity, real_roots, ghost_roots_dis, add_idx = jax.tree_map(
+    theta, real_parity, real_roots, ghost_roots_dis, add_idx = jax.tree.map(
         lambda x: custom_delete(x, delidx), delete_tree
     )
     add_idx = add_idx[:, 0]

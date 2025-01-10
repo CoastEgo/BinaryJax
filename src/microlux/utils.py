@@ -66,7 +66,7 @@ def get_default_state(total_length: int) -> tuple[Iterative_State, Error_State]:
     shape = [1, 1, 5, 5, 1, 1, 1]
     init_fun = lambda x, y: jnp.full((total_length, y), x)
     theta, error_hist, roots, parity, ghost_roots_dis, buried_error, sort_flag = (
-        jax.tree_map(init_fun, pad_value, shape)
+        jax.tree.map(init_fun, pad_value, shape)
     )
     sample_n = 0
     roots_state = Iterative_State(
