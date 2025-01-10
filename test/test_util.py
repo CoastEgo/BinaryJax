@@ -89,3 +89,12 @@ def VBBL_light_curve(
     VBBL_mag = VBBL.BinaryLightCurve(params, times, y1, y2)
     VBBL_mag = np.array(VBBL_mag)
     return VBBL_mag
+
+
+def get_trajectory(tau, u_0, alpha_deg):
+    """
+    Get the trajectory of the source star in the complex plane.
+    """
+    alpha = alpha_deg / 180 * np.pi
+    trajectory = tau * np.exp(1j * alpha) + 1j * u_0 * np.exp(1j * alpha)
+    return trajectory
