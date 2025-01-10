@@ -46,7 +46,7 @@ def add_points(add_idx, add_zeta, add_theta, roots_State, s, m1, m2):
         add_ghost_roots,
         jnp.full([add_roots.shape[0], 1], False),
     ]
-    theta, unsorted_roots, unsorted_parity, ghost_roots_dis, sort_flag = jax.tree_map(
+    theta, unsorted_roots, unsorted_parity, ghost_roots_dis, sort_flag = jax.tree.map(
         insert_fun, original_list, add_list
     )
 
