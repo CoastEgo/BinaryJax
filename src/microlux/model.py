@@ -111,26 +111,26 @@ def binary_mag(
         The coordinate system is consistent with the MulensModel(Center of mass).
     **Parameters**
 
-    - t_0: The time of the peak of the microlensing event.
-    - u_0: The impact parameter of the source trajectory.
-    - t_E: The Einstein crossing time.
-    - rho: The source radius normalized to the Einstein radius.
-    - q: The planet to host mass ratio of the binary lens system.
-    - s: The projected separation of the binary lens system normalized to the Einstein radius.
-    - alpha_deg: The angle between the source trajectory and the binary axis in degrees.
-    - times: The times at which to compute the model.
-    - tol: The tolerance for the adaptive contour integration. Defaults to 1e-2.
-    - retol: The relative tolerance for the adaptive contour integration. Defaults to 0.001.
-    - default_strategy: The default strategy for the hierarchical contour integration. Defaults to (60,80,150).
-    - analytic: Whether to use the analytic chain rule to simplify the computation graph. Set this to True will accelerate the computation of the gradient and will support the reverse mode differentiation containing the while loop. But set this to True will slow down if only calculate the model without differentiation. Defaults to True.
-    - return_info: Whether to return additional information about the computation. Defaults to False.
-    - limb_darkening_coeff: The limb darkening coefficient for the source star. Defaults to None. currently only support linear limb darkening.
+    - `t_0`: The time of the peak of the microlensing event.
+    - `u_0`: The impact parameter of the source trajectory.
+    - `t_E`: The Einstein crossing time.
+    - `rho`: The source radius normalized to the Einstein radius.
+    - `q`: The planet to host mass ratio of the binary lens system.
+    - `s`: The projected separation of the binary lens system normalized to the Einstein radius.
+    - `alpha_deg`: The angle between the source trajectory and the binary axis in degrees.
+    - `times`: The times at which to compute the model.
+    - `tol`: The tolerance for the adaptive contour integration. Defaults to 1e-2.
+    - `retol`: The relative tolerance for the adaptive contour integration. Defaults to 0.001.
+    - `default_strategy`: The default strategy for the hierarchical contour integration. Defaults to (60,80,150).
+    - `analytic`: Whether to use the analytic chain rule to simplify the computation graph. Set this to True will accelerate the computation of the gradient and will support the reverse mode differentiation containing the while loop. But set this to True will slow down if only calculate the model without differentiation. Defaults to True.
+    - `return_info`: Whether to return additional information about the computation. Defaults to False.
+    - `limb_darkening_coeff`: The limb darkening coefficient for the source star. Defaults to None. currently only support linear limb darkening.
 
 
     **Returns**
 
-    - magnification: The magnification of the source at the given times.
-    - info: Additional information about the computation used for debugging if return_info is True.
+    - `magnification`: The magnification of the source at the given times.
+    - `info`: Additional information about the computation used for debugging if return_info is True.
     """
     # Here the parameterization is consistent with Mulensmodel and VBBinaryLensing
     ### initialize parameters
