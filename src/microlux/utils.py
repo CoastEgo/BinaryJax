@@ -91,6 +91,9 @@ def insert_body(carry, k):
 
 
 def custom_insert(array, idx, add_array):
+    """
+    custom defined insert function to insert the elements in the array without changing the shape of the array
+    """
     final_array = jnp.insert(array, idx, add_array, axis=0)
     final_array = final_array[: array.shape[0]]
     return final_array
@@ -105,6 +108,9 @@ def delete_body(carry, k):
 
 
 def custom_delete(array, delidx):
+    """
+    custom defined delete function to delete the elements in the array without changing the shape of the array
+    """
     fill_value = array[-1]
     ite = jnp.arange(array.shape[0])
     carry, _ = lax.scan(delete_body, (array, ite, delidx), jnp.arange(delidx.shape[0]))

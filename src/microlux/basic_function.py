@@ -38,6 +38,11 @@ def to_lowmass(s, q, x):
 
 
 def Quadrupole_test(rho, s, q, zeta, z, cond, tol=1e-2):
+    """
+    The quadrupole test, ghost image test, and planetary caustic test proposed by Bozza 2010 to check the validity of the point source approximation.
+    The coefficients are fine-tuned in our implementation.
+
+    """
     m1 = 1 / (1 + q)
     m2 = q / (1 + q)
     cQ = 2
@@ -93,6 +98,9 @@ def Quadrupole_test(rho, s, q, zeta, z, cond, tol=1e-2):
 
 
 def get_poly_coff(zeta_l, s, m2):
+    """
+    get the polynomial cofficients of the polynomial equation of the lens equation. The low mass object is at the origin and the primary is at s.
+    """
     zeta_conj = jnp.conj(zeta_l)
     c0 = s**2 * zeta_l * m2**2
     c1 = -s * m2 * (2 * zeta_l + s * (-1 + s * zeta_l - 2 * zeta_l * zeta_conj + m2))

@@ -19,6 +19,10 @@ jax.config.update("jax_enable_x64", True)
 
 
 def add_points(add_idx, add_zeta, add_theta, roots_State, s, m1, m2):
+    """
+    add the new points in the adaptive sampling scheme
+
+    """
     sample_n, theta, roots, parity, ghost_roots_dis, sort_flag, Is_create = roots_State
     add_coff = get_poly_coff(add_zeta, s, m2)
     (
@@ -73,6 +77,10 @@ def add_points(add_idx, add_zeta, add_theta, roots_State, s, m1, m2):
 
 
 def get_buried_error(ghost_roots_dis, sample_n):
+    """
+    get the error to avoid the buried images. proposed by the Bozza 2010. We modify the criterion to a more conservative one to avoid the burried images.
+
+    """
     n_ite = ghost_roots_dis.shape[0]
     error_buried = jnp.zeros((n_ite, 1))
 
@@ -130,6 +138,11 @@ def get_buried_error(ghost_roots_dis, sample_n):
 
 @partial(jax.jit, static_argnames=("max_unsorted_num",))
 def get_sorted_roots(roots, parity, sort_flag, max_unsorted_num):
+    """
+
+    sort the roots and parity to keep the minimum distance between the adjacent points and same parity for the adjacent points
+    """
+
     indices = jnp.tile(jnp.arange(roots.shape[1]), (roots.shape[0], 1))
 
     def sort_body1(
@@ -182,6 +195,18 @@ def get_sorted_roots(roots, parity, sort_flag, max_unsorted_num):
 
 
 def get_real_roots(coff, zeta_l, theta, s, m1, m2, add_idx):
+    """
+    get the real roots and parity for the new points. This function contains the following steps:
+        1. get the roots of the polynomial
+        2. get the parity of the roots
+        3. verify the roots by putting the roots into the lens equation
+        4. select the roots by the relative criterion same as the VBBinaryLensing
+        5. find the wrong parity and fix it
+        6. delete the remaining wrong roots/parity
+
+
+    """
+
     n_ite = zeta_l.shape[0]
     sample_n = (~jnp.isnan(zeta_l)).any(axis=1).sum()
     mask = jnp.arange(n_ite) < sample_n
@@ -324,6 +349,12 @@ def update_parity(carry):
 
 
 def parity_5_roots_fun(carry):  ##对于5个根怎么判断其parity更加合理
+    """
+
+    Determine the parity of the roots for ambiguous cases with 5 roots
+    We first select principal and fifth roots, whose parity are 1 and -1, respectively.
+    The the rest three roots are sorted by their real parts (x-axis) and the middle one is assigned parity 1, the other two are assigned parity -1.
+    """
     ##对于parity计算错误的点，分为fifth principal left center right，其中left center right 的parity为-1，1，-1
     temp, zeta_l, real_parity, i, cond, nan_num, s, m1, m2 = carry
     prin_idx = jnp.where(
@@ -346,6 +377,12 @@ def parity_5_roots_fun(carry):  ##对于5个根怎么判断其parity更加合理
 
 
 def parity_3_roots_fun(carry):  ##对于3个根怎么判断其parity更加合理
+    """
+
+    Determine the parity of the roots for ambiguous cases with 3 roots:
+    The principal image is set to positive parity, and the other two images are set to negative parity.
+    This will only work for the case where the source is not very close to the x-axis where the criterion for judging the principal image is not valid.
+    """
     temp, zeta_l, real_parity, i, cond, nan_num, s, m1, m2 = carry
 
     def parity_true_fun(carry):  ##通过主图像判断，与zeta位于y轴同一侧的为1
@@ -428,6 +465,9 @@ def find_create_points(roots, parity, sample_n):
 
 
 def theta_remove_fun(carry):
+    """
+    remove the points with wrong parity
+    """
     (
         sample_n,
         theta,

@@ -25,7 +25,7 @@ jax.config.update("jax_enable_x64", True)
 
 
 # @partial(jax.jit,static_argnames=['return_num'])
-def point_light_curve(trajectory_l, s, q, rho, tol, return_num=False):
+def point_light_curve(trajectory_l, s, q, rho, tol, return_num: bool = False):
     """
     Calculate the point source light curve.
 
@@ -41,7 +41,7 @@ def point_light_curve(trajectory_l, s, q, rho, tol, return_num=False):
     **Returns**
 
     - `result`: A tuple containing:
-        - The magnitude of the light curve.
+        - The magnification array.
         - A boolean array indicating the validity of the calculation. If the quadrupole test is passed, the corresponding element in the boolean array is `True`.
         - If `return_num` is `True`, the tuple will also contain the number of real roots.
     - `cond`: A boolean array indicating whether the quadrupole test is passed. `True` means the quadrupole test is passed.
@@ -109,6 +109,11 @@ def binary_mag(
 
     !!! note
         The coordinate system is consistent with the MulensModel(Center of mass).
+
+    !!! warning
+        Currently, to deal with limb-darkening effect, we only use 10 annuli which are uniformly distributed in terms of the area,
+        which is **not** in an adaptive scheme. So the tolerance of the limb darkening effect is not guaranteed.
+
     **Parameters**
 
     - `t_0`: The time of the peak of the microlensing event.
@@ -121,7 +126,7 @@ def binary_mag(
     - `times`: The times at which to compute the model.
     - `tol`: The tolerance for the adaptive contour integration. Defaults to 1e-2.
     - `retol`: The relative tolerance for the adaptive contour integration. Defaults to 0.001.
-    - `default_strategy`: The default strategy for the hierarchical contour integration. Defaults to (60,80,150).
+    - `default_strategy`: The default strategy for the contour integration. Defaults to (30, 30, 60, 120, 240). more details can be found in the [`microlux.contour_integral`][].
     - `analytic`: Whether to use the analytic chain rule to simplify the computation graph. Set this to True will accelerate the computation of the gradient and will support the reverse mode differentiation containing the while loop. But set this to True will slow down if only calculate the model without differentiation. Defaults to True.
     - `return_info`: Whether to return additional information about the computation. Defaults to False.
     - `limb_darkening_coeff`: The limb darkening coefficient for the source star. Defaults to None. currently only support linear limb darkening.
@@ -189,7 +194,7 @@ def extended_light_curve(
     **Parameters**
 
     - `trajectory_l`: The trajectory in the low mass coordinate system.
-    - 'n_annuli': The number of annuli for the limb darkening calculation.
+    - `n_annuli`: The number of annuli for the limb darkening calculation.
     - for the definition of the other parameters, please see [`microlux.binary_mag`][].
 
     """

@@ -80,10 +80,17 @@ def contour_integral(
     """
     Perform adaptive contour integration with pre-define shaped array.
     This function is used to reduce the memory usage and improve the performance of the contour integration. The reason is that the optimal fixed array length
-    is hard to determine before the code runs which the basic requirement for JIT compilation.
+    is hard to determine before the code runs which the basic requirement for JIT compilation. If the array length is too small, the adaptive contour integration will stop
+    early and the error will be larger than the tolerance. If the array length is too large, it will cause the waste of memory and time. This waste is linear with the array length.
+    So we use this pre-define shaped array to solve this problem.
 
     **Parameters**
-    - please see at [`microlux.binary_mag`][]
+    - For other parameters: please see at [`microlux.binary_mag`][]
+    - `default_strategy`: The default strategy for the contour integration. The array length will be added gradually according to this strategy.
+    For example, if the default_strategy is (60, 80, 150), the array length in each layer will be 60, 140, 290, respectively.
+    - `analytic`: Whether to use the analytic chain rule to simplify the computation graph. Set this to True will accelerate
+    the computation of the gradient and will support the reverse mode differentiation containing the while loop. But set this to True
+    will slow down if only calculate the model without differentiation. Defaults to True.
 
     **Returns**
     - result: A tuple containing the magnitude and the result of the contour integration.
@@ -267,7 +274,7 @@ def contour_integral(
 @partial(jax.jit, static_argnames=("inite", "n_ite"))
 def contour_init(rho, s, q, trajectory_l, epsilon, epsilon_rel=0, inite=30, n_ite=60):
     """
-    Perform contour integration to calculate the result of the binary lens model.
+    Perform initial contour integration with a fixed array length.
 
     Args:
         rho (float): The radius of the lens.
