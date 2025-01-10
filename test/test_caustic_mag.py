@@ -1,49 +1,48 @@
-import time
+from itertools import product
 
 import jax
 import jax.numpy as jnp
-import matplotlib.pyplot as plt
 import numpy as np
+import pytest
 import VBBinaryLensing
-from jax import random
-from microlux import contour_integral, to_lowmass
+from microlux import contour_integral, extended_light_curve, to_lowmass
+from microlux.limb_darkening import LinearLimbDarkening
 from MulensModel import caustics
 
 
-def test_extend_sorce(rho, q, s, retol=1e-3):
-    """
-        Test around the caustic, apadpted from https://github.com/fbartolic/caustics/blob/main/tests/test_extended_source.py
+rho_values = [1e-2, 1e-3, 1e-4]
+q_values = [1e-1, 1e-2, 1e-3]
+s_values = [0.6, 1.0, 1.4]
+limb_a_values = [0.1, 0.5, 1]
 
-    x    Parameters:
-        -----------
-        rho : float
-            The radius of the source.
-        q : float
-            The mass ratio of the binary lens.
-        s : float
-            The separation of the binary lens components.
-        retol : float, optional
-            The relative tolerance for the VBBinaryLensing calculations (default is 1e-3).
-    """
 
-    caustic_1 = caustics.Caustics(q, s)
-    x, y = caustic_1.get_caustics()
+def get_caustic_permutation(rho, q, s, n_points=1000):
+    """
+    Test around the caustic, apadpted from https://github.com/fbartolic/caustics/blob/main/tests/test_extended_source.py
+
+    **returns**:
+
+    - return the permutation of the caustic in the central of mass coordinate system
+    """
+    caustic = caustics.Caustics(q, s)
+    x, y = caustic.get_caustics(n_points)
     z_centeral = jnp.array(jnp.array(x) + 1j * jnp.array(y))
     ## random change the position of the source
-    key = random.PRNGKey(42)
-    key, subkey1, subkey2 = random.split(key, num=3)
+    key = jax.random.key(42)
+    key, subkey1, subkey2 = jax.random.split(key, num=3)
     phi = jax.random.uniform(subkey1, z_centeral.shape, minval=-np.pi, maxval=np.pi)
-    r = random.uniform(subkey2, z_centeral.shape, minval=0.0, maxval=2 * rho)
-    z_centeral = z_centeral + r * np.exp(1j * phi)
+    r = jax.random.uniform(subkey2, z_centeral.shape, minval=0.0, maxval=2 * rho)
+    z_centeral = z_centeral + r * jnp.exp(1j * phi)
+    return z_centeral
 
-    fig, (ax, ax2) = plt.subplots(2, 1, figsize=(6, 8))
-    ax.scatter(z_centeral.real, z_centeral.imag, s=0.5, color="orange", label="source")
-    circle = plt.Circle(
-        (z_centeral.real[0], z_centeral.imag[0]), rho, fill=False, color="green"
-    )  # 创建一个圆，中心在 (z.real, z.imag)，半径为 rho
-    ax.add_patch(circle)  # 将圆添加到坐标轴上
-    ax.scatter(x, y, s=0.5, color="deepskyblue", label="caustic")
-    ax.set_aspect("equal")
+
+@pytest.mark.parametrize("rho, q, s", product(rho_values, q_values, s_values))
+def test_extend_sorce(rho, q, s, retol=1e-3):
+    """
+    Test around the caustic, apadpted from https://github.com/fbartolic/caustics/blob/main/tests/test_extended_source.py
+    """
+
+    z_centeral = get_caustic_permutation(rho, q, s)
 
     ### change the coordinate system
     z_lowmass = to_lowmass(s, q, z_centeral)
@@ -53,40 +52,87 @@ def test_extend_sorce(rho, q, s, retol=1e-3):
     VBBL = VBBinaryLensing.VBBinaryLensing()
     VBBL.RelTol = retol
     VBBL_mag = []
-    start = time.time()
     for i in range(trajectory_n):
         VBBL_mag.append(
             VBBL.BinaryMag2(s, q, z_centeral.real[i], z_centeral.imag[i], rho)
         )
-    print(f"average VBBL time={(time.time()-start)/trajectory_n}")
     VBBL_mag = np.array(VBBL_mag)
 
     Jax_mag = []
-    ## compile time
-    mag = contour_integral(
-        z_lowmass[0], retol, retol, rho, s, q, default_strategy=(60, 240, 480)
-    )[0]
+
     ## real time
-    start = time.time()
     for i in range(trajectory_n):
         mag = contour_integral(
-            z_lowmass[i], retol, retol, rho, s, q, default_strategy=(60, 240, 480)
+            z_lowmass[i],
+            retol,
+            retol,
+            rho,
+            s,
+            q,
+            default_strategy=(30, 30, 60, 120, 240, 480, 2000),
         )[0]
         Jax_mag.append(mag)
-    jax.block_until_ready(Jax_mag)
-    print(f"average Jax time={(time.time()-start)/trajectory_n}")
+
     Jaxmag = np.array(Jax_mag)
-    print(f"rho={rho},max error={np.max(np.abs(Jaxmag-VBBL_mag)/VBBL_mag)}")
-    ax2.plot(np.abs(Jaxmag - VBBL_mag) / VBBL_mag)
-    # ax2.plot(Jax_mag,color='r',label='microlux')
-    # ax2.plot(VBBL_mag,color='b',label='VBBL')
-    ## set log scale
-    ax2.set_yscale("log")
-    ax2.set_ylabel("relative error")
-    plt.savefig(f"picture/extendtest_{rho}.png")
+
+    rel_error = np.abs(Jaxmag - VBBL_mag) / VBBL_mag
+    abs_error = np.abs(Jaxmag - VBBL_mag)
+    print(
+        "max relative error is {}, max absolute error is {}".format(
+            np.max(rel_error), np.max(abs_error)
+        )
+    )
+    assert np.allclose(Jaxmag, VBBL_mag, rtol=retol * 3)
+
+
+@pytest.mark.parametrize("limb_a", limb_a_values)
+def test_limb_darkening(limb_a, rho=1e-2, q=0.2, s=0.9, retol=1e-3):
+    """
+    Test the limb darkening effect
+    """
+
+    z_centeral = get_caustic_permutation(rho, q, s, n_points=1000)
+
+    ### change the coordinate system
+    z_lowmass = to_lowmass(s, q, z_centeral)
+    trajectory_n = z_centeral.shape[0]
+
+    ### change the coordinate system
+    VBBL = VBBinaryLensing.VBBinaryLensing()
+    VBBL.a1 = limb_a
+    VBBL.RelTol = retol
+    VBBL_mag = []
+    for i in range(trajectory_n):
+        VBBL_mag.append(
+            VBBL.BinaryMag2(s, q, z_centeral.real[i], z_centeral.imag[i], rho)
+        )
+    VBBL_mag = np.array(VBBL_mag)
+
+    limb_darkening_instance = LinearLimbDarkening(limb_a)
+    ## real time
+    Jaxmag = extended_light_curve(
+        z_lowmass,
+        s,
+        q,
+        rho,
+        tol=1e-2,
+        retol=1e-3,
+        default_strategy=(30, 30, 60, 120, 240, 480, 2000),
+        limb_darkening=limb_darkening_instance,
+        n_annuli=20,
+    )
+    rel_error = np.abs(Jaxmag - VBBL_mag) / VBBL_mag
+    abs_error = np.abs(Jaxmag - VBBL_mag)
+    print(
+        "max relative error is {}, max absolute error is {}".format(
+            np.max(rel_error), np.max(abs_error)
+        )
+    )
+    assert np.allclose(
+        Jaxmag, VBBL_mag, rtol=0.05
+    )  # since the limb darkening relization currently is not adaptive, the error is larger than the tolerance, this will be fixed in the future.
 
 
 if __name__ == "__main__":
-    rho = [1e-2, 1e-3]
-    for i in range(len(rho)):
-        test_extend_sorce(rho[i], 1e-3, 1)
+    test_extend_sorce(1e-2, 0.2, 0.9)
+    test_limb_darkening(rho=1e-3, q=0.2, s=0.9, limb_a=0.5)
