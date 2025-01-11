@@ -1,8 +1,10 @@
 import time
 
 import jax
+import jax.numpy as jnp
 import numpy as np
 import VBBinaryLensing
+from MulensModel import caustics
 
 
 def timeit(f, iters=10, verbose=True):
@@ -98,3 +100,23 @@ def get_trajectory(tau, u_0, alpha_deg):
     alpha = alpha_deg / 180 * np.pi
     trajectory = tau * np.exp(1j * alpha) + 1j * u_0 * np.exp(1j * alpha)
     return trajectory
+
+
+def get_caustic_permutation(rho, q, s, n_points=1000):
+    """
+    Test around the caustic, apadpted from https://github.com/fbartolic/caustics/blob/main/tests/test_extended_source.py
+
+    **returns**:
+
+    - return the permutation of the caustic in the central of mass coordinate system
+    """
+    caustic = caustics.Caustics(q, s)
+    x, y = caustic.get_caustics(n_points)
+    z_centeral = jnp.array(jnp.array(x) + 1j * jnp.array(y))
+    ## random change the position of the source
+    key = jax.random.key(42)
+    key, subkey1, subkey2 = jax.random.split(key, num=3)
+    phi = jax.random.uniform(subkey1, z_centeral.shape, minval=-np.pi, maxval=np.pi)
+    r = jax.random.uniform(subkey2, z_centeral.shape, minval=0.0, maxval=2 * rho)
+    z_centeral = z_centeral + r * jnp.exp(1j * phi)
+    return z_centeral

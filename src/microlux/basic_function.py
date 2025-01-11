@@ -100,6 +100,7 @@ def Quadrupole_test(rho, s, q, zeta, z, cond, tol=1e-2):
 def get_poly_coff(zeta_l, s, m2):
     """
     get the polynomial cofficients of the polynomial equation of the lens equation. The low mass object is at the origin and the primary is at s.
+    The input zeta_l should have the shape of (n,1) for broadcasting.
     """
     zeta_conj = jnp.conj(zeta_l)
     c0 = s**2 * zeta_l * m2**2
