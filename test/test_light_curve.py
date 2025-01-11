@@ -2,7 +2,7 @@ import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
-from microlux import extended_light_curve
+from microlux import binary_mag
 from test_util import timeit, VBBL_light_curve
 
 
@@ -12,13 +12,13 @@ jax.config.update("jax_platform_name", "cpu")
 
 def time_test(t_0, u_0, t_E, rho, q, s, alpha_deg, times, retol, tol):
     ####################编译时间
-    uniform_mag, time = timeit(extended_light_curve)(
+    uniform_mag, time = timeit(binary_mag)(
         t_0, b, t_E, rho, q, s, alpha_deg, times, tol, retol=retol
     )
     # with jax.profiler.trace("/tmp/jax-trace", create_perfetto_link=True):
     # jax.profiler.start_trace("/tmp/tensorboard")
     # with jax.disable_jit():
-    # extended_light_curve(**parm).block_until_ready()
+    # binary_mag(**parm).block_until_ready()
     # jax.profiler.stop_trace()
     VBBL_mag, _ = timeit(VBBL_light_curve)(
         t_0, b, t_E, rho, q, s, alpha_deg, times, retol=1e-3, tol=1e-3

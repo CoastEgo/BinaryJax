@@ -42,7 +42,19 @@ def timeit(f, iters=10, verbose=True):
     return timed
 
 
-def VBBL_light_curve(t_0, u_0, t_E, rho, q, s, alpha_deg, times, retol=0.0, tol=1e-2):
+def VBBL_light_curve(
+    t_0,
+    u_0,
+    t_E,
+    rho,
+    q,
+    s,
+    alpha_deg,
+    times,
+    retol=0.0,
+    tol=1e-2,
+    limb_darkening: None | float = None,
+):
     """
     Calculate the light curve of a binary lensing event using the VBBL model. Modified to the same coordinate system as the JAX model.
 
@@ -57,11 +69,14 @@ def VBBL_light_curve(t_0, u_0, t_E, rho, q, s, alpha_deg, times, retol=0.0, tol=
         times (array): The times at which to calculate the light curve.
         retol (float): The relative tolerance. Default is 0.
         tol (float, optional): The tolerance. Default is 1e-2.
+        limb_darkening (float, optional): The limb darkening coefficient for linear limb darkening. Default is None.
 
     Returns:
         array: The magnification of this parameter set.
     """
     VBBL = VBBinaryLensing.VBBinaryLensing()
+    if limb_darkening is not None:
+        VBBL.a1 = limb_darkening
     alpha_VBBL = np.pi + alpha_deg / 180 * np.pi
     VBBL.Tol = tol
     VBBL.RelTol = retol
@@ -72,4 +87,14 @@ def VBBL_light_curve(t_0, u_0, t_E, rho, q, s, alpha_deg, times, retol=0.0, tol=
     y2 = u_0 * np.cos(alpha_VBBL) + tau * np.sin(alpha_VBBL)
     params = [np.log(s), np.log(q), u_0, alpha_VBBL, np.log(rho), np.log(t_E), t_0]
     VBBL_mag = VBBL.BinaryLightCurve(params, times, y1, y2)
+    VBBL_mag = np.array(VBBL_mag)
     return VBBL_mag
+
+
+def get_trajectory(tau, u_0, alpha_deg):
+    """
+    Get the trajectory of the source star in the complex plane.
+    """
+    alpha = alpha_deg / 180 * np.pi
+    trajectory = tau * np.exp(1j * alpha) + 1j * u_0 * np.exp(1j * alpha)
+    return trajectory

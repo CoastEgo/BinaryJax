@@ -82,11 +82,11 @@ if __name__ == "__main__":
 
     # jax mag map test
 
-    from microlux import extended_light_curve
+    from microlux import binary_mag
 
     def mag_jax(i, rho, q, s, parm):
         t_0, b_map, t_E, alphadeg, times_jax, tol = parm
-        uniform_mag, info = extended_light_curve(
+        uniform_mag, info = binary_mag(
             t_0,
             b_map[i],
             t_E,

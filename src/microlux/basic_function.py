@@ -38,6 +38,11 @@ def to_lowmass(s, q, x):
 
 
 def Quadrupole_test(rho, s, q, zeta, z, cond, tol=1e-2):
+    """
+    The quadrupole test, ghost image test, and planetary caustic test proposed by Bozza 2010 to check the validity of the point source approximation.
+    The coefficients are fine-tuned in our implementation.
+
+    """
     m1 = 1 / (1 + q)
     m2 = q / (1 + q)
     cQ = 2
@@ -93,6 +98,9 @@ def Quadrupole_test(rho, s, q, zeta, z, cond, tol=1e-2):
 
 
 def get_poly_coff(zeta_l, s, m2):
+    """
+    get the polynomial cofficients of the polynomial equation of the lens equation. The low mass object is at the origin and the primary is at s.
+    """
     zeta_conj = jnp.conj(zeta_l)
     c0 = s**2 * zeta_l * m2**2
     c1 = -s * m2 * (2 * zeta_l + s * (-1 + s * zeta_l - 2 * zeta_l * zeta_conj + m2))
@@ -140,6 +148,11 @@ def dot_product(a, b):
 
 
 def basic_partial(z, theta, rho, q, s, caustic_crossing):
+    """
+
+    basic partial derivatives of the lens equation with respect to zeta, z, and theta used in the error estimation.
+
+    """
     z_c = jnp.conj(z)
     parZetaConZ = 1 / (1 + q) * (1 / (z_c - s) ** 2 + q / z_c**2)
     par2ConZetaZ = -2 / (1 + q) * (1 / (z - s) ** 3 + q / (z) ** 3)
@@ -198,8 +211,8 @@ def refine_gradient(zeta_l, q, s, z):
 @refine_gradient.defjvp
 def refine_gradient_jvp(primals, tangents):
     """
-    use the custom jvp to refine the gradient of roots respect to zeta_l, based on the equation on V.Bozza 2010 eq 20.
-    The necessity of this function is still under investigation.
+    use the custom jvp to refine the gradient of roots respect to zeta_l, based on the equation on V.Bozza 2010 eq 20 and also see our paper for the details
+    This will simplify the computational graph and accelerate the gradient calculation
     """
     zeta, q, s, z = primals
     tangent_zeta, tangent_q, tangent_s, tangent_z = tangents

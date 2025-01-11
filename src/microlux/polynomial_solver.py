@@ -202,15 +202,16 @@ def get_roots_vmap(sample_n, coff):
 
 
 @jax.jit
-def AE_roots0(coff):
+def AE_roots0(coff: jnp.ndarray) -> jnp.ndarray:
     """
-    Computes the initial guesses using the Aberth-Ehrlich method.
+    Computes the initial guesses using the Aberth-Ehrlich method. This code is adapted from [https://github.com/afoures/aberth-method](https://github.com/afoures/aberth-method)
+    **Args**:
 
-    Args:
-        coff (ndarray): Coefficients of the polynomial.
+    - `coff` (ndarray): Coefficients of the polynomial.
 
-    Returns:
-        ndarray: Array of initial guesses for the roots of the polynomial.
+    **Returns**:
+
+    - `initial_guess`: Initial guesses for the roots of the polynomial.
     """
 
     def UV(coff):
@@ -236,19 +237,22 @@ def AE_roots0(coff):
 
 
 @jax.jit
-def Aberth_Ehrlich(coff, roots, MAX_ITER=50):
+def Aberth_Ehrlich(
+    coff: jnp.ndarray, roots: jnp.ndarray, MAX_ITER: int = 50
+) -> jnp.ndarray:
     """
-    Solves a polynomial equation using the Aberth-Ehrlich method.
-    Adopted from https://arxiv.org/abs/2206.00482 Hossein Fatheddin
-    Use jax.lax.custom_root to get precise derivative in automatic differentiation
+    Solves a polynomial equation using the Aberth-Ehrlich method. Adapted from [https://github.com/afoures/aberth-method](https://github.com/afoures/aberth-method).
+    Use `jax.lax.custom_root` to get precise derivative in automatic differentiation.
 
-    Args:
-        coff (ndarray): Coefficients of the polynomial equation.
-        roots (ndarray): Initial guesses for the roots of the polynomial equation.
-        MAX_ITER (int, optional): Maximum number of iterations. Defaults to 100.
+    **Parameters**:
 
-    Returns:
-        roots (ndarray): The roots of the polynomial equation.
+    - `coff`: Coefficients of the polynomial equation.
+    - `roots`: Initial guesses for the roots of the polynomial equation.
+    - `MAX_ITER`: Maximum number of iterations. Defaults to 100.
+
+    **Returns**:
+
+    - `roots`: The roots of the polynomial equation.
 
     """
     derp = jnp.polyder(coff)

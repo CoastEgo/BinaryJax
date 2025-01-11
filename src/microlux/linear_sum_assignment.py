@@ -3,67 +3,9 @@ from itertools import count
 
 import jax
 from jax import lax, numpy as jnp, random
-from scipy.optimize import linear_sum_assignment
 
 
 jax.config.update("jax_enable_x64", True)
-
-
-def find_nearest_sort(array1, parity1, array2, parity2):
-    # sort the image using a navie method, and don't promise the minimum distance,
-    # but may be sufficient for binary lens. VBBL use the similar method.
-    # To use Jax's shard_map api to get get combination of
-    # jax.jit and parallel, we can't use while loop now.
-    # check here for more details: https://jax.readthedocs.io/en/latest/jep/14273-shard-map.html
-    cost = jnp.abs(array2 - array1[:, None]) + jnp.abs(parity2 - parity1[:, None]) * 5
-    cost = jnp.where(jnp.isnan(cost), 100, cost)
-    idx = jnp.argmin(cost, axis=1)
-
-    def nan_in_array1(carry):
-        array1, array2, cost, idx = carry
-        idx = jnp.where(~jnp.isnan(array1), idx, -1)
-        diff_idx = jnp.setdiff1d(jnp.arange(array1.shape[0]), idx, size=2)
-        used = 0
-        for i in range(array1.shape[0]):
-            cond = jnp.isnan(array1[i])
-            idx_i = jnp.where(cond, diff_idx[used], idx[i])
-            idx = idx.at[i].set(idx_i)
-            used = jnp.where(cond, used + 1, used)
-        return (array1, array2, cost, idx)
-
-    def nan_not_in_array1(carry):
-        def nan_in_array2(carry):
-            array1, array2, cost, idx = carry
-            idx = jnp.argmin(cost, axis=0)
-            idx = jnp.where(~jnp.isnan(array1), idx, -1)
-            diff_idx = jnp.setdiff1d(jnp.arange(array2.shape[0]), idx, size=2)
-            used = 0
-            for i in range(array1.shape[0]):
-                cond = jnp.isnan(array2[i])
-                idx_i = jnp.where(cond, diff_idx[used], idx[i])
-                idx = idx.at[i].set(idx_i)
-                used = jnp.where(cond, used + 1, used)
-            ## rearrange the idx
-            row_resort = jnp.argsort(idx)
-            col_idx = jnp.arange(array1.shape[0])
-            return (array1, array2, cost, col_idx[row_resort])
-
-        carry = lax.cond(
-            jnp.isnan(array2).sum() == 2,
-            nan_in_array2,
-            lambda x: x,
-            (array1, array2, cost, idx),
-        )
-        return carry
-
-    carry = lax.cond(
-        jnp.isnan(array1).sum() == 2,
-        nan_in_array1,
-        nan_not_in_array1,
-        (array1, array2, cost, idx),
-    )
-    array1, array2, cost, idx = carry
-    return idx
 
 
 def find_nearest(array1, parity1, array2, parity2):
@@ -74,8 +16,6 @@ def find_nearest(array1, parity1, array2, parity2):
     )  # 系数可以指定防止出现错误，系数越大鲁棒性越好，但是速度会变慢些
     cost = jnp.where(jnp.isnan(cost), 100, cost)
     row_ind, col_idx = solve(cost)
-
-    # col_idx=find_nearest_sort(array1, parity1, array2, parity2)
 
     return col_idx
 
@@ -296,15 +236,16 @@ def augmenting_path(cost, u, v, path, row4col, i):
 @jax.jit
 def solve(cost):
     """
-    Solves the linear sum assignment problem using the Hungarian algorithm.
-    adapted from https://github.com/google/jax/issues/10403
+    Solves the linear sum assignment problem using the Hungarian algorithm. Adapted from
+    [https://github.com/google/jax/issues/10403](https://github.com/google/jax/issues/10403)
 
     Parameters:
-        cost (ndarray): The cost matrix representing the assignment problem.
+    - `cost`: The cost matrix representing the assignment problem.
 
     Returns:
-        row_ind (ndarray): The row indices of the assigned elements.
-        col_ind (ndarray): The column indices of the assigned elements.
+
+    - `row_ind`: The row indices of the assigned elements.
+    - `col_ind`: The column indices of the assigned elements.
     """
 
     # transpose = cost.shape[1] < cost.shape[0]
@@ -362,6 +303,8 @@ def solve(cost):
 
 
 def main():
+    from scipy.optimize import linear_sum_assignment
+
     key = random.PRNGKey(0)
     for t in count():
         key, subkey = random.split(key)
