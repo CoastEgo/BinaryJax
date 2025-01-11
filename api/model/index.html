@@ -375,9 +375,9 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#microlux.extended_light_curve" class="md-nav__link">
+  <a href="#microlux.binary_mag" class="md-nav__link">
     <span class="md-ellipsis">
-      extended_light_curve
+      binary_mag
     </span>
   </a>
   
@@ -387,6 +387,15 @@
   <a href="#microlux.point_light_curve" class="md-nav__link">
     <span class="md-ellipsis">
       point_light_curve
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#microlux.extended_light_curve" class="md-nav__link">
+    <span class="md-ellipsis">
+      extended_light_curve
     </span>
   </a>
   
@@ -553,274 +562,47 @@
 <div class="doc doc-object doc-function">
 
 
-<h2 id="microlux.extended_light_curve" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">microlux</span><span class="o">.</span><span class="n">extended_light_curve</span><span class="p">(</span><span class="n">t_0</span><span class="p">,</span> <span class="n">u_0</span><span class="p">,</span> <span class="n">t_E</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">q</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">alpha_deg</span><span class="p">,</span> <span class="n">times</span><span class="p">,</span> <span class="n">tol</span><span class="o">=</span><span class="mf">0.01</span><span class="p">,</span> <span class="n">retol</span><span class="o">=</span><span class="mf">0.001</span><span class="p">,</span> <span class="n">return_info</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">default_strategy</span><span class="o">=</span><span class="p">(</span><span class="mi">30</span><span class="p">,</span> <span class="mi">30</span><span class="p">,</span> <span class="mi">60</span><span class="p">,</span> <span class="mi">120</span><span class="p">,</span> <span class="mi">240</span><span class="p">),</span> <span class="n">analytic</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></code>
+<h2 id="microlux.binary_mag" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">microlux</span><span class="o">.</span><span class="n">binary_mag</span><span class="p">(</span><span class="n">t_0</span><span class="p">,</span> <span class="n">u_0</span><span class="p">,</span> <span class="n">t_E</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">q</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">alpha_deg</span><span class="p">,</span> <span class="n">times</span><span class="p">:</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">tol</span><span class="o">=</span><span class="mf">0.01</span><span class="p">,</span> <span class="n">retol</span><span class="o">=</span><span class="mf">0.001</span><span class="p">,</span> <span class="n">default_strategy</span><span class="p">:</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mi">30</span><span class="p">,</span> <span class="mi">30</span><span class="p">,</span> <span class="mi">60</span><span class="p">,</span> <span class="mi">120</span><span class="p">,</span> <span class="mi">240</span><span class="p">),</span> <span class="n">analytic</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span> <span class="n">return_info</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">limb_darkening_coeff</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span></code>
 
-<a href="#microlux.extended_light_curve" class="headerlink" title="Permanent link">¤</a></h2>
+<a href="#microlux.binary_mag" class="headerlink" title="Permanent link">¤</a></h2>
 
 
     <div class="doc doc-contents first">
 
         <p>Compute the light curve of a binary lens system with finite source effects.
 This function will dynamically choose full contour integration or point source approximation based on the quadrupole test.</p>
-
-
-<p><span class="doc-section-title">Parameters:</span></p>
-    <table>
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Type</th>
-          <th>Description</th>
-          <th>Default</th>
-        </tr>
-      </thead>
-      <tbody>
-          <tr class="doc-section-item">
-            <td>
-                <code>t_0</code>
-            </td>
-            <td>
-                  <code>float</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>The time of the peak of the microlensing event.</p>
-              </div>
-            </td>
-            <td>
-                <em>required</em>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>u_0</code>
-            </td>
-            <td>
-                  <code>float</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>The impact parameter of the source trajectory.</p>
-              </div>
-            </td>
-            <td>
-                <em>required</em>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>t_E</code>
-            </td>
-            <td>
-                  <code>float</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>The Einstein crossing time.</p>
-              </div>
-            </td>
-            <td>
-                <em>required</em>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>rho</code>
-            </td>
-            <td>
-                  <code>float</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>The source radius normalized to the Einstein radius.</p>
-              </div>
-            </td>
-            <td>
-                <em>required</em>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>q</code>
-            </td>
-            <td>
-                  <code>float</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>The planet to host mass ratio of the binary lens system.</p>
-              </div>
-            </td>
-            <td>
-                <em>required</em>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>s</code>
-            </td>
-            <td>
-                  <code>float</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>The projected separation of the binary lens system normalized to the Einstein radius.</p>
-              </div>
-            </td>
-            <td>
-                <em>required</em>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>alpha_deg</code>
-            </td>
-            <td>
-                  <code>float</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>The angle between the source trajectory and the binary axis in degrees.</p>
-              </div>
-            </td>
-            <td>
-                <em>required</em>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>times</code>
-            </td>
-            <td>
-                  <code>array - like</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>The times at which to compute the model.</p>
-              </div>
-            </td>
-            <td>
-                <em>required</em>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>tol</code>
-            </td>
-            <td>
-                  <code>float</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>The tolerance for the adaptive contour integration. Defaults to 1e-2.</p>
-              </div>
-            </td>
-            <td>
-                  <code>0.01</code>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>retol</code>
-            </td>
-            <td>
-                  <code>float</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>The relative tolerance for the adaptive contour integration. Defaults to 0.001.</p>
-              </div>
-            </td>
-            <td>
-                  <code>0.001</code>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>return_info</code>
-            </td>
-            <td>
-                  <code>bool</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Whether to return additional information about the computation. Defaults to False.</p>
-              </div>
-            </td>
-            <td>
-                  <code>False</code>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>default_strategy</code>
-            </td>
-            <td>
-                  <code>tuple</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>The default strategy for the hierarchical contour integration. Defaults to (60,80,150).</p>
-              </div>
-            </td>
-            <td>
-                  <code>(30, 30, 60, 120, 240)</code>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>analytic</code>
-            </td>
-            <td>
-                  <code>bool</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Whether to use the analytic chain rule to simplify the computation graph.
-Set this to True will accelerate the computation of the gradient and will support the reverse mode differentiation containing the while loop.
-But set this to True will slow down if only calculate the model without differentiation. Defaults to True.</p>
-              </div>
-            </td>
-            <td>
-                  <code>True</code>
-            </td>
-          </tr>
-      </tbody>
-    </table>
-
-
-    <p><span class="doc-section-title">Returns:</span></p>
-    <table>
-      <thead>
-        <tr>
-<th>Name</th>          <th>Type</th>
-          <th>Description</th>
-        </tr>
-      </thead>
-      <tbody>
-          <tr class="doc-section-item">
-<td><code>magnification</code></td>            <td>
-                  <code>array</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>The magnification of the source at the given times.</p>
-              </div>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-<td><code>info</code></td>            <td>
-                  <code>tuple</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Additional information about the computation if return_info is True.</p>
-              </div>
-            </td>
-          </tr>
-      </tbody>
-    </table>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The coordinate system is consistent with the MulensModel(Center of mass).</p>
+</div>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>Currently, to deal with limb-darkening effect, we only use 10 annuli which are uniformly distributed in terms of the area,
+which is <strong>not</strong> in an adaptive scheme. So the tolerance of the limb darkening effect is not guaranteed.</p>
+</div>
+<p><strong>Parameters</strong></p>
+<ul>
+<li><code>t_0</code>: The time of the peak of the microlensing event.</li>
+<li><code>u_0</code>: The impact parameter of the source trajectory.</li>
+<li><code>t_E</code>: The Einstein crossing time.</li>
+<li><code>rho</code>: The source radius normalized to the Einstein radius.</li>
+<li><code>q</code>: The planet to host mass ratio of the binary lens system.</li>
+<li><code>s</code>: The projected separation of the binary lens system normalized to the Einstein radius.</li>
+<li><code>alpha_deg</code>: The angle between the source trajectory and the binary axis in degrees.</li>
+<li><code>times</code>: The times at which to compute the model.</li>
+<li><code>tol</code>: The tolerance for the adaptive contour integration. Defaults to 1e-2.</li>
+<li><code>retol</code>: The relative tolerance for the adaptive contour integration. Defaults to 0.001.</li>
+<li><code>default_strategy</code>: The default strategy for the contour integration. Defaults to (30, 30, 60, 120, 240). more details can be found in the <a class="autorefs autorefs-internal" href="#microlux.contour_integral"><code>microlux.contour_integral</code></a>.</li>
+<li><code>analytic</code>: Whether to use the analytic chain rule to simplify the computation graph. Set this to True will accelerate the computation of the gradient and will support the reverse mode differentiation containing the while loop. But set this to True will slow down if only calculate the model without differentiation. Defaults to True.</li>
+<li><code>return_info</code>: Whether to return additional information about the computation. Defaults to False.</li>
+<li><code>limb_darkening_coeff</code>: The limb darkening coefficient for the source star. Defaults to None. currently only support linear limb darkening.</li>
+</ul>
+<p><strong>Returns</strong></p>
+<ul>
+<li><code>magnification</code>: The magnification of the source at the given times.</li>
+<li><code>info</code>: Additional information about the computation used for debugging if return_info is True.</li>
+</ul>
 
     </div>
 
@@ -833,7 +615,7 @@ But set this to True will slow down if only calculate the model without differen
 
 
 <h2 id="microlux.point_light_curve" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">microlux</span><span class="o">.</span><span class="n">point_light_curve</span><span class="p">(</span><span class="n">trajectory_l</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">q</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">tol</span><span class="p">,</span> <span class="n">return_num</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></code>
+            <code class="highlight language-python"><span class="n">microlux</span><span class="o">.</span><span class="n">point_light_curve</span><span class="p">(</span><span class="n">trajectory_l</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">q</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">tol</span><span class="p">,</span> <span class="n">return_num</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span></code>
 
 <a href="#microlux.point_light_curve" class="headerlink" title="Permanent link">¤</a></h2>
 
@@ -841,161 +623,52 @@ But set this to True will slow down if only calculate the model without differen
     <div class="doc doc-contents first">
 
         <p>Calculate the point source light curve.</p>
+<p><strong>Parameters</strong></p>
+<ul>
+<li><code>trajectory_l</code>: The trajectory of the lensing event.</li>
+<li><code>s</code>: The projected separation between the lens and the source.</li>
+<li><code>q</code> : The mass ratio between the lens and the source.</li>
+<li><code>rho</code>: The source radius in units of the Einstein radius.</li>
+<li><code>tol</code>: The absolute tolerance for the quadrupole test.</li>
+<li><code>return_num</code>: Whether to return the number of real roots. Defaults to False.</li>
+</ul>
+<p><strong>Returns</strong></p>
+<ul>
+<li><code>result</code>: A tuple containing:<ul>
+<li>The magnification array.</li>
+<li>A boolean array indicating the validity of the calculation. If the quadrupole test is passed, the corresponding element in the boolean array is <code>True</code>.</li>
+<li>If <code>return_num</code> is <code>True</code>, the tuple will also contain the number of real roots.</li>
+</ul>
+</li>
+<li><code>cond</code>: A boolean array indicating whether the quadrupole test is passed. <code>True</code> means the quadrupole test is passed.</li>
+<li><code>mask</code>: An integer array indicating the number of real roots.</li>
+</ul>
+
+    </div>
+
+</div><hr />
+<p>Adaptive contour integration for the light curve.
+</p>
 
 
-<p><span class="doc-section-title">Parameters:</span></p>
-    <table>
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Type</th>
-          <th>Description</th>
-          <th>Default</th>
-        </tr>
-      </thead>
-      <tbody>
-          <tr class="doc-section-item">
-            <td>
-                <code>trajectory_l</code>
-            </td>
-            <td>
-                  <code>ndarray</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>The trajectory of the lensing event.</p>
-              </div>
-            </td>
-            <td>
-                <em>required</em>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>s</code>
-            </td>
-            <td>
-                  <code>float</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>The projected separation between the lens and the source.</p>
-              </div>
-            </td>
-            <td>
-                <em>required</em>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>q</code>
-            </td>
-            <td>
-                  <code>float</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>The mass ratio between the lens and the source.</p>
-              </div>
-            </td>
-            <td>
-                <em>required</em>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>rho</code>
-            </td>
-            <td>
-                  <code>float</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>The source radius in units of the Einstein radius.</p>
-              </div>
-            </td>
-            <td>
-                <em>required</em>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>tol</code>
-            </td>
-            <td>
-                  <code>float</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>The absolute tolerance for the quadrupole test.</p>
-              </div>
-            </td>
-            <td>
-                <em>required</em>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>return_num</code>
-            </td>
-            <td>
-                  <code>bool</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Whether to return the number of real roots. Defaults to False.</p>
-              </div>
-            </td>
-            <td>
-                  <code>False</code>
-            </td>
-          </tr>
-      </tbody>
-    </table>
+<div class="doc doc-object doc-function">
 
 
-    <p><span class="doc-section-title">Returns:</span></p>
-    <table>
-      <thead>
-        <tr>
-<th>Name</th>          <th>Type</th>
-          <th>Description</th>
-        </tr>
-      </thead>
-      <tbody>
-          <tr class="doc-section-item">
-<td><code>result</code></td>            <td>
-                  <code>tuple</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>A tuple containing the magnitude of the light curve and a boolean array indicating the validity of the calculation.
-if the quadrupole test is passed, the corresponding element in the boolean array is True. If the return_num is True, the tuple will also contain the number of real roots.</p>
-              </div>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-<td><code>cond</code></td>            <td>
-                  <code>array</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>A boolean array indicating whether the quadrupole test is passed. True means the quadrupole test is passed.</p>
-              </div>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-<td><code>mask</code></td>            <td>
-                  <code>(optional, array)</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>A integer array indicating the number of real roots.</p>
-              </div>
-            </td>
-          </tr>
-      </tbody>
-    </table>
+<h2 id="microlux.extended_light_curve" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">microlux</span><span class="o">.</span><span class="n">extended_light_curve</span><span class="p">(</span><span class="n">trajectory_l</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">q</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">tol</span><span class="o">=</span><span class="mf">0.01</span><span class="p">,</span> <span class="n">retol</span><span class="o">=</span><span class="mf">0.001</span><span class="p">,</span> <span class="n">default_strategy</span><span class="p">:</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mi">30</span><span class="p">,</span> <span class="mi">30</span><span class="p">,</span> <span class="mi">60</span><span class="p">,</span> <span class="mi">120</span><span class="p">,</span> <span class="mi">240</span><span class="p">),</span> <span class="n">analytic</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span> <span class="n">return_info</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">limb_darkening</span><span class="p">:</span> <span class="n">AbstractLimbDarkening</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">n_annuli</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span><span class="p">)</span></code>
+
+<a href="#microlux.extended_light_curve" class="headerlink" title="Permanent link">¤</a></h2>
+
+
+    <div class="doc doc-contents first">
+
+        <p>compute the light curve of a binary lens system with finite source effects.</p>
+<p><strong>Parameters</strong></p>
+<ul>
+<li><code>trajectory_l</code>: The trajectory in the low mass coordinate system.</li>
+<li><code>n_annuli</code>: The number of annuli for the limb darkening calculation.</li>
+<li>for the definition of the other parameters, please see <a class="autorefs autorefs-internal" href="#microlux.binary_mag"><code>microlux.binary_mag</code></a>.</li>
+</ul>
 
     </div>
 
@@ -1008,182 +681,27 @@ if the quadrupole test is passed, the corresponding element in the boolean array
 
 
 <h2 id="microlux.contour_integral" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">microlux</span><span class="o">.</span><span class="n">contour_integral</span><span class="p">(</span><span class="n">trajectory_l</span><span class="p">,</span> <span class="n">tol</span><span class="p">,</span> <span class="n">retol</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">q</span><span class="p">,</span> <span class="n">default_strategy</span><span class="o">=</span><span class="p">(</span><span class="mi">60</span><span class="p">,</span> <span class="mi">80</span><span class="p">,</span> <span class="mi">150</span><span class="p">),</span> <span class="n">analytic</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></code>
+            <code class="highlight language-python"><span class="n">microlux</span><span class="o">.</span><span class="n">contour_integral</span><span class="p">(</span><span class="n">trajectory_l</span><span class="p">,</span> <span class="n">tol</span><span class="p">,</span> <span class="n">retol</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">q</span><span class="p">,</span> <span class="n">default_strategy</span><span class="o">=</span><span class="p">(</span><span class="mi">60</span><span class="p">,</span> <span class="mi">80</span><span class="p">,</span> <span class="mi">150</span><span class="p">),</span> <span class="n">analytic</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">jnp</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">]</span></code>
 
 <a href="#microlux.contour_integral" class="headerlink" title="Permanent link">¤</a></h2>
 
 
     <div class="doc doc-contents first">
 
-        <p>Perform hierarchical sampling for adaptive contour integration.
+        <p>Perform adaptive contour integration with pre-define shaped array.
 This function is used to reduce the memory usage and improve the performance of the contour integration. The reason is that the optimal fixed array length
-is hard to determine before the code runs which the basic requirement for JIT compilation.</p>
-
-
-<p><span class="doc-section-title">Parameters:</span></p>
-    <table>
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Type</th>
-          <th>Description</th>
-          <th>Default</th>
-        </tr>
-      </thead>
-      <tbody>
-          <tr class="doc-section-item">
-            <td>
-                <code>trajectory_l</code>
-            </td>
-            <td>
-                  <code>complex</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>The trajectory of the lensing event at the low mass coordinate system.</p>
-              </div>
-            </td>
-            <td>
-                <em>required</em>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>tol</code>
-            </td>
-            <td>
-                  <code>float</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>The tolerance value.</p>
-              </div>
-            </td>
-            <td>
-                <em>required</em>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>retol</code>
-            </td>
-            <td>
-                  <code>float</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>The relative tolerance value.</p>
-              </div>
-            </td>
-            <td>
-                <em>required</em>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>rho</code>
-            </td>
-            <td>
-                  <code>float</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>The source radius normalized to the Einstein radius.</p>
-              </div>
-            </td>
-            <td>
-                <em>required</em>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>s</code>
-            </td>
-            <td>
-                  <code>float</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>The projected separation of the binary lens system normalized to the Einstein radius.</p>
-              </div>
-            </td>
-            <td>
-                <em>required</em>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>q</code>
-            </td>
-            <td>
-                  <code>float</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>The planet to host mass ratio of the binary lens system.</p>
-              </div>
-            </td>
-            <td>
-                <em>required</em>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>default_strategy</code>
-            </td>
-            <td>
-                  <code>tuple</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>The default strategy for array length. Defaults to (60,80,150).</p>
-              </div>
-            </td>
-            <td>
-                  <code>(60, 80, 150)</code>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>analytic</code>
-            </td>
-            <td>
-                  <code>bool</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Whether to use the analytic chain rule to simplify the computation graph.</p>
-              </div>
-            </td>
-            <td>
-                  <code>True</code>
-            </td>
-          </tr>
-      </tbody>
-    </table>
-
-
-    <p><span class="doc-section-title">Returns:</span></p>
-    <table>
-      <thead>
-        <tr>
-<th>Name</th>          <th>Type</th>
-          <th>Description</th>
-        </tr>
-      </thead>
-      <tbody>
-          <tr class="doc-section-item">
-<td><code>result</code></td>            <td>
-                  <code>tuple</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>A tuple containing the magnitude and the result of the contour integration.</p>
-              </div>
-            </td>
-          </tr>
-      </tbody>
-    </table>
+is hard to determine before the code runs which the basic requirement for JIT compilation. If the array length is too small, the adaptive contour integration will stop
+early and the error will be larger than the tolerance. If the array length is too large, it will cause the waste of memory and time. This waste is linear with the array length.
+So we use this pre-define shaped array to solve this problem.</p>
+<p><strong>Parameters</strong>
+- For other parameters: please see at <a class="autorefs autorefs-internal" href="#microlux.binary_mag"><code>microlux.binary_mag</code></a>
+- <code>default_strategy</code>: The default strategy for the contour integration. The array length will be added gradually according to this strategy.
+For example, if the default_strategy is (60, 80, 150), the array length in each layer will be 60, 140, 290, respectively.
+- <code>analytic</code>: Whether to use the analytic chain rule to simplify the computation graph. Set this to True will accelerate
+the computation of the gradient and will support the reverse mode differentiation containing the while loop. But set this to True
+will slow down if only calculate the model without differentiation. Defaults to True.</p>
+<p><strong>Returns</strong>
+- result: A tuple containing the magnitude and the result of the contour integration.</p>
 
     </div>
 

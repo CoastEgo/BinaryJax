@@ -496,102 +496,25 @@
 
 
 <h2 id="microlux.polynomial_solver.Aberth_Ehrlich" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">microlux</span><span class="o">.</span><span class="n">polynomial_solver</span><span class="o">.</span><span class="n">Aberth_Ehrlich</span><span class="p">(</span><span class="n">coff</span><span class="p">,</span> <span class="n">roots</span><span class="p">,</span> <span class="n">MAX_ITER</span><span class="o">=</span><span class="mi">50</span><span class="p">)</span></code>
+            <code class="highlight language-python"><span class="n">microlux</span><span class="o">.</span><span class="n">polynomial_solver</span><span class="o">.</span><span class="n">Aberth_Ehrlich</span><span class="p">(</span><span class="n">coff</span><span class="p">:</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">roots</span><span class="p">:</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">MAX_ITER</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">50</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">jnp</span><span class="o">.</span><span class="n">ndarray</span></code>
 
 <a href="#microlux.polynomial_solver.Aberth_Ehrlich" class="headerlink" title="Permanent link">¤</a></h2>
 
 
     <div class="doc doc-contents first">
 
-        <p>Solves a polynomial equation using the Aberth-Ehrlich method.
-Adopted from https://arxiv.org/abs/2206.00482 Hossein Fatheddin
-Use jax.lax.custom_root to get precise derivative in automatic differentiation</p>
-
-
-<p><span class="doc-section-title">Parameters:</span></p>
-    <table>
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Type</th>
-          <th>Description</th>
-          <th>Default</th>
-        </tr>
-      </thead>
-      <tbody>
-          <tr class="doc-section-item">
-            <td>
-                <code>coff</code>
-            </td>
-            <td>
-                  <code>ndarray</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Coefficients of the polynomial equation.</p>
-              </div>
-            </td>
-            <td>
-                <em>required</em>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>roots</code>
-            </td>
-            <td>
-                  <code>ndarray</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Initial guesses for the roots of the polynomial equation.</p>
-              </div>
-            </td>
-            <td>
-                <em>required</em>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>MAX_ITER</code>
-            </td>
-            <td>
-                  <code>int</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Maximum number of iterations. Defaults to 100.</p>
-              </div>
-            </td>
-            <td>
-                  <code>50</code>
-            </td>
-          </tr>
-      </tbody>
-    </table>
-
-
-    <p><span class="doc-section-title">Returns:</span></p>
-    <table>
-      <thead>
-        <tr>
-<th>Name</th>          <th>Type</th>
-          <th>Description</th>
-        </tr>
-      </thead>
-      <tbody>
-          <tr class="doc-section-item">
-<td><code>roots</code></td>            <td>
-                  <code>ndarray</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>The roots of the polynomial equation.</p>
-              </div>
-            </td>
-          </tr>
-      </tbody>
-    </table>
+        <p>Solves a polynomial equation using the Aberth-Ehrlich method. Adapted from <a href="https://github.com/afoures/aberth-method">https://github.com/afoures/aberth-method</a>.
+Use <code>jax.lax.custom_root</code> to get precise derivative in automatic differentiation.</p>
+<p><strong>Parameters</strong>:</p>
+<ul>
+<li><code>coff</code>: Coefficients of the polynomial equation.</li>
+<li><code>roots</code>: Initial guesses for the roots of the polynomial equation.</li>
+<li><code>MAX_ITER</code>: Maximum number of iterations. Defaults to 100.</li>
+</ul>
+<p><strong>Returns</strong>:</p>
+<ul>
+<li><code>roots</code>: The roots of the polynomial equation.</li>
+</ul>
 
     </div>
 
@@ -610,72 +533,15 @@ Use jax.lax.custom_root to get precise derivative in automatic differentiation</
 
     <div class="doc doc-contents first">
 
-        <p>Solves the linear sum assignment problem using the Hungarian algorithm.
-adapted from https://github.com/google/jax/issues/10403</p>
-
-
-<p><span class="doc-section-title">Parameters:</span></p>
-    <table>
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Type</th>
-          <th>Description</th>
-          <th>Default</th>
-        </tr>
-      </thead>
-      <tbody>
-          <tr class="doc-section-item">
-            <td>
-                <code>cost</code>
-            </td>
-            <td>
-                  <code>ndarray</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>The cost matrix representing the assignment problem.</p>
-              </div>
-            </td>
-            <td>
-                <em>required</em>
-            </td>
-          </tr>
-      </tbody>
-    </table>
-
-
-    <p><span class="doc-section-title">Returns:</span></p>
-    <table>
-      <thead>
-        <tr>
-<th>Name</th>          <th>Type</th>
-          <th>Description</th>
-        </tr>
-      </thead>
-      <tbody>
-          <tr class="doc-section-item">
-<td><code>row_ind</code></td>            <td>
-                  <code>ndarray</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>The row indices of the assigned elements.</p>
-              </div>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-<td><code>col_ind</code></td>            <td>
-                  <code>ndarray</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>The column indices of the assigned elements.</p>
-              </div>
-            </td>
-          </tr>
-      </tbody>
-    </table>
+        <p>Solves the linear sum assignment problem using the Hungarian algorithm. Adapted from
+<a href="https://github.com/google/jax/issues/10403">https://github.com/google/jax/issues/10403</a></p>
+<p>Parameters:
+- <code>cost</code>: The cost matrix representing the assignment problem.</p>
+<p>Returns:</p>
+<ul>
+<li><code>row_ind</code>: The row indices of the assigned elements.</li>
+<li><code>col_ind</code>: The column indices of the assigned elements.</li>
+</ul>
 
     </div>
 
