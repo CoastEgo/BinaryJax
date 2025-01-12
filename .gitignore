@@ -1,6 +1,5 @@
-test/*.txt
-*.mp4
-*.png
+
+test/picture
 *.code-workspace
 .vscode/
 *.pyc
