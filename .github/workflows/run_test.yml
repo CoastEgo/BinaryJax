@@ -3,8 +3,7 @@ name: run tests
 # push to master should already be tested locally
 on:
   pull_request:
-  push:
-    branches: ["master"]
+    
 jobs:
   run_tests:
     strategy:
