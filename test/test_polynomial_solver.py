@@ -13,6 +13,7 @@ q_values = [1e-1, 1e-2, 1e-3]
 s_values = [0.6, 1.0, 1.4]
 
 
+@pytest.mark.fast
 @pytest.mark.parametrize("rho, q, s", product(rho_values, q_values, s_values))
 def test_polynomial_caustic(rho, q, s):
     trajectory_c = get_caustic_permutation(rho, q, s, n_points=100)
@@ -35,6 +36,7 @@ def test_polynomial_caustic(rho, q, s):
     assert jnp.allclose(AE_roots, numpy_roots, atol=1e-10)
 
 
+@pytest.mark.fast
 @pytest.mark.parametrize("q, s", product(q_values, s_values))
 def test_polynomial_uniform(q, s):
     x, y = jax.random.uniform(jax.random.PRNGKey(0), (2, 100000), minval=-2, maxval=2)

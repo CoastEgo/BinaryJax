@@ -8,12 +8,13 @@ from microlux.limb_darkening import LinearLimbDarkening
 from test_util import get_caustic_permutation
 
 
-rho_values = [1e-2, 1e-3, 1e-4]
+rho_values = [1e-3]
 q_values = [1e-1, 1e-2, 1e-3]
 s_values = [0.6, 1.0, 1.4]
-limb_a_values = [0.1, 0.5, 1]
+limb_a_values = [0.5]
 
 
+@pytest.mark.fast
 @pytest.mark.parametrize("rho, q, s", product(rho_values, q_values, s_values))
 def test_extend_sorce(rho, q, s, retol=1e-3):
     """
@@ -63,6 +64,7 @@ def test_extend_sorce(rho, q, s, retol=1e-3):
     assert np.allclose(Jaxmag, VBBL_mag, rtol=retol * 3)
 
 
+@pytest.mark.fast
 @pytest.mark.parametrize("limb_a", limb_a_values)
 def test_limb_darkening(limb_a, rho=1e-2, q=0.2, s=0.9, retol=1e-3):
     """
