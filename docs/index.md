@@ -1,18 +1,42 @@
 # Welcome to microlux
 
-microlux is a Jax-based package that is used to calculate the binary lensing light curve with the finite source effect using the contour integration method.  We inherit the novel features in <a href='https://github.com/valboz/VBBinaryLensing'>VBBinaryLensing</a> including parabolic correction and optimal sampling to maximize the performance. This is built on the <a href='https://github.com/google/jax'>JAX</a> library which provides a NumPy-like interface with GPU and automatic differentiation support for high-performance machine learning research. Through automatic differentiation and our package, we get access to the accurate gradient for exploring more advanced algorithms.
+`microlux` is a <a href='https://github.com/jax-ml/jax'>Jax</a>-based package that can calculate the binary lensing light curve and its derivatives both efficiently and accurately.  We use the modified adaptive contour integratoin in <a href='https://github.com/valboz/VBBinaryLensing'>`VBBinaryLensing`</a> to maximize the performance. 
+With the access to the gradient, we can use more advanced algorithms for microlensing modeling, such as Hamiltonian Monte Carlo (HMC) in <a href='https://num.pyro.ai/en/latest/mcmc.html#numpyro.infer.hmc.NUTS'>`numpyro`</a>.
 
 ## Features
 
-- Optimal sampling and contour integration with error control to calculate the binary lens microlensing light curve with finite source effect.
-- Robust and accurate calculation: Widely test over the broad parameter space compared with VBBinaryLensing
+- Adaptive contour integration with error control to calculate the binary lens microlensing light curve with finite source effect.
+- Robust and accurate calculation: Widely test over the broad parameter space compared with `VBBinaryLensing`.
 - Fast speed: Fully compatible with JIT compilation to speed up calculation. 
-- Accurate gradient: Automatic differentiation with novel error estimator to ensure the convergence of gradient. 
-- Aberth–Ehrlich method to find the roots of the polynomial and liner sum assignment algorithm to match the images
-- Application on real events modeling using NUTS in Numpyro
+- Accurate gradient: Automatic differentiation with specially designed error estimator to ensure the convergence of gradient.
+- <a href='https://en.wikipedia.org/wiki/Aberth_method'>Aberth–Ehrlich</a> method to find the roots of the polynomial and <a href='https://docs.scipy.org/doc/scipy-1.15.0/reference/generated/scipy.optimize.linear_sum_assignment.html'>Liner sum assignment </a> algorithm to match the images.
+- [Application](example/KB0371.ipynb) on the real event modeling.
 
-## Reference
-Under development and Paper is coming soon.
 
 ## Quick Start
-Under development
+Please make sure that you have known the basic usage of `Jax`. Check the [Jax documentation](https://jax.readthedocs.io/en/latest/quickstart.html) for more details.
+```python
+import jax.numpy as jnp
+from microlux import binary_mag
+
+b = 0.1
+t_0 = 0.
+t_E = 1.
+alphadeg = 270.
+q = 0.2
+s = 0.9
+rho = 10 ** (-2)
+trajectory_n = 1000
+times = jnp.linspace(t_0 - 1.0 * t_E, t_0 + 1.0 * t_E, trajectory_n)
+#calculate the binary lensing magnification
+mag = binary_mag(t_0, b, t_E, rho, q, s, alphadeg, times, tol=1e-3, retol=1e-3)
+```
+
+More examples can be found in the [`test`](https://github.com/CoastEgo/microlux/tree/master/test) folder.
+
+## Citation
+If you use this package for your research, please cite our paper:
+
+- A differentiable binary microlensing model using adaptive contour integration method: <a href='https://arxiv.org/abs/2501.07268'>in arXiv</a>
+
+and consider starrring this repository on <a href='https://github.com/CoastEgo/microlux'>Github</a>:

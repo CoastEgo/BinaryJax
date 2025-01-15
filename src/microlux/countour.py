@@ -85,6 +85,7 @@ def contour_integral(
     So we use this pre-define shaped array to solve this problem.
 
     **Parameters**
+
     - For other parameters: please see at [`microlux.binary_mag`][]
     - `default_strategy`: The default strategy for the contour integration. The array length will be added gradually according to this strategy.
     For example, if the default_strategy is (60, 80, 150), the array length in each layer will be 60, 140, 290, respectively.
@@ -93,7 +94,8 @@ def contour_integral(
     will slow down if only calculate the model without differentiation. Defaults to True.
 
     **Returns**
-    - result: A tuple containing the magnitude and the result of the contour integration.
+
+    - `result`: A tuple containing the magnitude and the result of the contour integration.
     """
 
     # JIT compile operation needs shape of the array to be determined.
