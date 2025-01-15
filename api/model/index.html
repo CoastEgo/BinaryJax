@@ -693,15 +693,19 @@ This function is used to reduce the memory usage and improve the performance of 
 is hard to determine before the code runs which the basic requirement for JIT compilation. If the array length is too small, the adaptive contour integration will stop
 early and the error will be larger than the tolerance. If the array length is too large, it will cause the waste of memory and time. This waste is linear with the array length.
 So we use this pre-define shaped array to solve this problem.</p>
-<p><strong>Parameters</strong>
-- For other parameters: please see at <a class="autorefs autorefs-internal" href="#microlux.binary_mag"><code>microlux.binary_mag</code></a>
-- <code>default_strategy</code>: The default strategy for the contour integration. The array length will be added gradually according to this strategy.
-For example, if the default_strategy is (60, 80, 150), the array length in each layer will be 60, 140, 290, respectively.
-- <code>analytic</code>: Whether to use the analytic chain rule to simplify the computation graph. Set this to True will accelerate
+<p><strong>Parameters</strong></p>
+<ul>
+<li>For other parameters: please see at <a class="autorefs autorefs-internal" href="#microlux.binary_mag"><code>microlux.binary_mag</code></a></li>
+<li><code>default_strategy</code>: The default strategy for the contour integration. The array length will be added gradually according to this strategy.
+For example, if the default_strategy is (60, 80, 150), the array length in each layer will be 60, 140, 290, respectively.</li>
+<li><code>analytic</code>: Whether to use the analytic chain rule to simplify the computation graph. Set this to True will accelerate
 the computation of the gradient and will support the reverse mode differentiation containing the while loop. But set this to True
-will slow down if only calculate the model without differentiation. Defaults to True.</p>
-<p><strong>Returns</strong>
-- result: A tuple containing the magnitude and the result of the contour integration.</p>
+will slow down if only calculate the model without differentiation. Defaults to True.</li>
+</ul>
+<p><strong>Returns</strong></p>
+<ul>
+<li><code>result</code>: A tuple containing the magnitude and the result of the contour integration.</li>
+</ul>
 
     </div>
 

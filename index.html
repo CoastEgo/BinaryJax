@@ -320,18 +320,18 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#reference" class="md-nav__link">
+  <a href="#quick-start" class="md-nav__link">
     <span class="md-ellipsis">
-      Reference
+      Quick Start
     </span>
   </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#quick-start" class="md-nav__link">
+  <a href="#citation" class="md-nav__link">
     <span class="md-ellipsis">
-      Quick Start
+      Citation
     </span>
   </a>
   
@@ -542,20 +542,41 @@
 
 
 <h1 id="welcome-to-microlux">Welcome to microlux<a class="headerlink" href="#welcome-to-microlux" title="Permanent link">¤</a></h1>
-<p>microlux is a Jax-based package that is used to calculate the binary lensing light curve with the finite source effect using the contour integration method.  We inherit the novel features in <a href='https://github.com/valboz/VBBinaryLensing'>VBBinaryLensing</a> including parabolic correction and optimal sampling to maximize the performance. This is built on the <a href='https://github.com/google/jax'>JAX</a> library which provides a NumPy-like interface with GPU and automatic differentiation support for high-performance machine learning research. Through automatic differentiation and our package, we get access to the accurate gradient for exploring more advanced algorithms.</p>
+<p><code>microlux</code> is a <a href='https://github.com/jax-ml/jax'>Jax</a>-based package that can calculate the binary lensing light curve and its derivatives both efficiently and accurately.  We use the modified adaptive contour integratoin in <a href='https://github.com/valboz/VBBinaryLensing'><code>VBBinaryLensing</code></a> to maximize the performance. 
+With the access to the gradient, we can use more advanced algorithms for microlensing modeling, such as Hamiltonian Monte Carlo (HMC) in <a href='https://num.pyro.ai/en/latest/mcmc.html#numpyro.infer.hmc.NUTS'><code>numpyro</code></a>.</p>
 <h2 id="features">Features<a class="headerlink" href="#features" title="Permanent link">¤</a></h2>
 <ul>
-<li>Optimal sampling and contour integration with error control to calculate the binary lens microlensing light curve with finite source effect.</li>
-<li>Robust and accurate calculation: Widely test over the broad parameter space compared with VBBinaryLensing</li>
+<li>Adaptive contour integration with error control to calculate the binary lens microlensing light curve with finite source effect.</li>
+<li>Robust and accurate calculation: Widely test over the broad parameter space compared with <code>VBBinaryLensing</code>.</li>
 <li>Fast speed: Fully compatible with JIT compilation to speed up calculation. </li>
-<li>Accurate gradient: Automatic differentiation with novel error estimator to ensure the convergence of gradient. </li>
-<li>Aberth–Ehrlich method to find the roots of the polynomial and liner sum assignment algorithm to match the images</li>
-<li>Application on real events modeling using NUTS in Numpyro</li>
+<li>Accurate gradient: Automatic differentiation with specially designed error estimator to ensure the convergence of gradient.</li>
+<li><a href='https://en.wikipedia.org/wiki/Aberth_method'>Aberth–Ehrlich</a> method to find the roots of the polynomial and <a href='https://docs.scipy.org/doc/scipy-1.15.0/reference/generated/scipy.optimize.linear_sum_assignment.html'>Liner sum assignment </a> algorithm to match the images.</li>
+<li><a href="example/KB0371/">Application</a> on the real event modeling.</li>
 </ul>
-<h2 id="reference">Reference<a class="headerlink" href="#reference" title="Permanent link">¤</a></h2>
-<p>Under development and Paper is coming soon.</p>
 <h2 id="quick-start">Quick Start<a class="headerlink" href="#quick-start" title="Permanent link">¤</a></h2>
-<p>Under development</p>
+<p>Please make sure that you have known the basic usage of <code>Jax</code>. Check the <a href="https://jax.readthedocs.io/en/latest/quickstart.html">Jax documentation</a> for more details.
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">microlux</span><span class="w"> </span><span class="kn">import</span> <span class="n">binary_mag</span>
+
+<span class="n">b</span> <span class="o">=</span> <span class="mf">0.1</span>
+<span class="n">t_0</span> <span class="o">=</span> <span class="mf">0.</span>
+<span class="n">t_E</span> <span class="o">=</span> <span class="mf">1.</span>
+<span class="n">alphadeg</span> <span class="o">=</span> <span class="mf">270.</span>
+<span class="n">q</span> <span class="o">=</span> <span class="mf">0.2</span>
+<span class="n">s</span> <span class="o">=</span> <span class="mf">0.9</span>
+<span class="n">rho</span> <span class="o">=</span> <span class="mi">10</span> <span class="o">**</span> <span class="p">(</span><span class="o">-</span><span class="mi">2</span><span class="p">)</span>
+<span class="n">trajectory_n</span> <span class="o">=</span> <span class="mi">1000</span>
+<span class="n">times</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="n">t_0</span> <span class="o">-</span> <span class="mf">1.0</span> <span class="o">*</span> <span class="n">t_E</span><span class="p">,</span> <span class="n">t_0</span> <span class="o">+</span> <span class="mf">1.0</span> <span class="o">*</span> <span class="n">t_E</span><span class="p">,</span> <span class="n">trajectory_n</span><span class="p">)</span>
+<span class="c1">#calculate the binary lensing magnification</span>
+<span class="n">mag</span> <span class="o">=</span> <span class="n">binary_mag</span><span class="p">(</span><span class="n">t_0</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">t_E</span><span class="p">,</span> <span class="n">rho</span><span class="p">,</span> <span class="n">q</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">alphadeg</span><span class="p">,</span> <span class="n">times</span><span class="p">,</span> <span class="n">tol</span><span class="o">=</span><span class="mf">1e-3</span><span class="p">,</span> <span class="n">retol</span><span class="o">=</span><span class="mf">1e-3</span><span class="p">)</span>
+</code></pre></div></p>
+<p>More examples can be found in the <a href="https://github.com/CoastEgo/microlux/tree/master/test"><code>test</code></a> folder.</p>
+<h2 id="citation">Citation<a class="headerlink" href="#citation" title="Permanent link">¤</a></h2>
+<p>If you use this package for your research, please cite our paper:</p>
+<ul>
+<li>A differentiable binary microlensing model using adaptive contour integration method: <a href='https://arxiv.org/abs/2501.07268'>in arXiv</a></li>
+</ul>
+<p>and consider starrring this repository on <a href='https://github.com/CoastEgo/microlux'>Github</a>:</p>
 
 
 
