@@ -1,6 +1,6 @@
 ## microlux: Microlensing using Jax
 
-![Test Status](https://github.com/coastego/microlux/actions/workflows/run_test.yml/badge.svg)
+[![Test Status](https://github.com/coastego/microlux/actions/workflows/run_test.yml/badge.svg)](https://github.com/CoastEgo/microlux/actions/workflows/run_test.yml)
 [![Documentation Status](https://github.com/coastego/microlux/actions/workflows/build_docs.yml/badge.svg)](https://coastego.github.io/microlux/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 ---
